@@ -32,3 +32,20 @@ class CliMainTests(unittest.TestCase):
 
         self.assertEqual(result.exit_code, 0)
         self.assertNotIn("interactive shell", result.stdout)
+
+    def test_root_command_runs_interactive_shell(self) -> None:
+        runner = CliRunner()
+
+        with runner.isolated_filesystem():
+            result = runner.invoke(app, input="hello\n/exit\n")
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("You said: hello", result.stdout)
+
+    def test_resume_command_uses_placeholder_flow(self) -> None:
+        runner = CliRunner()
+
+        result = runner.invoke(app, ["resume"])
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("resume is not implemented yet", result.stdout.lower())

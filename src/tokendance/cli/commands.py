@@ -11,6 +11,10 @@ from tokendance.context.compact import CompactService
 from tokendance.context.memory import MemoryStore
 from tokendance.context.resume import ResumeService
 from tokendance.context.transcript_search import TranscriptSearcher
+from tokendance.git.quality import QualityGate
+from tokendance.git.review import ReviewService
+from tokendance.git.revert import RevertService
+from tokendance.git.service import GitService
 
 
 @dataclass
@@ -60,6 +64,14 @@ class CommandRouter:
             return _compact(context)
         if command == "/resume":
             return _resume(context)
+        if command == "/diff":
+            return _diff(context)
+        if command == "/review":
+            return _review(context)
+        if command == "/revert":
+            return _revert(argument, context)
+        if command == "/quality":
+            return _quality(argument, context)
         return CommandResult(f"Unknown slash command: {command}")
 
 
@@ -85,6 +97,10 @@ def _help_text() -> str:
             "/transcript search <query>",
             "/compact",
             "/resume",
+            "/diff",
+            "/review",
+            "/revert latest",
+            "/quality <command>",
         ]
     )
 
@@ -199,4 +215,50 @@ def _resume(context: CommandContext) -> CommandResult:
         return CommandResult(str(exc))
     return CommandResult(
         f"Resumed session {result.state.session_id} with {len(result.recent_records)} recent transcript events."
+    )
+
+
+def _diff(context: CommandContext) -> CommandResult:
+    try:
+        diff = GitService(context.project_path).diff()
+    except RuntimeError as exc:
+        return CommandResult(str(exc))
+    return CommandResult(diff or "No diff.")
+
+
+def _review(context: CommandContext) -> CommandResult:
+    try:
+        diff = GitService(context.project_path).diff()
+    except RuntimeError as exc:
+        return CommandResult(str(exc))
+    report = ReviewService().review_diff(diff)
+    if not report.findings:
+        return CommandResult("No review findings.")
+    return CommandResult("\n".join(f"[{finding.severity}] {finding.message}" for finding in report.findings))
+
+
+def _revert(argument: str, context: CommandContext) -> CommandResult:
+    if argument != "latest":
+        return CommandResult("Usage: /revert latest")
+    if context.session_dir is None:
+        return CommandResult("No current session for revert.")
+    patches = sorted((context.session_dir / "edits").glob("patch-*.patch"))
+    if not patches:
+        return CommandResult("No patch artifacts found.")
+    result = RevertService(context.project_path).revert_patch_artifact(patches[-1])
+    return CommandResult(result.message)
+
+
+def _quality(argument: str, context: CommandContext) -> CommandResult:
+    if not argument:
+        return CommandResult("Usage: /quality <command>")
+    result = QualityGate(context.project_path).run(argument)
+    return CommandResult(
+        "\n".join(
+            [
+                f"exit_code: {result.exit_code}",
+                result.stdout_preview.rstrip(),
+                result.stderr_preview.rstrip(),
+            ]
+        ).strip()
     )

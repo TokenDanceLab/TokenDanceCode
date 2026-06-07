@@ -1,5 +1,6 @@
 import unittest
 import tempfile
+import subprocess
 from pathlib import Path
 
 from tokendance.cli.commands import CommandContext, CommandRouter
@@ -75,3 +76,59 @@ class CommandRouterTests(unittest.TestCase):
             result = CommandRouter().handle("/compact", context)
 
         self.assertIn("compact", result.message.lower())
+
+    def test_diff_and_review_commands_use_git_diff(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True, text=True)
+            subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "Tokendance Test"], cwd=root, check=True)
+            (root / "notes.txt").write_text("old\n", encoding="utf-8")
+            subprocess.run(["git", "add", "notes.txt"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-m", "initial"], cwd=root, check=True, capture_output=True, text=True)
+            (root / "notes.txt").write_text("old\nTODO\n", encoding="utf-8")
+            context = CommandContext(session_id="session-1", project_path=root)
+
+            diff = CommandRouter().handle("/diff", context)
+            review = CommandRouter().handle("/review", context)
+
+        self.assertIn("+TODO", diff.message)
+        self.assertIn("TODO", review.message)
+
+    def test_revert_latest_uses_latest_patch_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            session_dir = root / ".tokendance" / "sessions" / "session-1"
+            edits = session_dir / "edits"
+            edits.mkdir(parents=True)
+            (root / "notes.txt").write_text("new\n", encoding="utf-8")
+            (edits / "patch-0001.patch").write_text(
+                "\n".join(
+                    [
+                        "*** Begin Patch",
+                        "*** Update File: notes.txt",
+                        "@@",
+                        "-old",
+                        "+new",
+                        "*** End Patch",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            context = CommandContext(session_id="session-1", project_path=root, session_dir=session_dir)
+
+            result = CommandRouter().handle("/revert latest", context)
+            content = (root / "notes.txt").read_text(encoding="utf-8")
+
+        self.assertIn("reverted", result.message.lower())
+        self.assertEqual(content, "old\n")
+
+    def test_quality_runs_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            result = CommandRouter().handle(
+                "/quality python -c \"print('quality-ok')\"",
+                CommandContext(session_id="session-1", project_path=root),
+            )
+
+        self.assertIn("quality-ok", result.message)

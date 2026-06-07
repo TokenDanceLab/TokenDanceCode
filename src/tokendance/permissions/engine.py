@@ -9,8 +9,39 @@ from tokendance.permissions.powershell import PowerShellRiskLevel, classify_powe
 
 PermissionAction = Literal["allow", "ask", "deny"]
 
-_READ_TOOLS = frozenset({"read_file", "glob", "glob_files", "list_files"})
-_WRITE_TOOLS = frozenset({"write_file", "edit_file", "apply_patch", "apply_patch_tool", "patch"})
+_READ_TOOLS = frozenset(
+    {
+        "read_file",
+        "glob",
+        "glob_files",
+        "list_files",
+        "task_get",
+        "task_list",
+        "todo_list",
+        "subagent_list",
+        "worktree_list",
+    }
+)
+_WRITE_TOOLS = frozenset(
+    {
+        "write_file",
+        "edit_file",
+        "apply_patch",
+        "apply_patch_tool",
+        "patch",
+        "task_create",
+        "task_update_status",
+        "task_add_dependency",
+        "task_link_session",
+        "task_link_worktree",
+        "todo_write",
+        "todo_update",
+        "subagent_run",
+        "worktree_create",
+        "worktree_keep",
+        "worktree_remove",
+    }
+)
 _SHELL_TOOLS = frozenset({"run_powershell", "powershell", "shell", "run_shell"})
 _PATH_KEYS = frozenset({"path", "file_path", "target_path", "directory", "cwd"})
 _PATCH_FILE_PREFIXES = (

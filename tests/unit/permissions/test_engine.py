@@ -86,8 +86,20 @@ class PermissionEngineTests(unittest.TestCase):
         self.assertEqual(ask.action, "ask")
         self.assertEqual(denied.action, "deny")
 
+    def test_state_and_delegation_tools_follow_read_write_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            engine = PermissionEngine()
+
+            read_decision = engine.evaluate("task_list", {}, "default", root)
+            write_decision = engine.evaluate("task_create", {"title": "Draft"}, "default", root)
+            safe_write_decision = engine.evaluate("worktree_create", {"name": "agent-wt"}, "safe", root)
+
+        self.assertEqual(read_decision.action, "allow")
+        self.assertEqual(write_decision.action, "allow")
+        self.assertEqual(safe_write_decision.action, "ask")
+
     def test_invalid_mode_raises_clear_error(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaisesRegex(ValueError, "invalid"):
                 PermissionEngine().evaluate("read_file", {"path": "notes.txt"}, "invalid", Path(tmp))
-

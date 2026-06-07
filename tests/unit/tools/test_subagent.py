@@ -50,11 +50,14 @@ class SubagentToolTests(unittest.TestCase):
 
             created = specs["worktree_create"].handler(context, {"name": "tool-wt"})
             listed = specs["worktree_list"].handler(context, {})
+            kept = specs["worktree_keep"].handler(context, {"name": "tool-wt"})
             removed = specs["worktree_remove"].handler(context, {"name": "tool-wt"})
 
         self.assertEqual(created.status, "ok")
         self.assertEqual(created.data["worktree"]["name"], "tool-wt")
         self.assertIn("tool-wt", [item["name"] for item in listed.data["worktrees"]])
+        self.assertEqual(kept.status, "ok")
+        self.assertIn("kept", kept.content.lower())
         self.assertEqual(removed.status, "ok")
 
 

@@ -63,6 +63,14 @@ def worktree_list(context: ToolContext, arguments: dict[str, Any]) -> ToolResult
         return ToolResult.error(str(exc))
 
 
+def worktree_keep(context: ToolContext, arguments: dict[str, Any]) -> ToolResult:
+    try:
+        result = WorktreeService(context.workspace_root).keep(_required_arg(arguments, "name"))
+        return ToolResult.ok(content=result.message, data={"kept": True, "name": result.name})
+    except (KeyError, RuntimeError, ValueError) as exc:
+        return ToolResult.error(str(exc))
+
+
 def worktree_remove(context: ToolContext, arguments: dict[str, Any]) -> ToolResult:
     try:
         result = WorktreeService(context.workspace_root).remove(
@@ -82,6 +90,7 @@ def build_subagent_tool_specs() -> list[ToolSpec]:
         ToolSpec("subagent_list", "List delegated subagent results.", {"type": "object"}, "read", subagent_list),
         ToolSpec("worktree_create", "Create an isolated git worktree.", _worktree_create_schema(), "write", worktree_create),
         ToolSpec("worktree_list", "List Tokendance worktrees.", {"type": "object"}, "read", worktree_list),
+        ToolSpec("worktree_keep", "Keep an isolated git worktree for review.", _worktree_keep_schema(), "write", worktree_keep),
         ToolSpec("worktree_remove", "Remove an isolated git worktree.", _worktree_remove_schema(), "write", worktree_remove),
     ]
 
@@ -118,5 +127,13 @@ def _worktree_remove_schema() -> dict[str, Any]:
     return {
         "type": "object",
         "properties": {"name": {"type": "string"}, "discard_changes": {"type": "boolean"}},
+        "required": ["name"],
+    }
+
+
+def _worktree_keep_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {"name": {"type": "string"}},
         "required": ["name"],
     }

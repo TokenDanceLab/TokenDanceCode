@@ -12,6 +12,9 @@ from tokendance.tools.file import build_file_tool_specs
 from tokendance.tools.patch import build_patch_tool_specs
 from tokendance.tools.registry import ToolRegistry
 from tokendance.tools.shell import build_shell_tool_specs
+from tokendance.tools.subagent import build_subagent_tool_specs
+from tokendance.tools.task import build_task_tool_specs
+from tokendance.tools.todo import build_todo_tool_specs
 
 
 class CoreRuntime:
@@ -42,6 +45,13 @@ class CoreRuntime:
 
 def _default_registry() -> ToolRegistry:
     registry = ToolRegistry()
-    for spec in [*build_file_tool_specs(), *build_patch_tool_specs(), *build_shell_tool_specs()]:
+    for spec in [
+        *build_file_tool_specs(),
+        *build_patch_tool_specs(),
+        *build_shell_tool_specs(),
+        *build_task_tool_specs(),
+        *build_todo_tool_specs(),
+        *build_subagent_tool_specs(),
+    ]:
         registry.register(spec)
     return registry

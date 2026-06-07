@@ -1,0 +1,34 @@
+import unittest
+
+from typer.testing import CliRunner
+
+from tokendance.cli.main import app
+
+
+class CliMainTests(unittest.TestCase):
+    def test_version_flag_prints_package_version(self) -> None:
+        runner = CliRunner()
+
+        result = runner.invoke(app, ["--version"])
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("tokendance 0.1.0", result.stdout)
+
+    def test_doctor_reports_environment_basics(self) -> None:
+        runner = CliRunner()
+
+        result = runner.invoke(app, ["doctor"])
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("Python:", result.stdout)
+        self.assertIn("OS:", result.stdout)
+        self.assertIn("Shell:", result.stdout)
+        self.assertIn("CWD:", result.stdout)
+
+    def test_doctor_does_not_start_interactive_shell(self) -> None:
+        runner = CliRunner()
+
+        result = runner.invoke(app, ["doctor"])
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertNotIn("interactive shell", result.stdout)

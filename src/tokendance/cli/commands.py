@@ -7,6 +7,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from tokendance.config import TokendanceConfig
+from tokendance.context.compact import CompactService
+from tokendance.context.memory import MemoryStore
+from tokendance.context.resume import ResumeService
+from tokendance.context.transcript_search import TranscriptSearcher
 
 
 @dataclass
@@ -17,6 +21,9 @@ class CommandContext:
     permission_mode: str = "default"
     mode: str = "work"
     project_path: Path = Path.cwd()
+    session_dir: Path | None = None
+    transcript_path: Path | None = None
+    home: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -45,6 +52,14 @@ class CommandRouter:
             return CommandResult(_config_text(context))
         if command == "/doctor":
             return CommandResult(build_doctor_text())
+        if command == "/memory":
+            return _memory(argument, context)
+        if command == "/transcript":
+            return _transcript(argument, context)
+        if command == "/compact":
+            return _compact(context)
+        if command == "/resume":
+            return _resume(context)
         return CommandResult(f"Unknown slash command: {command}")
 
 
@@ -66,6 +81,10 @@ def _help_text() -> str:
             "/permissions default|safe|auto|yolo",
             "/config",
             "/doctor",
+            "/memory",
+            "/transcript search <query>",
+            "/compact",
+            "/resume",
         ]
     )
 
@@ -130,4 +149,54 @@ def build_doctor_text() -> str:
             f"Shell: {shell}",
             f"CWD: {Path.cwd()}",
         ]
+    )
+
+
+def _memory(argument: str, context: CommandContext) -> CommandResult:
+    store = MemoryStore(project_root=context.project_path, home=context.home)
+    if argument.startswith("add project "):
+        store.add_project_memory(argument.removeprefix("add project ").strip())
+        return CommandResult("Project memory saved.")
+    if argument.startswith("add global "):
+        store.add_global_memory(argument.removeprefix("add global ").strip())
+        return CommandResult("Global memory saved.")
+    project_entries = store.list_project_memory()
+    global_entries = store.list_global_memory()
+    lines = ["Project memory:"]
+    lines.extend(f"- {entry}" for entry in project_entries)
+    lines.append("Global memory:")
+    lines.extend(f"- {entry}" for entry in global_entries)
+    return CommandResult("\n".join(lines))
+
+
+def _transcript(argument: str, context: CommandContext) -> CommandResult:
+    if context.transcript_path is None:
+        return CommandResult("No current transcript.")
+    if argument.startswith("search "):
+        query = argument.removeprefix("search ").strip()
+        records = TranscriptSearcher(context.transcript_path).search(query)
+        if not records:
+            return CommandResult("No transcript matches.")
+        lines = [
+            f"seq={record['seq']} type={record['type']}"
+            for record in records[:10]
+        ]
+        return CommandResult("\n".join(lines))
+    return CommandResult("Usage: /transcript search <query>")
+
+
+def _compact(context: CommandContext) -> CommandResult:
+    if context.session_dir is None or context.transcript_path is None:
+        return CommandResult("No current session to compact.")
+    summary_path = CompactService(context.session_dir).manual_compact(context.transcript_path)
+    return CommandResult(f"Compact summary written: {summary_path}")
+
+
+def _resume(context: CommandContext) -> CommandResult:
+    try:
+        result = ResumeService(context.project_path).latest()
+    except FileNotFoundError as exc:
+        return CommandResult(str(exc))
+    return CommandResult(
+        f"Resumed session {result.state.session_id} with {len(result.recent_records)} recent transcript events."
     )

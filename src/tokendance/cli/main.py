@@ -9,6 +9,7 @@ from rich.console import Console
 from tokendance import __version__
 from tokendance.cli.commands import build_doctor_text
 from tokendance.cli.shell import InteractiveShell
+from tokendance.context.resume import ResumeService
 
 console = Console()
 
@@ -54,11 +55,18 @@ def doctor() -> None:
 
 @app.command()
 def resume(session_id: str | None = None) -> None:
-    """Placeholder for explicit session resume."""
-    if session_id:
-        console.print(f"Resume is not implemented yet for session {session_id}.")
-    else:
-        console.print("Resume is not implemented yet.")
+    """Resume the latest local session metadata."""
+    try:
+        result = ResumeService(Path.cwd()).latest()
+    except FileNotFoundError as exc:
+        console.print(str(exc))
+        return
+    if session_id and result.state.session_id != session_id:
+        console.print(f"Session {session_id} was not found.")
+        return
+    console.print(
+        f"Resumed session {result.state.session_id} with {len(result.recent_records)} recent transcript events."
+    )
 
 
 if __name__ == "__main__":

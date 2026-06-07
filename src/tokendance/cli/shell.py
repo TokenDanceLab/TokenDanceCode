@@ -44,6 +44,8 @@ class InteractiveShell:
             permission_mode=state.permission_mode,
             mode=state.mode,
             project_path=state.project_path,
+            session_dir=runtime.paths.session_dir,
+            transcript_path=runtime.paths.transcript_path,
         )
 
         for raw_line in self.input_stream:

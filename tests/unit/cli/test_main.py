@@ -1,8 +1,12 @@
 import unittest
+from pathlib import Path
 
 from typer.testing import CliRunner
 
 from tokendance.cli.main import app
+from tokendance.core.events import RuntimeEvent
+from tokendance.core.session import SessionState
+from tokendance.storage.transcript import SessionStore, TranscriptWriter
 
 
 class CliMainTests(unittest.TestCase):
@@ -42,10 +46,28 @@ class CliMainTests(unittest.TestCase):
         self.assertEqual(result.exit_code, 0)
         self.assertIn("You said: hello", result.stdout)
 
-    def test_resume_command_uses_placeholder_flow(self) -> None:
+    def test_resume_command_reports_when_no_session_exists(self) -> None:
         runner = CliRunner()
 
-        result = runner.invoke(app, ["resume"])
+        with runner.isolated_filesystem():
+            result = runner.invoke(app, ["resume"])
 
         self.assertEqual(result.exit_code, 0)
-        self.assertIn("resume is not implemented yet", result.stdout.lower())
+        self.assertIn("no resumable", result.stdout.lower())
+
+    def test_resume_command_loads_latest_session_metadata(self) -> None:
+        runner = CliRunner()
+
+        with runner.isolated_filesystem():
+            root = Path.cwd()
+            state = SessionState.new(project_path=root, session_id="session-test")
+            paths = SessionStore(root).create_session(state)
+            TranscriptWriter(paths.transcript_path).append(
+                RuntimeEvent(type="user_message", payload={"content": "hello"})
+            )
+
+            result = runner.invoke(app, ["resume"])
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("session-test", result.stdout)
+        self.assertIn("1 recent", result.stdout)

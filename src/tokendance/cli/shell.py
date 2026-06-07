@@ -9,8 +9,8 @@ from rich.console import Console
 from tokendance.cli.commands import CommandContext, CommandRouter
 from tokendance.cli.renderer import Renderer
 from tokendance.core.events import RuntimeEvent
-from tokendance.core.session import SessionState
-from tokendance.storage.transcript import SessionStore, TranscriptWriter
+from tokendance.core.runtime import CoreRuntime
+from tokendance.models.base import ModelProvider
 
 
 class InteractiveShell:
@@ -21,20 +21,22 @@ class InteractiveShell:
         input_stream: TextIO | None = None,
         output_stream: TextIO | None = None,
         session_id: str | None = None,
+        provider: ModelProvider | None = None,
     ) -> None:
         self.project_root = Path.cwd() if project_root is None else Path(project_root)
         self.input_stream = sys.stdin if input_stream is None else input_stream
         self.output_stream = sys.stdout if output_stream is None else output_stream
         self.session_id = session_id
+        self.provider = provider
 
         self.console = Console(file=self.output_stream, force_terminal=False, color_system=None)
         self.renderer = Renderer(self.console)
         self.router = CommandRouter()
 
     def run(self) -> int:
-        state = SessionState.new(project_path=self.project_root, session_id=self.session_id)
-        paths = SessionStore(self.project_root).create_session(state)
-        writer = TranscriptWriter(paths.transcript_path)
+        runtime = CoreRuntime(project_root=self.project_root, provider=self.provider, session_id=self.session_id)
+        state = runtime.state
+        writer = runtime.transcript_writer
         context = CommandContext(
             session_id=state.session_id,
             provider=state.provider,
@@ -59,15 +61,8 @@ class InteractiveShell:
                     return 0
                 continue
 
-            user_event = RuntimeEvent(type="user_message", payload={"content": line})
-            writer.append(user_event)
-            self.renderer.render(user_event)
-
-            assistant_event = RuntimeEvent(
-                type="assistant_done",
-                payload={"content": f"You said: {line}"},
-            )
-            writer.append(assistant_event)
-            self.renderer.render(assistant_event)
+            result = runtime.run_turn(line)
+            if result.final_text:
+                self.renderer.render(RuntimeEvent(type="assistant_done", payload={"content": result.final_text}))
 
         return 0

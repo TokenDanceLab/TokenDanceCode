@@ -132,3 +132,25 @@ class CommandRouterTests(unittest.TestCase):
             )
 
         self.assertIn("quality-ok", result.message)
+
+    def test_agents_and_worktree_commands(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True, text=True)
+            subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "Tokendance Test"], cwd=root, check=True)
+            (root / "notes.txt").write_text("base\n", encoding="utf-8")
+            subprocess.run(["git", "add", "notes.txt"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-m", "initial"], cwd=root, check=True, capture_output=True, text=True)
+            context = CommandContext(session_id="session-1", project_path=root)
+            router = CommandRouter()
+
+            agents = router.handle("/agents", context)
+            created = router.handle("/worktree create cli-wt", context)
+            listed = router.handle("/worktree list", context)
+            removed = router.handle("/worktree remove cli-wt", context)
+
+        self.assertIn("No subagents", agents.message)
+        self.assertIn("cli-wt", created.message)
+        self.assertIn("cli-wt", listed.message)
+        self.assertIn("removed", removed.message.lower())

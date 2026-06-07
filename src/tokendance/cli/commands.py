@@ -6,6 +6,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from tokendance.agents import AgentManager
 from tokendance.config import TokendanceConfig
 from tokendance.context.compact import CompactService
 from tokendance.context.memory import MemoryStore
@@ -15,6 +16,7 @@ from tokendance.git.quality import QualityGate
 from tokendance.git.review import ReviewService
 from tokendance.git.revert import RevertService
 from tokendance.git.service import GitService
+from tokendance.git.worktree import WorktreeService
 
 
 @dataclass
@@ -72,6 +74,10 @@ class CommandRouter:
             return _revert(argument, context)
         if command == "/quality":
             return _quality(argument, context)
+        if command == "/agents":
+            return _agents(context)
+        if command == "/worktree":
+            return _worktree(argument, context)
         return CommandResult(f"Unknown slash command: {command}")
 
 
@@ -101,6 +107,8 @@ def _help_text() -> str:
             "/review",
             "/revert latest",
             "/quality <command>",
+            "/agents",
+            "/worktree list|create <name>|remove <name> [--discard]|keep <name>",
         ]
     )
 
@@ -262,3 +270,61 @@ def _quality(argument: str, context: CommandContext) -> CommandResult:
             ]
         ).strip()
     )
+
+
+def _agents(context: CommandContext) -> CommandResult:
+    results = AgentManager(context.project_path).list()
+    if not results:
+        return CommandResult("No subagents.")
+    return CommandResult(
+        "\n".join(
+            f"{result.agent_id} [{result.agent_type.value}] {result.summary}"
+            for result in results
+        )
+    )
+
+
+def _worktree(argument: str, context: CommandContext) -> CommandResult:
+    command, rest = _split_worktree_argument(argument)
+    service = WorktreeService(context.project_path)
+    try:
+        if command in {"", "list"}:
+            records = service.list()
+            if not records:
+                return CommandResult("No worktrees.")
+            return CommandResult("\n".join(f"{record.name} {record.path}" for record in records))
+        if command == "create":
+            name, task_id = _parse_worktree_create(rest)
+            record = service.create(name, task_id=task_id)
+            return CommandResult(f"Worktree {record.name} created at {record.path}")
+        if command == "remove":
+            name, discard = _parse_worktree_remove(rest)
+            result = service.remove(name, discard_changes=discard)
+            return CommandResult(result.message)
+        if command == "keep":
+            name = rest.strip()
+            if not name:
+                return CommandResult("Usage: /worktree keep <name>")
+            return CommandResult(service.keep(name).message)
+    except (KeyError, RuntimeError, ValueError) as exc:
+        return CommandResult(str(exc))
+    return CommandResult("Usage: /worktree list|create <name>|remove <name> [--discard]|keep <name>")
+
+
+def _split_worktree_argument(argument: str) -> tuple[str, str]:
+    command, _, rest = argument.strip().partition(" ")
+    return command, rest.strip()
+
+
+def _parse_worktree_create(argument: str) -> tuple[str, str | None]:
+    parts = argument.split()
+    if not parts:
+        raise ValueError("Usage: /worktree create <name> [task_id]")
+    return parts[0], parts[1] if len(parts) > 1 else None
+
+
+def _parse_worktree_remove(argument: str) -> tuple[str, bool]:
+    parts = argument.split()
+    if not parts:
+        raise ValueError("Usage: /worktree remove <name> [--discard]")
+    return parts[0], "--discard" in parts[1:]

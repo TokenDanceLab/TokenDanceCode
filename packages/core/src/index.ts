@@ -1,5 +1,6 @@
 export * from "./file-tools.js";
 export * from "./mock-provider.js";
+export * from "./patch-tools.js";
 export * from "./permissions.js";
 export * from "./powershell.js";
 export * from "./runtime.js";

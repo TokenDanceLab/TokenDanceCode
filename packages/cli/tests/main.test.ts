@@ -365,6 +365,7 @@ describe("TokenDanceCode CLI", () => {
     expect(output).toContain("tool echo started");
     expect(output).toContain("permission allowed");
     expect(output).toContain("tool echo completed");
+    expect(output).toMatch(/tool echo completed: .* duration=\d+ms/);
     expect(output).toContain('Tool result: {"text":"hello renderer"}');
     expect(output).toContain("usage input=1 output=10");
   });
@@ -400,8 +401,9 @@ describe("TokenDanceCode CLI", () => {
 
     expect(exitCode).toBe(0);
     expect(summaryLine).toBeDefined();
-    expect(summaryLine?.length).toBeLessThanOrEqual(170);
+    expect(summaryLine?.length).toBeLessThanOrEqual(190);
     expect(summaryLine).toContain("... omitted ");
+    expect(summaryLine).toMatch(/duration=\d+ms/);
   });
 
   it("renders tool failure reasons", async () => {
@@ -412,7 +414,7 @@ describe("TokenDanceCode CLI", () => {
 
     expect(exitCode).toBe(0);
     expect(output).toContain("tool missing_tool started");
-    expect(output).toContain("tool missing_tool failed: Unknown tool: missing_tool");
+    expect(output).toMatch(/tool missing_tool failed: Unknown tool: missing_tool duration=\d+ms/);
   });
 
   it("starts a fresh interactive session with /new", async () => {

@@ -552,33 +552,40 @@ async function handleNewThread(io: CliIO, client: TokenDanceCode, previous: Thre
 async function runPrompt(io: CliIO, thread: Thread, prompt: string): Promise<void> {
   const streamed = await thread.runStreamed(prompt);
   let renderedAssistantText = false;
+  const rendererState: RendererState = { toolStarts: new Map() };
 
   for await (const event of streamed.events) {
     if (event.type === "assistant.delta") {
       renderedAssistantText = true;
     }
-    await renderEvent(io, event, renderedAssistantText);
+    await renderEvent(io, event, renderedAssistantText, rendererState);
   }
 }
 
-async function renderEvent(io: CliIO, event: TDCodeEvent, renderedAssistantText: boolean): Promise<void> {
+interface RendererState {
+  toolStarts: Map<string, number>;
+}
+
+async function renderEvent(io: CliIO, event: TDCodeEvent, renderedAssistantText: boolean, state: RendererState): Promise<void> {
   switch (event.type) {
     case "assistant.delta":
       await write(io.stdout, `${event.text}\n`);
       return;
     case "tool.started":
+      state.toolStarts.set(event.call.id, Date.now());
       await write(io.stdout, `tool ${event.call.name} started\n`);
       return;
     case "tool.permission":
       await write(io.stdout, `permission ${event.decision.status}: ${event.decision.reason}\n`);
       return;
     case "tool.completed":
+      const duration = renderToolDuration(state, event.result.callId);
       if (event.result.ok) {
         const summary = summarizeToolOutput(event.result.output);
-        await write(io.stdout, `tool ${event.result.toolName} completed${summary ? `: ${summary}` : ""}\n`);
+        await write(io.stdout, `tool ${event.result.toolName} completed${summary ? `: ${summary}` : ""}${duration}\n`);
         return;
       }
-      await write(io.stdout, `tool ${event.result.toolName} failed: ${event.result.error ?? "unknown error"}\n`);
+      await write(io.stdout, `tool ${event.result.toolName} failed: ${event.result.error ?? "unknown error"}${duration}\n`);
       return;
     case "turn.completed":
       if (!renderedAssistantText && event.finalResponse) {
@@ -591,6 +598,12 @@ async function renderEvent(io: CliIO, event: TDCodeEvent, renderedAssistantText:
     default:
       return;
   }
+}
+
+function renderToolDuration(state: RendererState, callId: string): string {
+  const startedAt = state.toolStarts.get(callId);
+  state.toolStarts.delete(callId);
+  return startedAt === undefined ? "" : ` duration=${Math.max(0, Date.now() - startedAt)}ms`;
 }
 
 function summarizeToolOutput(output: unknown): string {

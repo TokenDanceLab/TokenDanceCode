@@ -139,5 +139,5 @@ node packages/cli/dist/main.js run "hello"
 - [x] 交互式 REPL 最小闭环。
 - [x] `/new`、`/status`、`/doctor`、`/config`、`/permissions`。
 - [x] 顶层 `config`、`resume [session-id]`、`memory [add|delete] [project|global] [value]`、`agents [run investigator|reviewer <prompt>]`、`agents run coding [--worktree name] <prompt>`、`agents show <agent-id>`、`agents accept <agent-id> [--discard-worktree] [--allow-dirty-target]`、`agents discard <agent-id> [--discard]`、`tasks [create|doing|done] [value]`、`todo [add|doing|done] [value]`、`worktree [list|create|remove] [name] [--discard]`、`diff [path ...]`、`review`、`tools`、`quality <command>`、`transcript [session-id]`、`transcript [session-id] search <query>`、`compact [session-id]`，交互式 `/config`、`/resume`、`/memory`、`/agents`、`/tasks`、`/todo`、`/worktree`、`/diff`、`/review`、`/tools`、`/quality`、`/transcript`、`/transcript search <query>`、`/compact`。
-- [x] 滚动式事件 renderer 闭环：assistant 文本、tool started、permission decision、tool completed、tool failed reason、tool output summary、turn token usage。
+- [x] 滚动式事件 renderer 闭环：assistant 文本、tool started、permission decision、tool completed、tool failed reason、tool duration、tool output summary、turn token usage。
 - [ ] 增强 renderer：未来真实 provider token delta 合并策略和更细进度显示。

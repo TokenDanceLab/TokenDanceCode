@@ -67,7 +67,10 @@ pnpm install
 
 ```powershell
 pnpm verify
+pnpm pack:check
 ```
+
+`pnpm pack:check` 会先构建全部 TS 包，再对 `@tokendance/code-core`、`@tokendance/code-sdk`、`@tokendance/code-cli` 执行 dry-run 打包检查，确认 AgentHub 可消费包只包含发布所需内容。
 
 确认命令可用：
 
@@ -387,4 +390,4 @@ tokendance doctor
 
 TokenDanceCode TS 版目前还是早期本地 Agent 实现，适合开发、测试和自用验证。
 
-它还不是正式发布到 npm 的包。后续会继续补充正式发布流程、安装包、首次运行向导、更多 slash commands、更细的事件 renderer 和更完整的 AgentHub 端到端示例。
+它还不是正式发布到 npm 的包。当前已有发布前 `pack:check` dry-run 检查；后续会继续补充正式发布流程、安装包、首次运行向导、更多 slash commands、更细的事件 renderer 和更完整的 AgentHub 端到端示例。

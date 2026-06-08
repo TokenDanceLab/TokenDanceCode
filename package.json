@@ -12,7 +12,8 @@
     "build": "tsc -b packages/core packages/sdk packages/cli packages/agenthub-example",
     "test": "vitest run",
     "typecheck": "tsc -b packages/core packages/sdk packages/cli packages/agenthub-example --pretty false",
-    "verify": "pnpm typecheck && pnpm test"
+    "verify": "pnpm typecheck && pnpm test",
+    "pack:check": "pnpm build && pnpm --filter @tokendance/code-core pack --dry-run && pnpm --filter @tokendance/code-sdk pack --dry-run && pnpm --filter @tokendance/code-cli pack --dry-run"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",

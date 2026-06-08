@@ -5,6 +5,7 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 *.log
+*.tgz
 .pytest_cache/
 .venv/
 .vscode/

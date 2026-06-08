@@ -3,6 +3,7 @@ import {
   AgentManager,
   AnthropicMessagesProvider,
   CompactService,
+  ContextBuilder,
   FileTranscriptStore,
   MemoryStore,
   MockProvider,
@@ -25,6 +26,7 @@ import {
   type TDCodeEventSink,
   type CompactResult,
   type ConfigInfo,
+  type BuiltContext,
   type TaskRecord,
   type TaskStatus,
   type TodoRecord,
@@ -90,6 +92,8 @@ export interface TranscriptSearchResult {
   turnId?: string;
   preview: string;
 }
+
+export type ThreadContext = BuiltContext;
 
 export type MemoryScope = "project" | "global";
 
@@ -377,6 +381,14 @@ export class Thread {
 
   searchTranscript(query: string, options: { limit?: number } = {}): Promise<TranscriptSearchResult[]> {
     return this.options.client.searchTranscript(this.options.session, query, options.limit);
+  }
+
+  context(input: ThreadInput): Promise<ThreadContext> {
+    return new ContextBuilder().build({
+      session: this.options.session,
+      userMessage: normalizeInput(input),
+      workspaceRoot: this.options.session.cwd
+    });
   }
 }
 

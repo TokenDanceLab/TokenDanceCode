@@ -125,6 +125,7 @@ node packages/cli/dist/main.js run "hello"
 - [x] 提供 `TDCodeEvent` -> AgentHub `run.agent.*` runtime event mapper。
 - [x] 提供 AgentHub `agent.stream` payload sink fixture。
 - [x] 暴露 `thread.state` session snapshot，供 AgentHub 读取当前 thread 状态。
+- [x] 暴露 `thread.context(input)` transient preview，供 AgentHub 调试面板预览下一轮 provider context，且不污染 session/transcript。
 - [x] 增加 SDK `client.resume({ sessionId?, storageRoot? })` 便捷入口，兼容 latest/by-id resume。
 - [x] 增加 SDK `thread.searchTranscript(query, { limit? })`，供 AgentHub 调试面板或轻量索引读取匹配事件。
 - [x] 增加 SDK `client.memory({ projectRoot?, homeDir? })`，供 AgentHub 管理 project/global memory。

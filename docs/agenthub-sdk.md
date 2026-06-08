@@ -102,6 +102,16 @@ console.log(thread.state.messages.length);
 
 `thread.state` 返回当前 session 的只读快照副本，方便 AgentHub 做侧栏、调试面板或持久化索引。不要修改这个快照后再期待影响 SDK 内部状态；后续运行仍应通过 `thread.run()` 或 `thread.runStreamed()`。Runtime 会在每轮 provider 调用前构造 transient context，把 system prompt、AGENTS/CLAUDE/README、compact summary、memory 和 recent messages 送给模型；`thread.state.messages` 仍只保存真实会话消息，不包含 system context。
 
+AgentHub 如果需要在调试面板或运行预览里展示下一轮模型上下文，可以用同源 context builder：
+
+```ts
+const preview = await thread.context("next prompt");
+console.log(preview.includedFiles);
+console.log(preview.messages[0]?.content);
+```
+
+`thread.context()` 只返回 transient preview，不会把本轮 user message 或 system context 写入 `thread.state`、session 文件或 transcript。
+
 ## 5. 流式事件
 
 ```ts

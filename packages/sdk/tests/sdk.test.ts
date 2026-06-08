@@ -86,6 +86,25 @@ describe("TokenDanceCode SDK", () => {
     expect(thread.state.messages.map((message) => message.content)).not.toContain("mutated outside");
   });
 
+  it("previews runtime context for AgentHub callers without mutating thread state", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-context-"));
+    await writeFile(join(root, "AGENTS.md"), "Use AgentHub project rules.\n", "utf8");
+    await writeFile(join(root, "CLAUDE.md"), "Prefer short action plans.\n", "utf8");
+    await writeFile(join(root, "README.md"), "SDK context project.\n", "utf8");
+    const client = new TokenDanceCode({ storageRoot: root });
+    const thread = client.startThread({ workingDirectory: root });
+    await thread.run("first turn");
+
+    const context = await thread.context("next AgentHub turn");
+
+    expect(context.includedFiles).toEqual(["AGENTS.md", "CLAUDE.md", "README.md"]);
+    expect(context.messages[0]).toMatchObject({ role: "system" });
+    expect(context.messages[0]?.content).toContain("Use AgentHub project rules.");
+    expect(context.messages[0]?.content).toContain("Prefer short action plans.");
+    expect(context.messages.at(-1)).toEqual({ role: "user", content: "next AgentHub turn" });
+    expect(thread.state.messages.map((message) => message.content)).not.toContain("next AgentHub turn");
+  });
+
   it("loads latest thread with recent transcript for AgentHub callers", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
     const client = new TokenDanceCode({ storageRoot: root });

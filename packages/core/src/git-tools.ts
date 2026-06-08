@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { isAbsolute, relative, resolve } from "node:path";
 import type { ToolSpec } from "./types.js";
+import { runPowerShell } from "./shell-tools.js";
 
 interface GitPathInput {
   paths?: string[];
@@ -17,7 +18,14 @@ interface GitOutput {
 }
 
 export function buildGitTools(): ToolSpec[] {
-  return [createGitStatusTool(), createGitDiffTool(), createGitLogTool(), createGitBranchTool()];
+  return [
+    createGitStatusTool(),
+    createGitDiffTool(),
+    createGitLogTool(),
+    createGitBranchTool(),
+    createGitReviewTool(),
+    createQualityGateTool()
+  ];
 }
 
 export function createGitStatusTool(): ToolSpec<unknown, GitOutput> {
@@ -84,6 +92,57 @@ export function createGitBranchTool(): ToolSpec<unknown, GitOutput> {
     parse: (input) => input,
     execute: async (_input, context) => runGit(context.cwd, ["branch", "--show-current"])
   };
+}
+
+export function createGitReviewTool(): ToolSpec<unknown, { findings: Array<{ severity: "high" | "medium"; message: string }> }> {
+  return {
+    name: "git_review",
+    description: "Review current git diff for simple high-signal quality risks.",
+    risk: "read",
+    concurrency: "parallel_safe",
+    parse: (input) => input,
+    async execute(_input, context) {
+      const diff = await runGit(context.cwd, ["diff"]);
+      return { findings: reviewDiff(diff.stdout) };
+    }
+  };
+}
+
+export function createQualityGateTool(): ToolSpec<{ command: string; timeoutMs: number }, { passed: boolean; result: GitOutput }> {
+  return {
+    name: "quality_gate",
+    description: "Run a PowerShell quality command in the workspace and report pass/fail.",
+    risk: "shell",
+    concurrency: "exclusive",
+    parse(input) {
+      if (typeof input !== "object" || input === null || typeof (input as { command?: unknown }).command !== "string") {
+        throw new Error("quality_gate input requires a string command field");
+      }
+      const timeout = (input as { timeout?: unknown; timeoutMs?: unknown }).timeoutMs ?? (input as { timeout?: unknown }).timeout;
+      if (timeout !== undefined && typeof timeout !== "number") {
+        throw new Error("quality_gate timeout must be a number");
+      }
+      return {
+        command: (input as { command: string }).command,
+        timeoutMs: Math.max(1, Math.floor((timeout ?? 60) * 1000))
+      };
+    },
+    async execute(input, context) {
+      const result = await runPowerShell(input.command, context.cwd, input.timeoutMs);
+      return { passed: result.exitCode === 0 && !result.timedOut, result };
+    }
+  };
+}
+
+export function reviewDiff(diff: string): Array<{ severity: "high" | "medium"; message: string }> {
+  const findings: Array<{ severity: "high" | "medium"; message: string }> = [];
+  if (diff.includes("<<<<<<<") || diff.includes(">>>>>>>")) {
+    findings.push({ severity: "high", message: "Diff contains unresolved conflict markers." });
+  }
+  if (/^\+.*\bTODO\b/im.test(diff)) {
+    findings.push({ severity: "medium", message: "Diff adds TODO text that may need a tracked follow-up." });
+  }
+  return findings;
 }
 
 async function runGit(cwd: string, args: string[]): Promise<GitOutput> {

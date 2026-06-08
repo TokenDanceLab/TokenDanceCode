@@ -8,7 +8,7 @@
 - worktree：`D:\Code\TokenDance\TokenDanceCode\.worktrees\ts-refactor`
 - 目标：把 TokenDanceCode 从 Python v0.1 参考实现重构为 TypeScript monorepo，并给 AgentHub 暴露稳定 SDK。
 - 当前可验证命令：`pnpm verify`
-- 最近验证结果：typecheck 通过，Vitest 8 个测试文件 31 个测试通过。
+- 最近验证结果：typecheck 通过，Vitest 8 个测试文件 33 个测试通过。
 
 旧 `src/tokendance` 和 `tests/` 暂时保留为功能迁移参考。新增 TS 能力默认写入 `packages/*`，不要继续扩展 Python 运行时，除非明确是在补迁移对照或保护旧行为。
 
@@ -97,9 +97,7 @@ node packages/cli/dist/main.js run "hello"
 - [x] File tools：read/write/edit/glob，全部走 permission engine。
 - [x] PowerShell shell tool：风险分类、工作区边界、输出截断。
 - [x] Patch tool：结构化 apply patch，失败可诊断。
-- [ ] Git tool：status/diff/review quality gate 的最小集合。
-  - 已完成：`git_status`、`git_diff`、`git_log`、`git_branch` 只读工具。
-  - 待完成：review finding 和 quality gate。
+- [x] Git tool：status/diff/review quality gate 的最小集合。
 
 ### P2：上下文与恢复
 

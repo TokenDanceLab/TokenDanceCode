@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { createDefaultToolRegistry, ToolOrchestrator, type SessionState } from "../src/index.js";
+import { createDefaultToolRegistry, reviewDiff, ToolOrchestrator, type SessionState } from "../src/index.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -55,6 +55,26 @@ describe("git tools", () => {
     );
 
     expect(result).toMatchObject({ ok: false, error: "Git path is outside the workspace" });
+  });
+
+  it("reviews diffs for conflict markers and TODO additions", () => {
+    expect(reviewDiff("+<<<<<<< HEAD\n+bad\n+>>>>>>> branch\n+TODO follow up")).toEqual([
+      { severity: "high", message: "Diff contains unresolved conflict markers." },
+      { severity: "medium", message: "Diff adds TODO text that may need a tracked follow-up." }
+    ]);
+  });
+
+  it("runs a quality gate command through PowerShell", async () => {
+    const root = await initRepo();
+    const orchestrator = new ToolOrchestrator(createDefaultToolRegistry());
+
+    const result = await orchestrator.execute(
+      { id: "quality", name: "quality_gate", input: { command: "Get-ChildItem -Name", timeout: 5 } },
+      { ...createSession(root), permissionMode: "yolo" }
+    );
+
+    expect(result).toMatchObject({ ok: true, output: { passed: true } });
+    expect(JSON.stringify(result.output)).toContain("notes.txt");
   });
 });
 

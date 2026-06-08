@@ -69,10 +69,14 @@ describe("AgentRuntime", () => {
     expect(envelope).toMatchObject({
       version: 1,
       sessionId: runtime.state.id,
+      cwd: root,
       event: { type: "user.message" }
     });
     expect(envelope.uuid).toEqual(expect.any(String));
     expect(envelope.timestamp).toEqual(expect.any(String));
     expect(envelope.turnId).toEqual(expect.any(String));
+
+    const secondEnvelope = JSON.parse(content.trim().split("\n")[1] ?? "{}");
+    expect(secondEnvelope.parentUuid).toBe(envelope.uuid);
   });
 });

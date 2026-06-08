@@ -86,9 +86,11 @@ export type TDCodeEvent =
 export interface TranscriptEnvelope {
   version: 1;
   uuid: string;
+  parentUuid?: string;
   timestamp: string;
   sessionId: string;
   turnId?: string;
+  cwd: string;
   event: TDCodeEvent;
 }
 

@@ -12,10 +12,21 @@ export type ToolRisk = "read" | "write" | "shell" | "network" | "dangerous";
 export interface ToolSpec<TInput = unknown, TOutput = unknown> {
   name: string;
   description: string;
+  inputSchema?: JsonSchemaObject;
   risk: ToolRisk;
   concurrency: "serial" | "parallel_safe" | "exclusive";
   parse(input: unknown): TInput;
   execute(input: TInput, context: ToolExecutionContext): Promise<TOutput>;
+}
+
+export interface JsonSchemaObject {
+  type: string;
+  properties?: Record<string, JsonSchemaObject>;
+  required?: string[];
+  additionalProperties?: boolean;
+  description?: string;
+  enum?: string[];
+  items?: JsonSchemaObject;
 }
 
 export interface ToolExecutionContext {

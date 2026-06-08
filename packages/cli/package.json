@@ -1,0 +1,19 @@
+{
+  "name": "@tokendance/code-cli",
+  "version": "0.2.0-ts.0",
+  "description": "TokenDanceCode command line interface.",
+  "type": "module",
+  "bin": {
+    "tokendance": "./dist/main.js"
+  },
+  "main": "./dist/main.js",
+  "types": "./dist/main.d.ts",
+  "files": ["dist"],
+  "dependencies": {
+    "@tokendance/code-sdk": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run"
+  }
+}

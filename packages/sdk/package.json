@@ -1,0 +1,22 @@
+{
+  "name": "@tokendance/code-sdk",
+  "version": "0.2.0-ts.0",
+  "description": "TypeScript SDK for embedding TokenDanceCode in AgentHub and local tools.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist"],
+  "dependencies": {
+    "@tokendance/code-core": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run"
+  }
+}

@@ -4,7 +4,7 @@ TokenDanceCode 是一个面向个人开发者的本地命令行 Coding Agent。
 
 你可以在任意本地代码仓库中打开终端，运行 `tokendance`，然后让它阅读项目、修改文件、运行 PowerShell 命令、检查 Git diff、管理任务和 Todo，并把会话过程保存为 transcript。
 
-它的目标体验接近 Claude Code / Codex CLI，但项目本身使用 Python 从零实现，优先适配 Windows 和 PowerShell。
+`codex/ts-refactor` 分支正在把项目重构为 TypeScript monorepo。目标体验接近 Claude Code / Codex CLI，但实现保持自用 Agent 框架的克制范围：薄 CLI、可嵌入 SDK、结构化事件流、JSONL transcript、统一工具权限管线、Windows / PowerShell 优先。
 
 包名和全局命令都是：
 
@@ -14,7 +14,18 @@ tokendance
 
 ![TokenDanceCode 启动界面](docs/images/image-01.png)
 
-## 主要功能
+## TS 重构当前状态
+
+当前分支已经建立 TypeScript 第一批可验证闭环：
+
+- `@tokendance/code-core`：session、event、runtime、tool registry、permission engine、JSONL transcript store、MockProvider。
+- `@tokendance/code-sdk`：AgentHub 可消费的 `TokenDanceCode -> Thread -> run/runStreamed` 编程接口。
+- `@tokendance/code-cli`：薄 CLI 入口，支持 `--version`、`doctor`、`run <prompt>`。
+- `pnpm verify`：同时执行 TypeScript typecheck 和 Vitest 测试。
+
+旧 Python `src/tokendance` 和 `tests/` 暂时保留为功能迁移参考，不再作为 TS 重构分支新增能力的默认落点。后续迁移按 [docs/TS重构路线图.md](docs/TS重构路线图.md) 推进。
+
+## 目标功能
 
 - 交互式终端 Coding Agent。
 - 支持模型流式输出。
@@ -28,12 +39,13 @@ tokendance
 
 ## 环境要求
 
-- Python 3.11 或更高版本。
+- Node.js 20.18 或更高版本。
+- pnpm 10 或更高版本。
 - Git。
 - Windows 下推荐使用 PowerShell。
-- 如果要使用真实模型，需要一个 Anthropic-compatible API key。
+- 如果要使用真实模型，后续需要 OpenAI 或 Anthropic-compatible API key。
 
-如果没有配置 API key，`tokendance` 也可以启动，此时会使用 MockProvider，适合做安装冒烟测试。
+如果没有配置 API key，当前 TS runtime 使用 MockProvider，适合做 SDK、CLI 和 transcript 冒烟测试。
 
 ## 从源码安装
 
@@ -44,39 +56,37 @@ git clone https://github.com/TokenDanceLab/TokenDanceCode.git
 cd TokenDanceCode
 ```
 
-创建并激活虚拟环境：
+安装依赖：
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+pnpm install
 ```
 
-安装项目：
+验证项目：
 
 ```powershell
-python -m pip install -U pip
-python -m pip install -e .
+pnpm verify
 ```
 
 确认命令可用：
 
 ```powershell
-tokendance --version
-tokendance doctor
+pnpm --filter @tokendance/code-cli build
+node packages/cli/dist/main.js --version
+node packages/cli/dist/main.js doctor
 ```
 
-也可以用 `pipx` 安装为全局命令：
+运行一次 mock turn：
 
 ```powershell
-pipx install .
-tokendance doctor
+node packages/cli/dist/main.js run "hello"
 ```
 
-如果你要参与开发，推荐使用虚拟环境加 editable install，也就是 `pip install -e .`。
+期望输出 `Mock response: hello`。
 
 ## 配置模型
 
-TokenDanceCode 当前在检测到 `ANTHROPIC_API_KEY` 时会自动启用真实模型。
+TokenDanceCode TS 版当前还未接真实 provider。配置目标如下，具体 adapter 将在后续阶段实现。
 
 配置可以放在以下位置：
 
@@ -122,19 +132,16 @@ MODEL_ID=deepseek-v4-pro
 
 ## 启动使用
 
-在你想让 Agent 工作的代码仓库中运行：
+当前 TS CLI 支持一次性 mock 运行：
+
+```powershell
+node packages/cli/dist/main.js run "完整阅读这个项目"
+```
+
+未来交互式入口仍是：
 
 ```powershell
 tokendance
-```
-
-启动后可以直接输入自然语言任务，例如：
-
-```text
-完整阅读这个项目
-修复当前失败的测试
-检查 git diff 并给我 review
-帮我添加一个 README
 ```
 
 退出会话：
@@ -143,15 +150,20 @@ tokendance
 /exit
 ```
 
-恢复最近的本地会话元数据：
+当前 SDK 可供 AgentHub 或本地脚本嵌入：
 
-```powershell
-tokendance resume
+```ts
+import { TokenDanceCode } from "@tokendance/code-sdk";
+
+const client = new TokenDanceCode();
+const thread = client.startThread({ workingDirectory: process.cwd() });
+const turn = await thread.run("summarize repo");
+console.log(turn.finalResponse);
 ```
 
-## 常用 Slash Commands
+## 规划中的 Slash Commands
 
-在交互式 shell 中可以使用：
+交互式 shell 迁移完成后应支持：
 
 ```text
 /help
@@ -164,7 +176,7 @@ tokendance resume
 /permissions yolo
 /diff
 /review
-/quality python -m unittest discover tests
+/quality pnpm verify
 /tasks
 /todo
 /transcript search <query>
@@ -186,25 +198,17 @@ tokendance resume
 
 ```text
 TokenDanceCode/
-├── pyproject.toml
+├── package.json
+├── pnpm-workspace.yaml
+├── tsconfig.base.json
 ├── README.md
 ├── docs/
-├── src/tokendance/
-│   ├── cli/          # Typer 入口、交互 shell、renderer、slash commands
-│   ├── core/         # runtime、session state、turn loop、events、recovery
-│   ├── models/       # provider-neutral 类型和模型适配器
-│   ├── tools/        # file、shell、patch、task、todo、subagent tools
-│   ├── permissions/  # 权限模式和 PowerShell 风险检查
-│   ├── execution/    # 命令执行层
-│   ├── storage/      # transcript、JSONL、原子写、路径处理
-│   ├── context/      # memory、compact、resume、transcript search
-│   ├── tasks/        # 持久任务和会话 Todo
-│   ├── git/          # git service、worktree、review、revert、quality
-│   ├── agents/       # subagent manager、worker、reviewer
-│   └── config/       # TOML 配置和环境密钥
-└── tests/
-    ├── unit/
-    └── integration/
+├── packages/
+│   ├── core/         # runtime、session state、events、tools、permissions、transcript
+│   ├── sdk/          # AgentHub 和脚本调用的稳定编程接口
+│   └── cli/          # tokendance 命令入口与未来交互 shell
+├── src/tokendance/   # Python v0.1 参考实现，TS 迁移期间保留
+└── tests/            # Python v0.1 参考测试，TS 迁移期间保留
 ```
 
 ## 开发与测试
@@ -212,21 +216,20 @@ TokenDanceCode/
 安装开发依赖：
 
 ```powershell
-python -m pip install -e ".[dev]"
+pnpm install
 ```
 
-运行全部测试：
+运行 TS 闭环：
 
 ```powershell
-python -m unittest discover tests
+pnpm verify
 ```
 
-运行部分测试：
+运行单项：
 
 ```powershell
-python -m unittest tests.unit.cli.test_shell
-python -m unittest tests.unit.core.test_turn_runner
-python -m unittest tests.unit.models.test_provider_mapping
+pnpm typecheck
+pnpm test
 ```
 
 检查 CLI：
@@ -245,12 +248,6 @@ tokendance doctor
 
 ## 当前状态
 
-TokenDanceCode 目前还是早期本地 Agent 实现，适合开发、测试和自用验证。
+TokenDanceCode TS 版目前还是早期本地 Agent 实现，适合开发、测试和自用验证。
 
-它还不是正式发布到 PyPI 的包。现阶段推荐从源码安装，或者在仓库根目录使用：
-
-```powershell
-pipx install .
-```
-
-后续可以继续补充正式发布流程、安装包、首次运行向导和更完整的配置命令。
+它还不是正式发布到 npm 的包。后续会继续补充正式发布流程、安装包、首次运行向导、真实模型 provider、文件/patch/shell/git 工具、resume/compact 和交互式 shell。

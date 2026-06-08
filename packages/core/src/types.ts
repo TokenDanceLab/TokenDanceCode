@@ -1,0 +1,90 @@
+export type Role = "system" | "user" | "assistant" | "tool";
+
+export interface TDMessage {
+  role: Role;
+  content: string;
+  toolCallId?: string;
+}
+
+export type PermissionMode = "default" | "safe" | "auto" | "yolo";
+export type ToolRisk = "read" | "write" | "shell" | "network" | "dangerous";
+
+export interface ToolSpec<TInput = unknown, TOutput = unknown> {
+  name: string;
+  description: string;
+  risk: ToolRisk;
+  concurrency: "serial" | "parallel_safe" | "exclusive";
+  parse(input: unknown): TInput;
+  execute(input: TInput, context: ToolExecutionContext): Promise<TOutput>;
+}
+
+export interface ToolExecutionContext {
+  session: SessionState;
+  cwd: string;
+}
+
+export interface ToolCall {
+  id: string;
+  name: string;
+  input: unknown;
+}
+
+export interface ToolResult {
+  callId: string;
+  toolName: string;
+  ok: boolean;
+  output?: unknown;
+  error?: string;
+}
+
+export interface ModelTurnRequest {
+  session: SessionState;
+  tools: ToolSpec[];
+  toolResults: ToolResult[];
+}
+
+export interface ModelTurnResponse {
+  assistantMessage?: string;
+  toolCalls: ToolCall[];
+  usage?: TokenUsage;
+}
+
+export interface ModelProvider {
+  createTurn(request: ModelTurnRequest): Promise<ModelTurnResponse>;
+}
+
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export interface SessionState {
+  id: string;
+  cwd: string;
+  createdAt: string;
+  updatedAt: string;
+  permissionMode: PermissionMode;
+  messages: TDMessage[];
+  compactSummary?: string;
+}
+
+export type PermissionDecision =
+  | { status: "allowed"; reason: string }
+  | { status: "denied"; reason: string }
+  | { status: "requires_approval"; reason: string };
+
+export type TDCodeEvent =
+  | { type: "session.created"; session: SessionState }
+  | { type: "user.message"; sessionId: string; message: TDMessage }
+  | { type: "assistant.delta"; sessionId: string; text: string }
+  | { type: "assistant.completed"; sessionId: string; message: TDMessage }
+  | { type: "tool.started"; sessionId: string; call: ToolCall }
+  | { type: "tool.permission"; sessionId: string; call: ToolCall; decision: PermissionDecision }
+  | { type: "tool.completed"; sessionId: string; result: ToolResult }
+  | { type: "turn.completed"; sessionId: string; finalResponse: string; usage?: TokenUsage };
+
+export interface TranscriptStore {
+  initialize(session: SessionState): Promise<void>;
+  append(event: TDCodeEvent): Promise<void>;
+  loadSession(sessionId: string): Promise<SessionState>;
+}

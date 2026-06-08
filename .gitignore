@@ -11,5 +11,10 @@ __pycache__/
 .idea/
 build/
 dist/
+coverage/
+node_modules/
+*.tsbuildinfo
+.turbo/
+.worktrees/
 Thumbs.db
 Desktop.ini

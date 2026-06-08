@@ -20,7 +20,7 @@ tokendance
 
 - `@tokendance/code-core`：session、event、runtime、tool registry、permission engine、JSONL transcript store、MockProvider。
 - `@tokendance/code-sdk`：AgentHub 可消费的 `TokenDanceCode -> Thread -> run/runStreamed` 编程接口，支持 provider 配置、审批回调、事件下沉、AgentHub runtime event 映射和 recent transcript resume。
-- `@tokendance/code-cli`：薄 CLI 入口，支持 `--version`、`doctor`、`run <prompt>` 和最小交互式 REPL。
+- `@tokendance/code-cli`：薄 CLI 入口，支持 `--version`、`doctor`、`run <prompt>`、最小交互式 REPL 和工具事件渲染。
 - `pnpm verify`：同时执行 TypeScript typecheck 和 Vitest 测试。
 
 旧 Python `src/tokendance` 和 `tests/` 暂时保留为功能迁移参考，不再作为 TS 重构分支新增能力的默认落点。后续迁移按 [docs/TS重构路线图.md](docs/TS重构路线图.md) 推进。
@@ -137,6 +137,14 @@ MODEL_ID=deepseek-v4-pro
 ```powershell
 node packages/cli/dist/main.js run "完整阅读这个项目"
 ```
+
+工具调用会通过同一套 runtime 事件流渲染，例如 mock echo 工具：
+
+```powershell
+node packages/cli/dist/main.js run "echo: hello"
+```
+
+会依次显示工具开始、权限决策、工具完成和最终响应。
 
 交互式入口：
 
@@ -273,7 +281,7 @@ tokendance doctor
 - 在哪个目录运行 `tokendance`，哪个目录就是当前 workspace root。
 - 会话 transcript 会保存到当前项目的 `.tokendance/` 下。
 - `glob` 工具默认排除 `.git`、`.tokendance`、虚拟环境、缓存目录、build/dist、`node_modules` 和 `.env`。
-- CLI 会对大工具输出做摘要，不会把完整大文件内容直接刷到终端。
+- CLI 通过 runtime event 渲染工具开始、权限决策、工具完成和 assistant 文本；后续会继续补更细的进度、错误和大输出摘要。
 - 真实模型集成测试默认跳过，需要显式配置相关环境变量后才会运行。
 - AgentHub 集成应使用 SDK 的 `approvalCallback` / `createAgentHubApprovalBridge()` 和 `eventSink`，不要直接调用 core runtime 内部类。
 
@@ -281,4 +289,4 @@ tokendance doctor
 
 TokenDanceCode TS 版目前还是早期本地 Agent 实现，适合开发、测试和自用验证。
 
-它还不是正式发布到 npm 的包。后续会继续补充正式发布流程、安装包、首次运行向导、更多 slash commands、事件 renderer 和更完整的 AgentHub 端到端示例。
+它还不是正式发布到 npm 的包。后续会继续补充正式发布流程、安装包、首次运行向导、更多 slash commands、更细的事件 renderer 和更完整的 AgentHub 端到端示例。

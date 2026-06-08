@@ -46,6 +46,19 @@ describe("TokenDanceCode CLI", () => {
     expect(output).toContain("Compact summary ");
     expect(output).toContain("Events: ");
   });
+
+  it("renders runtime events for interactive tool calls", async () => {
+    const io = createTestIO("echo: hello renderer\n/exit\n");
+
+    const exitCode = await runCli([], io);
+    const output = io.stdoutText();
+
+    expect(exitCode).toBe(0);
+    expect(output).toContain("tool echo started");
+    expect(output).toContain("permission allowed");
+    expect(output).toContain("tool echo completed");
+    expect(output).toContain('Tool result: {"text":"hello renderer"}');
+  });
 });
 
 function createTestIO(input = "", cwd = "D:/workspace"): CliIO & { stdoutText(): string; stderrText(): string } {

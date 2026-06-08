@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
-import { TokenDanceCode, type PermissionMode, type Thread } from "@tokendance/code-sdk";
+import { TokenDanceCode, type PermissionMode, type TDCodeEvent, type Thread } from "@tokendance/code-sdk";
 
 const version = "0.2.0-ts.0";
 const permissionModes = new Set<PermissionMode>(["default", "safe", "auto", "yolo"]);
@@ -41,8 +41,7 @@ export async function runCli(argv: string[], io: CliIO = defaultIO()): Promise<n
     }
     const client = new TokenDanceCode();
     const thread = client.startThread({ workingDirectory: io.cwd() });
-    const turn = await thread.run(prompt);
-    await write(io.stdout, `${turn.finalResponse}\n`);
+    await runPrompt(io, thread, prompt);
     return 0;
   }
 
@@ -108,8 +107,43 @@ async function runInteractive(io: CliIO): Promise<void> {
       continue;
     }
 
-    const turn = await thread.run(line);
-    await write(io.stdout, `${turn.finalResponse}\n`);
+    await runPrompt(io, thread, line);
+  }
+}
+
+async function runPrompt(io: CliIO, thread: Thread, prompt: string): Promise<void> {
+  const streamed = await thread.runStreamed(prompt);
+  let renderedAssistantText = false;
+
+  for await (const event of streamed.events) {
+    if (event.type === "assistant.delta") {
+      renderedAssistantText = true;
+    }
+    await renderEvent(io, event, renderedAssistantText);
+  }
+}
+
+async function renderEvent(io: CliIO, event: TDCodeEvent, renderedAssistantText: boolean): Promise<void> {
+  switch (event.type) {
+    case "assistant.delta":
+      await write(io.stdout, `${event.text}\n`);
+      return;
+    case "tool.started":
+      await write(io.stdout, `tool ${event.call.name} started\n`);
+      return;
+    case "tool.permission":
+      await write(io.stdout, `permission ${event.decision.status}: ${event.decision.reason}\n`);
+      return;
+    case "tool.completed":
+      await write(io.stdout, `tool ${event.result.toolName} ${event.result.ok ? "completed" : "failed"}\n`);
+      return;
+    case "turn.completed":
+      if (!renderedAssistantText && event.finalResponse) {
+        await write(io.stdout, `${event.finalResponse}\n`);
+      }
+      return;
+    default:
+      return;
   }
 }
 

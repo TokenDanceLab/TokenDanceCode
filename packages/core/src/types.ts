@@ -75,13 +75,22 @@ export type PermissionDecision =
 
 export type TDCodeEvent =
   | { type: "session.created"; session: SessionState }
-  | { type: "user.message"; sessionId: string; message: TDMessage }
-  | { type: "assistant.delta"; sessionId: string; text: string }
-  | { type: "assistant.completed"; sessionId: string; message: TDMessage }
-  | { type: "tool.started"; sessionId: string; call: ToolCall }
-  | { type: "tool.permission"; sessionId: string; call: ToolCall; decision: PermissionDecision }
-  | { type: "tool.completed"; sessionId: string; result: ToolResult }
-  | { type: "turn.completed"; sessionId: string; finalResponse: string; usage?: TokenUsage };
+  | { type: "user.message"; sessionId: string; turnId: string; message: TDMessage }
+  | { type: "assistant.delta"; sessionId: string; turnId: string; text: string }
+  | { type: "assistant.completed"; sessionId: string; turnId: string; message: TDMessage }
+  | { type: "tool.started"; sessionId: string; turnId: string; call: ToolCall }
+  | { type: "tool.permission"; sessionId: string; turnId: string; call: ToolCall; decision: PermissionDecision }
+  | { type: "tool.completed"; sessionId: string; turnId: string; result: ToolResult }
+  | { type: "turn.completed"; sessionId: string; turnId: string; finalResponse: string; usage?: TokenUsage };
+
+export interface TranscriptEnvelope {
+  version: 1;
+  uuid: string;
+  timestamp: string;
+  sessionId: string;
+  turnId?: string;
+  event: TDCodeEvent;
+}
 
 export interface TranscriptStore {
   initialize(session: SessionState): Promise<void>;

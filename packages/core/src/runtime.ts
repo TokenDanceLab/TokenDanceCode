@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { PermissionEngine } from "./permissions.js";
 import { appendMessage, createSession } from "./session.js";
 import { createEchoTool, ToolOrchestrator, ToolRegistry } from "./tools.js";
@@ -29,9 +30,10 @@ export class AgentRuntime {
   }
 
   async *runTurn(input: string): AsyncGenerator<TDCodeEvent> {
+    const turnId = randomUUID();
     const userMessage: TDMessage = { role: "user", content: input };
     this.session = appendMessage(this.session, userMessage);
-    yield* this.emit({ type: "user.message", sessionId: this.session.id, message: userMessage });
+    yield* this.emit({ type: "user.message", sessionId: this.session.id, turnId, message: userMessage });
 
     const orchestrator = new ToolOrchestrator(this.registry);
     const toolResults: ToolResult[] = [];
@@ -44,13 +46,14 @@ export class AgentRuntime {
       });
 
       if (response.assistantMessage) {
-        yield* this.emit({ type: "assistant.delta", sessionId: this.session.id, text: response.assistantMessage });
+        yield* this.emit({ type: "assistant.delta", sessionId: this.session.id, turnId, text: response.assistantMessage });
         const assistantMessage: TDMessage = { role: "assistant", content: response.assistantMessage };
         this.session = appendMessage(this.session, assistantMessage);
-        yield* this.emit({ type: "assistant.completed", sessionId: this.session.id, message: assistantMessage });
+        yield* this.emit({ type: "assistant.completed", sessionId: this.session.id, turnId, message: assistantMessage });
         yield* this.emit({
           type: "turn.completed",
           sessionId: this.session.id,
+          turnId,
           finalResponse: response.assistantMessage,
           usage: response.usage
         });
@@ -58,20 +61,20 @@ export class AgentRuntime {
       }
 
       if (response.toolCalls.length === 0) {
-        yield* this.emit({ type: "turn.completed", sessionId: this.session.id, finalResponse: "" });
+        yield* this.emit({ type: "turn.completed", sessionId: this.session.id, turnId, finalResponse: "" });
         return;
       }
 
       for (const call of response.toolCalls) {
-        yield* this.emit({ type: "tool.started", sessionId: this.session.id, call });
+        yield* this.emit({ type: "tool.started", sessionId: this.session.id, turnId, call });
         const tool = this.registry.get(call.name);
         if (tool) {
           const decision = new PermissionEngine(this.session.permissionMode).decide(tool);
-          yield* this.emit({ type: "tool.permission", sessionId: this.session.id, call, decision });
+          yield* this.emit({ type: "tool.permission", sessionId: this.session.id, turnId, call, decision });
         }
         const result = await orchestrator.execute(call, this.session);
         toolResults.push(result);
-        yield* this.emit({ type: "tool.completed", sessionId: this.session.id, result });
+        yield* this.emit({ type: "tool.completed", sessionId: this.session.id, turnId, result });
       }
     }
 

@@ -86,8 +86,10 @@ node packages/cli/dist/main.js run "hello"
 - [x] 建立 pnpm workspace、TypeScript project references、Vitest。
 - [x] 建立 core/sdk/cli 三包。
 - [x] 实现 MockProvider、tool loop、permission event、transcript append、SDK run/runStreamed。
-- [ ] 引入 `turnId`，把 `sessionId` 和单次 turn 生命周期分离。
+- [x] 引入 `turnId`，把 `sessionId` 和单次 turn 生命周期分离。
 - [ ] transcript schema 增加 `uuid/parentUuid/timestamp/version/cwd`，为 resume 做准备。
+  - 已完成：JSONL envelope 写入 `version/uuid/timestamp/sessionId/turnId/event`。
+  - 待完成：补 `parentUuid/cwd` 和恢复链路校验。
 - [x] SDK `runStreamed()` 在事件消费完成后再同步 thread session state。
 
 ### P1：自用 Agent 基础能力

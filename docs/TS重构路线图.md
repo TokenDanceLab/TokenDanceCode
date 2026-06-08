@@ -8,7 +8,7 @@
 - worktree：`D:\Code\TokenDance\TokenDanceCode\.worktrees\ts-refactor`
 - 目标：把 TokenDanceCode 从 Python v0.1 参考实现重构为 TypeScript monorepo，并给 AgentHub 暴露稳定 SDK。
 - 当前可验证命令：`pnpm verify`
-- 最近验证结果：typecheck 通过，Vitest 16 个测试文件 63 个测试通过。
+- 最近验证结果：typecheck 通过，Vitest 17 个测试文件 64 个测试通过。
 
 旧 `src/tokendance` 和 `tests/` 暂时保留为功能迁移参考。新增 TS 能力默认写入 `packages/*`，不要继续扩展 Python 运行时，除非明确是在补迁移对照或保护旧行为。
 
@@ -46,6 +46,7 @@
 | `@tokendance/code-core` | session、runtime、event、tool registry、permission engine、transcript、MockProvider | 已建骨架和测试 |
 | `@tokendance/code-sdk` | AgentHub/本地脚本可消费的 `Thread` API | 已建骨架和测试 |
 | `@tokendance/code-cli` | `tokendance` 命令入口、最小交互 shell、工具事件渲染 | 已建薄入口和 REPL |
+| `@tokendance/code-agenthub-example` | AgentHub emitter/审批桥接样例 | 已建私有示例包和测试 |
 
 后续视复杂度拆分；在首版功能还小的时候，不急于拆成过多包。优先保持 core 内部边界清楚。
 
@@ -117,7 +118,7 @@ node packages/cli/dist/main.js run "hello"
 - [x] 提供 AgentHub `agent.stream` payload sink fixture。
 - [x] 暴露 `thread.state` session snapshot，供 AgentHub 读取当前 thread 状态。
 - [ ] 增加 `Thread.resume()` 便捷 API 或明确维持 `client.loadThread()` 为唯一 resume 入口。
-- [ ] 增加 AgentHub 侧最小集成样例包，覆盖 SDK 事件映射与真实 Hub/Edge emitter。
+- [x] 增加 AgentHub 侧最小集成样例包，覆盖 SDK 事件映射与 Hub/Edge emitter 形态。
 
 ### P4：CLI 体验
 

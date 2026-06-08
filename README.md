@@ -21,6 +21,7 @@ tokendance
 - `@tokendance/code-core`：session、event、runtime、tool registry、permission engine、JSONL transcript store、MockProvider。
 - `@tokendance/code-sdk`：AgentHub 可消费的 `TokenDanceCode -> Thread -> run/runStreamed` 编程接口，支持 provider 配置、审批回调、事件下沉、AgentHub runtime event 映射和 recent transcript resume。
 - `@tokendance/code-cli`：薄 CLI 入口，支持 `--version`、`doctor`、`run <prompt>`、最小交互式 REPL 和工具事件渲染。
+- `@tokendance/code-agenthub-example`：私有示例包，演示 AgentHub emitter 如何通过 SDK 接收 `agent.stream` payload 并桥接远程审批。
 - `pnpm verify`：同时执行 TypeScript typecheck 和 Vitest 测试。
 
 旧 Python `src/tokendance` 和 `tests/` 暂时保留为功能迁移参考，不再作为 TS 重构分支新增能力的默认落点。后续迁移按 [docs/TS重构路线图.md](docs/TS重构路线图.md) 推进。
@@ -192,7 +193,7 @@ const client = new TokenDanceCode({
 
 需要对接 AgentHub `run.agent.*` 事件时，可使用 `createAgentHubEventSink()` 或 `toAgentHubRuntimeEvents()`；需要 Hub/UI 异步审批时，可使用 `createAgentHubApprovalBridge()`。
 
-详细说明见 [docs/agenthub-sdk.md](docs/agenthub-sdk.md)。
+需要可复制的 Hub/Edge emitter 示例时，可参考私有 workspace 包 `packages/agenthub-example`。详细说明见 [docs/agenthub-sdk.md](docs/agenthub-sdk.md)。
 
 ## Slash Commands
 
@@ -244,7 +245,8 @@ TokenDanceCode/
 ├── packages/
 │   ├── core/         # runtime、session state、events、tools、permissions、transcript
 │   ├── sdk/          # AgentHub 和脚本调用的稳定编程接口
-│   └── cli/          # tokendance 命令入口与最小交互 shell
+│   ├── cli/          # tokendance 命令入口与最小交互 shell
+│   └── agenthub-example/ # AgentHub SDK 集成样例
 ├── src/tokendance/   # Python v0.1 参考实现，TS 迁移期间保留
 └── tests/            # Python v0.1 参考测试，TS 迁移期间保留
 ```

@@ -241,7 +241,42 @@ approvalBridge.decide("tool-call-id", "deny", "rejected in AgentHub");
 
 `approvalCallback` 会在工具执行前等待 `decide()`；等待期间 `pending()` 可读取当前待审批请求快照。`decide()` 找不到对应请求时返回 `false`，便于 AgentHub 忽略重复或过期决策。
 
-## 7. Resume
+## 7. AgentHub 最小集成样例包
+
+`packages/agenthub-example` 是私有 workspace 示例包，用来展示 AgentHub Hub/Edge 侧如何把 SDK、`agent.stream` emitter 和远程审批桥接拼起来。它不是新的稳定边界；正式集成仍应依赖 `@tokendance/code-sdk`。
+
+```ts
+import { createAgentHubTokenDanceRunner } from "@tokendance/code-agenthub-example";
+
+const runner = createAgentHubTokenDanceRunner({
+  storageRoot: "D:/Code/TokenDance/AgentHub/.tokendance-code",
+  async emitAgentStream(payload) {
+    await hubClient.postAgentStream(payload);
+  },
+  async onApprovalRequest(request) {
+    await hubClient.createApproval(request);
+  }
+});
+
+const turn = await runner.run({
+  prompt: "summarize this repo",
+  workingDirectory: "D:/Code/TokenDance/AgentHub",
+  permissionMode: "default",
+  taskId: "task_01HX...",
+  edgeRunId: "edge_run_01HX...",
+  sessionId: "sess_01HX...",
+  agentInstanceId: "agent_01HX..."
+});
+
+console.log(turn.finalResponse);
+
+// Hub / Edge 收到人工决策后：
+runner.decideApproval("tool-call-id", "allow", "approved in AgentHub");
+```
+
+样例 runner 每次 `run()` 都会创建一个新的 `TokenDanceCode` client，并用 `createAgentHubAgentStreamSink()` 把 runtime events 投递为递增 `event_seq` 的 `agent.stream` payload。真实 AgentHub 集成可以直接复制这个组合方式，再替换为自己的 Hub client、任务状态和 session 生命周期。
+
+## 8. Resume
 
 ```ts
 const latest = await client.loadLatestThread(storageRoot);
@@ -253,11 +288,12 @@ const byId = await client.loadThread("session-id", storageRoot);
 
 `recentTranscript` 暴露的是过滤后的 JSONL envelope，用于 AgentHub 恢复侧栏、事件列表或继续 thread。完整 transcript 仍以 `.tokendance/sessions/<session-id>/transcript.jsonl` 为事实源。
 
-## 8. 当前测试覆盖
+## 9. 当前测试覆盖
 
 - `packages/sdk/tests/sdk.test.ts` 覆盖 buffered turn、streamed events、多轮 thread、latest resume、审批允许/拒绝、provider env 配置错误、event sink。
 - `packages/sdk/tests/approval-bridge.test.ts` 覆盖 AgentHub 远程审批 bridge、pending 快照、allow/deny 决策回填。
 - `packages/sdk/tests/agenthub-events.test.ts` 覆盖 `TDCodeEvent` 到 AgentHub `run.agent.*` 的映射、sink 包装和 `agent.stream` payload fixture。
+- `packages/agenthub-example/tests/agenthub-runner.test.ts` 覆盖 AgentHub runner 示例、`agent.stream` payload 序列和 emitter 形态。
 - `packages/core/tests/*` 覆盖 runtime、permission、provider adapter、file/shell/patch/git/context/resume/memory。
 
 完整验证命令：

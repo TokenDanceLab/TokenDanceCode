@@ -18,6 +18,12 @@ importers:
         specifier: ^4.0.15
         version: 4.1.8(@types/node@24.13.1)(vite@8.0.16(@types/node@24.13.1))
 
+  packages/agenthub-example:
+    dependencies:
+      '@tokendance/code-sdk':
+        specifier: workspace:*
+        version: link:../sdk
+
   packages/cli:
     dependencies:
       '@tokendance/code-sdk':

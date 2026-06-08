@@ -9,9 +9,9 @@
     "node": ">=20.18"
   },
   "scripts": {
-    "build": "tsc -b packages/core packages/sdk packages/cli",
+    "build": "tsc -b packages/core packages/sdk packages/cli packages/agenthub-example",
     "test": "vitest run",
-    "typecheck": "tsc -b packages/core packages/sdk packages/cli --pretty false",
+    "typecheck": "tsc -b packages/core packages/sdk packages/cli packages/agenthub-example --pretty false",
     "verify": "pnpm typecheck && pnpm test"
   },
   "devDependencies": {

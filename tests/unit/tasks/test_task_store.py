@@ -68,3 +68,18 @@ class TaskStoreTests(unittest.TestCase):
 
             self.assertEqual(service.get(task.id).status, TaskStatus.PENDING)
 
+    def test_task_service_rebuilds_stale_index_from_event_log(self) -> None:
+        TaskService, _TaskStatus = self._load_api()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            service = TaskService(root)
+            first = service.create(title="First")
+            second = service.create(title="Second")
+            index_path = root / ".tokendance" / "tasks" / "task-index.json"
+            stale_index = json.loads(index_path.read_text(encoding="utf-8"))
+            stale_index["tasks"].pop(second.id)
+            index_path.write_text(json.dumps(stale_index), encoding="utf-8")
+
+            listed = TaskService(root).list()
+
+        self.assertEqual([task.id for task in listed], [first.id, second.id])

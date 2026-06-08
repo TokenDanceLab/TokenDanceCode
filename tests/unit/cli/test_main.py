@@ -1,5 +1,6 @@
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from typer.testing import CliRunner
 
@@ -41,7 +42,8 @@ class CliMainTests(unittest.TestCase):
         runner = CliRunner()
 
         with runner.isolated_filesystem():
-            result = runner.invoke(app, input="hello\n/exit\n")
+            with patch("tokendance.cli.main._create_provider", return_value=None):
+                result = runner.invoke(app, input="hello\n/exit\n")
 
         self.assertEqual(result.exit_code, 0)
         self.assertIn("You said: hello", result.stdout)

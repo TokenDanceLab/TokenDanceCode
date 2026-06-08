@@ -13,8 +13,8 @@ class SessionState:
     project_path: Path
     started_at: str
     updated_at: str
-    provider: str = "openai"
-    model: str = "gpt-5.4"
+    provider: str = "anthropic"
+    model: str = "claude-sonnet-4-6"
     permission_mode: str = "default"
     mode: str = "work"
     transcript_path: str = "transcript.jsonl"
@@ -30,8 +30,8 @@ class SessionState:
         *,
         project_path: Path,
         session_id: str | None = None,
-        provider: str = "openai",
-        model: str = "gpt-5.4",
+        provider: str = "anthropic",
+        model: str = "claude-sonnet-4-6",
         permission_mode: str = "default",
         mode: str = "work",
     ) -> "SessionState":

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Annotated, Optional
 
@@ -9,9 +10,39 @@ from rich.console import Console
 from tokendance import __version__
 from tokendance.cli.commands import build_doctor_text
 from tokendance.cli.shell import InteractiveShell
+from tokendance.config.loader import load_config
+from tokendance.config.secrets import get_env_api_key, load_project_env
 from tokendance.context.resume import ResumeService
+from tokendance.models.anthropic_provider import AnthropicProvider
+from tokendance.models.base import ModelProvider
+from tokendance.storage.paths import resolve_global_dir
 
 console = Console()
+
+
+def _create_provider(project_root: Path) -> ModelProvider | None:
+    """Auto-create a real provider when an API key is available.
+
+    Loads project ``.env``, then checks which providers have a key.
+    Prefers the configured provider; falls back to the other if only
+    one has a key.  Returns ``None`` (MockProvider) when no key is found.
+    """
+    project_root = Path.cwd()
+    load_project_env(project_root)
+
+    global_config_path = resolve_global_dir() / "config.toml"
+    config = load_config(global_config_path=global_config_path)
+
+    api_key = get_env_api_key("anthropic")
+    if not api_key:
+        return None
+
+    model: str = config.model
+    env_model = os.environ.get("MODEL_ID", "").strip()
+    if env_model and model == "claude-sonnet-4-6":
+        model = env_model
+
+    return AnthropicProvider(model=model)
 
 
 def _version_callback(value: bool) -> None:
@@ -43,7 +74,9 @@ def main(
         return
     if ctx.invoked_subcommand is not None:
         return
-    exit_code = InteractiveShell(project_root=Path.cwd()).run()
+    project_root = Path.cwd()
+    provider = _create_provider(project_root)
+    exit_code = InteractiveShell(project_root=project_root, provider=provider).run()
     raise typer.Exit(code=exit_code)
 
 

@@ -1,7 +1,15 @@
+.env
+.tokendance/
+.claude/
 __pycache__/
 *.py[cod]
 *.egg-info/
+*.log
 .pytest_cache/
 .venv/
+.vscode/
+.idea/
 build/
 dist/
+Thumbs.db
+Desktop.ini

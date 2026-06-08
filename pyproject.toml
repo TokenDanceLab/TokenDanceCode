@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "tokendance"
 version = "0.1.0"
-description = "A local command-line coding agent for personal development workflows."
+description = "TokenDance Lab 自研的 Harness 工程 Agent"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [
@@ -16,6 +16,7 @@ dependencies = [
   "openai>=2.36",
   "typer>=0.12",
   "rich>=13.7",
+  "prompt-toolkit>=3.0",
 ]
 
 [project.optional-dependencies]

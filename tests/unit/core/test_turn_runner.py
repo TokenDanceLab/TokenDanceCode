@@ -4,6 +4,7 @@ from pathlib import Path
 
 from tokendance.core.session import SessionState
 from tokendance.core.turn import TurnRunner
+from tokendance.models.errors import RateLimited
 from tokendance.models.mock import MockProvider
 from tokendance.models.types import ModelEvent, TDToolCall
 from tokendance.storage.transcript import SessionStore, TranscriptWriter
@@ -91,3 +92,33 @@ class TurnRunnerTests(unittest.TestCase):
 
         self.assertEqual(result.final_text, "done")
         self.assertEqual(len(provider.calls), 3)
+
+    def test_recovers_transient_provider_error_during_model_call(self) -> None:
+        class FlakyProvider:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def stream_response(self, *, messages, tools):
+                self.calls += 1
+                if self.calls == 1:
+                    raise RateLimited("slow down")
+                yield ModelEvent.text_delta("recovered")
+                yield ModelEvent.message_done()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            state = SessionState.new(project_path=root, session_id="session-test")
+            paths = SessionStore(root).create_session(state)
+            writer = TranscriptWriter(paths.transcript_path)
+            provider = FlakyProvider()
+
+            result = TurnRunner(provider=provider, registry=ToolRegistry()).run_turn(
+                "retry please",
+                state=state,
+                transcript_writer=writer,
+            )
+            records = writer.read_all()
+
+        self.assertEqual(result.final_text, "recovered")
+        self.assertEqual(provider.calls, 2)
+        self.assertIn("recovery_event", [record["type"] for record in records])

@@ -72,3 +72,30 @@ class InteractiveShellTests(unittest.TestCase):
 
         self.assertIn("runtime response", output.getvalue())
         self.assertNotIn("You said: hello", output.getvalue())
+
+    def test_shell_saves_session_on_keyboard_interrupt(self) -> None:
+        class InterruptingInput:
+            def __iter__(self):
+                return self
+
+            def __next__(self):
+                raise KeyboardInterrupt
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = io.StringIO()
+
+            exit_code = InteractiveShell(
+                project_root=root,
+                input_stream=InterruptingInput(),
+                output_stream=output,
+                session_id="session-test",
+            ).run()
+            transcript = read_jsonl(
+                root / ".tokendance" / "sessions" / "session-test" / "transcript.jsonl"
+            )
+
+        self.assertEqual(exit_code, 130)
+        self.assertIn("Interrupted", output.getvalue())
+        self.assertEqual(transcript[-1]["type"], "turn_completed")
+        self.assertEqual(transcript[-1]["payload"]["reason"], "interrupt")

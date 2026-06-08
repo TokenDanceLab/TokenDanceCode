@@ -6,7 +6,7 @@ from typing import Any
 
 from openai import OpenAI
 
-from tokendance.config.secrets import get_env_api_key
+from tokendance.config.secrets import get_env_api_key, get_env_base_url
 from tokendance.models.errors import AuthFailed, normalize_provider_error
 from tokendance.models.types import ModelEvent, TDMessage, TDToolCall, TDToolSpec
 
@@ -22,7 +22,7 @@ class OpenAIProvider:
     ) -> None:
         self.model = model
         self.api_key = api_key if api_key is not None else get_env_api_key("openai")
-        self.base_url = base_url
+        self.base_url = base_url if base_url is not None else get_env_base_url("openai")
         self.client = client
 
     def stream_response(

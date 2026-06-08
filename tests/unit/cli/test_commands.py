@@ -154,3 +154,34 @@ class CommandRouterTests(unittest.TestCase):
         self.assertIn("cli-wt", created.message)
         self.assertIn("cli-wt", listed.message)
         self.assertIn("removed", removed.message.lower())
+
+    def test_tasks_command_creates_lists_and_updates_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            context = CommandContext(session_id="session-1", project_path=root)
+            router = CommandRouter()
+
+            created = router.handle("/tasks create Stage 12 CLI", context)
+            listed = router.handle("/tasks", context)
+            task_id = created.message.split()[1]
+            updated = router.handle(f"/tasks status {task_id} in_progress", context)
+
+        self.assertIn("Created", created.message)
+        self.assertIn("Stage 12 CLI", listed.message)
+        self.assertIn("in_progress", updated.message)
+
+    def test_todo_command_writes_lists_and_updates_session_todos(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            session_dir = root / ".tokendance" / "sessions" / "session-1"
+            context = CommandContext(session_id="session-1", project_path=root, session_dir=session_dir)
+            router = CommandRouter()
+
+            written = router.handle("/todo add Run unittest", context)
+            listed = router.handle("/todo", context)
+            todo_id = written.message.split()[1]
+            updated = router.handle(f"/todo status {todo_id} completed", context)
+
+        self.assertIn("Wrote", written.message)
+        self.assertIn("Run unittest", listed.message)
+        self.assertIn("completed", updated.message)

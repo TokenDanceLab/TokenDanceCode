@@ -17,13 +17,14 @@ from tokendance.git.review import ReviewService
 from tokendance.git.revert import RevertService
 from tokendance.git.service import GitService
 from tokendance.git.worktree import WorktreeService
+from tokendance.tasks import Task, TaskService, TodoItem, TodoService
 
 
 @dataclass
 class CommandContext:
     session_id: str
-    provider: str = "openai"
-    model: str = "gpt-5.4"
+    provider: str = "anthropic"
+    model: str = "claude-sonnet-4-6"
     permission_mode: str = "default"
     mode: str = "work"
     project_path: Path = Path.cwd()
@@ -74,6 +75,10 @@ class CommandRouter:
             return _revert(argument, context)
         if command == "/quality":
             return _quality(argument, context)
+        if command == "/tasks":
+            return _tasks(argument, context)
+        if command == "/todo":
+            return _todo(argument, context)
         if command == "/agents":
             return _agents(context)
         if command == "/worktree":
@@ -90,25 +95,37 @@ def _split_command(line: str) -> tuple[str, str]:
 def _help_text() -> str:
     return "\n".join(
         [
-            "Available commands:",
-            "/help",
-            "/status",
-            "/clear",
-            "/exit",
-            "/mode work|teach",
-            "/permissions default|safe|auto|yolo",
-            "/config",
-            "/doctor",
-            "/memory",
-            "/transcript search <query>",
-            "/compact",
-            "/resume",
-            "/diff",
-            "/review",
-            "/revert latest",
-            "/quality <command>",
-            "/agents",
-            "/worktree list|create <name>|remove <name> [--discard]|keep <name>",
+            "会话",
+            "  /help             显示帮助",
+            "  /status           查看会话状态",
+            "  /clear            清空终端",
+            "  /exit             退出并保存",
+            "",
+            "模型与配置",
+            "  /mode work|teach   切换输出风格",
+            "  /permissions       切换权限模式 default|safe|auto|yolo",
+            "  /config            查看当前配置",
+            "  /doctor            诊断本地环境",
+            "",
+            "任务与计划",
+            "  /tasks             管理持久任务",
+            "  /todo              管理会话待办",
+            "",
+            "上下文与记忆",
+            "  /compact           手动压缩上下文",
+            "  /transcript        搜索 transcript",
+            "  /resume            恢复历史会话",
+            "  /memory            管理记忆",
+            "",
+            "代码变更",
+            "  /diff              查看当前改动",
+            "  /review            代码审查",
+            "  /revert latest     回滚最近 patch",
+            "  /quality           运行质量检查",
+            "",
+            "Subagent 与隔离",
+            "  /agents            查看 subagent 状态",
+            "  /worktree          管理 git worktree",
         ]
     )
 
@@ -272,6 +289,58 @@ def _quality(argument: str, context: CommandContext) -> CommandResult:
     )
 
 
+def _tasks(argument: str, context: CommandContext) -> CommandResult:
+    command, rest = _split_command_argument(argument)
+    service = TaskService(context.project_path)
+    try:
+        if command in {"", "list"}:
+            tasks = service.list()
+            if not tasks:
+                return CommandResult("No tasks.")
+            return CommandResult("\n".join(_format_task(task) for task in tasks))
+        if command == "create":
+            if not rest:
+                return CommandResult("Usage: /tasks create <title>")
+            task = service.create(title=rest)
+            return CommandResult(f"Created {task.id} [{task.status.value}] {task.title}")
+        if command == "status":
+            task_id, status = _split_required_pair(rest, "Usage: /tasks status <task_id> <status>")
+            task = service.update_status(task_id, status)
+            return CommandResult(f"Updated {task.id} [{task.status.value}] {task.title}")
+        if command == "get":
+            if not rest:
+                return CommandResult("Usage: /tasks get <task_id>")
+            return CommandResult(_format_task(service.get(rest)))
+    except (KeyError, ValueError) as exc:
+        return CommandResult(str(exc))
+    return CommandResult("Usage: /tasks [create <title>|status <task_id> <status>|get <task_id>]")
+
+
+def _todo(argument: str, context: CommandContext) -> CommandResult:
+    if context.session_dir is None:
+        return CommandResult("No current session for todo.")
+    command, rest = _split_command_argument(argument)
+    service = TodoService(context.session_dir)
+    try:
+        if command in {"", "list"}:
+            todos = service.list()
+            if not todos:
+                return CommandResult("No todos.")
+            return CommandResult("\n".join(_format_todo(todo) for todo in todos))
+        if command == "add":
+            if not rest:
+                return CommandResult("Usage: /todo add <content>")
+            todo = service.write(content=rest)
+            return CommandResult(f"Wrote {todo.id} [{todo.status.value}] {todo.content}")
+        if command == "status":
+            todo_id, status = _split_required_pair(rest, "Usage: /todo status <todo_id> <status>")
+            todo = service.update(todo_id, status=status)
+            return CommandResult(f"Updated {todo.id} [{todo.status.value}] {todo.content}")
+    except (KeyError, ValueError) as exc:
+        return CommandResult(str(exc))
+    return CommandResult("Usage: /todo [add <content>|status <todo_id> <status>]")
+
+
 def _agents(context: CommandContext) -> CommandResult:
     results = AgentManager(context.project_path).list()
     if not results:
@@ -314,6 +383,26 @@ def _worktree(argument: str, context: CommandContext) -> CommandResult:
 def _split_worktree_argument(argument: str) -> tuple[str, str]:
     command, _, rest = argument.strip().partition(" ")
     return command, rest.strip()
+
+
+def _split_command_argument(argument: str) -> tuple[str, str]:
+    command, _, rest = argument.strip().partition(" ")
+    return command, rest.strip()
+
+
+def _split_required_pair(argument: str, usage: str) -> tuple[str, str]:
+    first, _, second = argument.strip().partition(" ")
+    if not first or not second:
+        raise ValueError(usage)
+    return first, second.strip()
+
+
+def _format_task(task: Task) -> str:
+    return f"{task.id} [{task.status.value}] {task.title}"
+
+
+def _format_todo(todo: TodoItem) -> str:
+    return f"{todo.id} [{todo.status.value}] {todo.content}"
 
 
 def _parse_worktree_create(argument: str) -> tuple[str, str | None]:

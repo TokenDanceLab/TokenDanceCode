@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, fields
 from typing import Any, Literal
 
-ProviderName = Literal["openai", "anthropic"]
+ProviderName = Literal["anthropic"]
 PermissionMode = Literal["default", "safe", "auto", "yolo"]
 ExecutorBackend = Literal["local", "venv", "conda", "docker", "worktree"]
 ProjectState = Literal["local", "global", "disabled"]
@@ -11,8 +11,8 @@ ProjectState = Literal["local", "global", "disabled"]
 
 @dataclass(frozen=True)
 class TokendanceConfig:
-    provider: ProviderName = "openai"
-    model: str = "gpt-5.4"
+    provider: ProviderName = "anthropic"
+    model: str = "claude-sonnet-4-6"
     permission_mode: PermissionMode = "default"
     executor_backend: ExecutorBackend = "local"
     project_state: ProjectState = "local"

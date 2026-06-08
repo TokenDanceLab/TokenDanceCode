@@ -13,8 +13,8 @@ class SessionStateTests(unittest.TestCase):
             state = SessionState.new(project_path=project)
 
         self.assertEqual(state.project_path, project)
-        self.assertEqual(state.provider, "openai")
-        self.assertEqual(state.model, "gpt-5.4")
+        self.assertEqual(state.provider, "anthropic")
+        self.assertEqual(state.model, "claude-sonnet-4-6")
         self.assertEqual(state.permission_mode, "default")
         self.assertEqual(state.mode, "work")
         self.assertEqual(state.transcript_path, "transcript.jsonl")

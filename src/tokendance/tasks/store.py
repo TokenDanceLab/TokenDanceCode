@@ -20,17 +20,18 @@ class TaskEventStore:
         self.index_path = self.tasks_dir / "task-index.json"
 
     def load_tasks(self) -> dict[str, Task]:
+        if self.events_path.exists():
+            tasks = self.rebuild_index()
+            self.write_index(tasks)
+            return tasks
+
         if self.index_path.exists():
             raw = json.loads(self.index_path.read_text(encoding="utf-8"))
             return {
                 task_id: Task.from_dict({**task_data, "id": task_id})
                 for task_id, task_data in raw.get("tasks", {}).items()
             }
-
-        tasks = self.rebuild_index()
-        if tasks:
-            self.write_index(tasks)
-        return tasks
+        return {}
 
     def rebuild_index(self) -> dict[str, Task]:
         tasks: dict[str, Task] = {}
@@ -237,4 +238,3 @@ def _require_task(tasks: dict[str, Task], task_id: str) -> Task:
 def _append_unique(items: list[str], value: str) -> None:
     if value and value not in items:
         items.append(value)
-

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from tokendance.core.context_builder import ContextBuilder
 from tokendance.core.events import RuntimeEvent
+from tokendance.core.recovery import RecoveryEvent, recover_provider_call
 from tokendance.core.session import SessionState
 from tokendance.models.base import ModelProvider
 from tokendance.models.types import ModelEvent, TDContentBlock, TDMessage, TDToolResult, TDToolSpec
@@ -41,6 +43,7 @@ class TurnRunner:
         *,
         state: SessionState,
         transcript_writer: TranscriptWriter,
+        on_text_delta: Callable[[str], None] | None = None,
     ) -> TurnResult:
         messages = self.context_builder.build_messages(state, user_message)
         transcript_writer.append(RuntimeEvent(type="user_message", payload={"content": user_message}))
@@ -48,11 +51,15 @@ class TurnRunner:
         final_text_parts: list[str] = []
 
         for _ in range(self.max_model_calls):
-            events = list(
-                self.provider.stream_response(
-                    messages=messages,
-                    tools=self._tool_specs(),
-                )
+            events = recover_provider_call(
+                lambda: list(
+                    self.provider.stream_response(
+                        messages=messages,
+                        tools=self._tool_specs(),
+                    )
+                ),
+                compact_context=lambda: _compact_messages(messages),
+                on_recovery_event=lambda event: _record_recovery_event(transcript_writer, event),
             )
             model_requested_tool = False
             text_parts: list[str] = []
@@ -61,6 +68,8 @@ class TurnRunner:
                 if event.type == "text_delta" and event.text is not None:
                     text_parts.append(event.text)
                     transcript_writer.append(RuntimeEvent(type="assistant_delta", payload={"text": event.text}))
+                    if on_text_delta is not None:
+                        on_text_delta(event.text)
                 elif event.type == "tool_call" and event.tool_call is not None:
                     model_requested_tool = True
                     result = self.orchestrator.execute(
@@ -110,4 +119,29 @@ def _tool_result_message(result: TDToolResult) -> TDMessage:
                 is_error=result.is_error,
             )
         ],
+    )
+
+
+def _compact_messages(messages: list[TDMessage]) -> None:
+    system_messages = [message for message in messages if message.role == "system"][:1]
+    user_messages = [message for message in messages if message.role == "user"]
+    latest_user = user_messages[-1:] if user_messages else []
+    messages[:] = [
+        *system_messages,
+        TDMessage.user_text("Context was compacted after a provider context-length error. Continue the task."),
+        *latest_user,
+    ]
+
+
+def _record_recovery_event(writer: TranscriptWriter, event: RecoveryEvent) -> None:
+    writer.append(
+        RuntimeEvent(
+            type="recovery_event",
+            payload={
+                "kind": event.kind,
+                "attempt": event.attempt,
+                "error_type": event.error_type,
+                "message": event.message,
+            },
+        )
     )

@@ -54,7 +54,8 @@ class WorktreeService:
         self.state_dir = resolve_project_dir(self.repo_root) / "worktrees"
         self.index_path = self.state_dir / "worktrees.json"
         self.events_path = self.state_dir / "events.jsonl"
-        self.worktree_root = self.state_dir / "dirs"
+        self.worktree_root = self.repo_root.parent / f".tokendance-worktrees-{_safe_directory_name(self.repo_root.name)}"
+        self._ensure_project_state_ignored()
 
     def create(self, name: str, *, task_id: str | None = None) -> WorktreeRecord:
         safe_name = validate_worktree_name(name)
@@ -104,7 +105,10 @@ class WorktreeService:
                 )
 
         if record.path.exists():
-            self._git("worktree", "remove", str(record.path), "--force")
+            args = ["worktree", "remove", str(record.path)]
+            if discard_changes:
+                args.append("--force")
+            self._git(*args)
         self._delete_branch(record.branch)
         records = self._load_records()
         records.pop(safe_name, None)
@@ -138,9 +142,22 @@ class WorktreeService:
     def _require_record(self, name: str) -> WorktreeRecord:
         records = self._load_records()
         try:
-            return records[name]
+            record = records[name]
         except KeyError:
             raise KeyError(f"Worktree not found: {name}") from None
+        self._validate_record(record)
+        return record
+
+    def _validate_record(self, record: WorktreeRecord) -> None:
+        root = self.worktree_root.resolve()
+        path = record.path.resolve()
+        try:
+            path.relative_to(root)
+        except ValueError:
+            raise ValueError(f"Worktree path is outside managed worktree root: {record.path}") from None
+        expected_branch = f"wt/{record.name}"
+        if record.branch != expected_branch:
+            raise ValueError(f"Worktree branch mismatch for {record.name}: {record.branch}")
 
     def _log_event(self, event_type: str, record: WorktreeRecord) -> None:
         append_jsonl(
@@ -174,6 +191,21 @@ class WorktreeService:
             raise RuntimeError(completed.stderr.strip() or completed.stdout.strip())
         return completed.stdout
 
+    def _ensure_project_state_ignored(self) -> None:
+        try:
+            exclude_path = self.repo_root / self._git("rev-parse", "--git-path", "info/exclude").strip()
+        except RuntimeError:
+            return
+        exclude_path.parent.mkdir(parents=True, exist_ok=True)
+        existing = exclude_path.read_text(encoding="utf-8") if exclude_path.exists() else ""
+        entries = {line.strip() for line in existing.splitlines()}
+        if ".tokendance/" in entries or "/.tokendance/" in entries:
+            return
+        with exclude_path.open("a", encoding="utf-8", newline="\n") as file:
+            if existing and not existing.endswith(("\n", "\r")):
+                file.write("\n")
+            file.write(".tokendance/\n")
+
     @staticmethod
     def _git_in_worktree(path: Path, *args: str) -> str:
         completed = subprocess.run(
@@ -194,6 +226,10 @@ def validate_worktree_name(name: str) -> str:
             "Invalid worktree name. Use 1-64 letters, numbers, dots, underscores, or hyphens."
         )
     return normalized
+
+
+def _safe_directory_name(name: str) -> str:
+    return re.sub(r"[^A-Za-z0-9._-]+", "-", name.strip()) or "repo"
 
 
 def _utc_now() -> str:

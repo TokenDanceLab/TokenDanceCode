@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { MemoryStore } from "./memory.js";
 import type { SessionState, TDMessage } from "./types.js";
 
 const defaultSystemPrompt = "TokenDanceCode is a local command-line coding agent. Keep responses concise, concrete, and action-oriented.";
@@ -38,6 +39,12 @@ export class ContextBuilder {
 
     if (input.session.compactSummary) {
       systemParts.push(`## Compact Summary\n${input.session.compactSummary}`);
+    }
+
+    const memory = new MemoryStore({ projectRoot: workspaceRoot });
+    const memoryEntries = [...(await memory.listGlobalMemory()), ...(await memory.listProjectMemory())];
+    if (memoryEntries.length > 0) {
+      systemParts.push(`## Memory\n${memoryEntries.map((entry) => `- ${entry}`).join("\n")}`);
     }
 
     return {

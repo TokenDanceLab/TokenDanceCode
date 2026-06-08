@@ -19,7 +19,7 @@ tokendance
 当前分支已经建立 TypeScript 第一批可验证闭环：
 
 - `@tokendance/code-core`：session、event、runtime、tool registry、permission engine、JSONL transcript store、MockProvider。
-- `@tokendance/code-sdk`：AgentHub 可消费的 `TokenDanceCode -> Thread -> run/runStreamed` 编程接口。
+- `@tokendance/code-sdk`：AgentHub 可消费的 `TokenDanceCode -> Thread -> run/runStreamed` 编程接口，支持 provider 配置、审批回调、事件下沉和 recent transcript resume。
 - `@tokendance/code-cli`：薄 CLI 入口，支持 `--version`、`doctor`、`run <prompt>`。
 - `pnpm verify`：同时执行 TypeScript typecheck 和 Vitest 测试。
 
@@ -45,7 +45,7 @@ tokendance
 - Windows 下推荐使用 PowerShell。
 - 如果要使用真实模型，后续需要 OpenAI 或 Anthropic-compatible API key。
 
-如果没有配置 API key，当前 TS runtime 使用 MockProvider，适合做 SDK、CLI 和 transcript 冒烟测试。
+如果没有配置 API key，当前 TS runtime 可以使用 MockProvider，适合做 SDK、CLI 和 transcript 冒烟测试。
 
 ## 从源码安装
 
@@ -86,7 +86,7 @@ node packages/cli/dist/main.js run "hello"
 
 ## 配置模型
 
-TokenDanceCode TS 版当前还未接真实 provider。配置目标如下，具体 adapter 将在后续阶段实现。
+TokenDanceCode TS 版当前已提供 OpenAI Responses API 与 Anthropic-compatible Messages API provider adapter。CLI 默认仍使用 MockProvider；AgentHub 或本地脚本可通过 SDK 显式选择 provider。
 
 配置可以放在以下位置：
 
@@ -160,6 +160,26 @@ const thread = client.startThread({ workingDirectory: process.cwd() });
 const turn = await thread.run("summarize repo");
 console.log(turn.finalResponse);
 ```
+
+AgentHub 集成可以接管审批和事件分发：
+
+```ts
+import { TokenDanceCode } from "@tokendance/code-sdk";
+
+const client = new TokenDanceCode({
+  provider: { type: "anthropic-messages", model: "claude-sonnet-4-6" },
+  storageRoot: "D:/Code/TokenDance/AgentHub/.tokendance-code",
+  env: process.env,
+  approvalCallback(request) {
+    return request.tool.risk !== "dangerous";
+  },
+  eventSink(event) {
+    console.log(event.type);
+  }
+});
+```
+
+详细说明见 [docs/agenthub-sdk.md](docs/agenthub-sdk.md)。
 
 ## 规划中的 Slash Commands
 
@@ -245,9 +265,10 @@ tokendance doctor
 - `glob` 工具默认排除 `.git`、`.tokendance`、虚拟环境、缓存目录、build/dist、`node_modules` 和 `.env`。
 - CLI 会对大工具输出做摘要，不会把完整大文件内容直接刷到终端。
 - 真实模型集成测试默认跳过，需要显式配置相关环境变量后才会运行。
+- AgentHub 集成应使用 SDK 的 `approvalCallback` 和 `eventSink`，不要直接调用 core runtime 内部类。
 
 ## 当前状态
 
 TokenDanceCode TS 版目前还是早期本地 Agent 实现，适合开发、测试和自用验证。
 
-它还不是正式发布到 npm 的包。后续会继续补充正式发布流程、安装包、首次运行向导、真实模型 provider、文件/patch/shell/git 工具、resume/compact 和交互式 shell。
+它还不是正式发布到 npm 的包。后续会继续补充正式发布流程、安装包、首次运行向导、交互式 shell、CLI resume/compact 和更完整的 AgentHub 端到端示例。

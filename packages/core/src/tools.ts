@@ -3,7 +3,7 @@ import { buildFileTools } from "./file-tools.js";
 import { buildGitTools } from "./git-tools.js";
 import { createApplyPatchTool } from "./patch-tools.js";
 import { createRunPowerShellTool } from "./shell-tools.js";
-import type { SessionState, ToolCall, ToolResult, ToolSpec } from "./types.js";
+import type { PermissionDecision, SessionState, ToolCall, ToolResult, ToolSpec } from "./types.js";
 
 export class ToolRegistry {
   private readonly tools = new Map<string, ToolSpec>();
@@ -28,13 +28,13 @@ export class ToolRegistry {
 export class ToolOrchestrator {
   constructor(private readonly registry: ToolRegistry) {}
 
-  async execute(call: ToolCall, session: SessionState): Promise<ToolResult> {
+  async execute(call: ToolCall, session: SessionState, permissionDecision?: PermissionDecision): Promise<ToolResult> {
     const tool = this.registry.get(call.name);
     if (!tool) {
       return { callId: call.id, toolName: call.name, ok: false, error: `Unknown tool: ${call.name}` };
     }
 
-    const decision = new PermissionEngine(session.permissionMode).decide(tool);
+    const decision = permissionDecision ?? new PermissionEngine(session.permissionMode).decide(tool);
     if (decision.status !== "allowed") {
       return { callId: call.id, toolName: call.name, ok: false, error: decision.reason };
     }

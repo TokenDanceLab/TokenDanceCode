@@ -2,7 +2,19 @@ import { randomUUID } from "node:crypto";
 import { PermissionEngine } from "./permissions.js";
 import { appendMessage, createSession } from "./session.js";
 import { createDefaultToolRegistry, ToolOrchestrator, ToolRegistry } from "./tools.js";
-import type { ModelProvider, SessionState, TDCodeEvent, TDMessage, ToolResult, TranscriptStore } from "./types.js";
+import type {
+  ModelProvider,
+  PermissionApprovalCallback,
+  PermissionDecision,
+  SessionState,
+  TDCodeEvent,
+  TDCodeEventSink,
+  TDMessage,
+  ToolCall,
+  ToolResult,
+  ToolSpec,
+  TranscriptStore
+} from "./types.js";
 
 export interface AgentRuntimeOptions {
   provider: ModelProvider;
@@ -10,6 +22,8 @@ export interface AgentRuntimeOptions {
   registry?: ToolRegistry;
   session?: SessionState;
   cwd?: string;
+  approvalCallback?: PermissionApprovalCallback;
+  eventSink?: TDCodeEventSink;
 }
 
 export class AgentRuntime {
@@ -68,11 +82,12 @@ export class AgentRuntime {
       for (const call of response.toolCalls) {
         yield* this.emit({ type: "tool.started", sessionId: this.session.id, turnId, call });
         const tool = this.registry.get(call.name);
+        let decision: PermissionDecision | undefined;
         if (tool) {
-          const decision = new PermissionEngine(this.session.permissionMode).decide(tool);
+          decision = await this.decideTool(call, tool, turnId);
           yield* this.emit({ type: "tool.permission", sessionId: this.session.id, turnId, call, decision });
         }
-        const result = await orchestrator.execute(call, this.session);
+        const result = await orchestrator.execute(call, this.session, decision);
         toolResults.push(result);
         yield* this.emit({ type: "tool.completed", sessionId: this.session.id, turnId, result });
       }
@@ -81,8 +96,32 @@ export class AgentRuntime {
     throw new Error("Tool loop exceeded 8 steps");
   }
 
+  private async decideTool(call: ToolCall, tool: ToolSpec, turnId: string): Promise<PermissionDecision> {
+    const baseDecision = new PermissionEngine(this.session.permissionMode).decide(tool);
+    if (baseDecision.status !== "requires_approval" || !this.options.approvalCallback) {
+      return baseDecision;
+    }
+
+    const response = await this.options.approvalCallback({
+      session: this.session,
+      turnId,
+      call,
+      tool,
+      decision: baseDecision
+    });
+
+    if (typeof response === "boolean") {
+      return response
+        ? { status: "allowed", reason: `approved by callback: ${baseDecision.reason}` }
+        : { status: "denied", reason: `denied by callback: ${baseDecision.reason}` };
+    }
+
+    return response;
+  }
+
   private async *emit(event: TDCodeEvent): AsyncGenerator<TDCodeEvent> {
     await this.options.store?.append(event);
+    await this.options.eventSink?.(event);
     yield event;
   }
 }

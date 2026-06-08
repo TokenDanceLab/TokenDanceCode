@@ -1,20 +1,32 @@
 import {
   AgentRuntime,
+  AnthropicMessagesProvider,
   FileTranscriptStore,
   MockProvider,
+  OpenAIResponsesProvider,
   ResumeService,
   type ModelProvider,
+  type PermissionApprovalCallback,
   type PermissionMode,
   type SessionState,
   type TDCodeEvent,
+  type TDCodeEventSink,
   type TranscriptEnvelope
 } from "@tokendance/code-core";
 
 export type ThreadInput = string | Array<{ type: "text"; text: string }>;
 
+export type TokenDanceProviderConfig =
+  | { type: "mock" }
+  | { type: "openai-responses"; apiKey?: string; model: string; baseUrl?: string }
+  | { type: "anthropic-messages"; apiKey?: string; model: string; baseUrl?: string; maxTokens?: number; anthropicVersion?: string };
+
 export interface TokenDanceCodeOptions {
-  provider?: ModelProvider;
+  provider?: ModelProvider | TokenDanceProviderConfig;
   storageRoot?: string;
+  env?: Record<string, string | undefined>;
+  approvalCallback?: PermissionApprovalCallback;
+  eventSink?: TDCodeEventSink;
 }
 
 export interface StartThreadOptions {
@@ -63,9 +75,40 @@ export class TokenDanceCode {
 
   createRuntime(session: SessionState): AgentRuntime {
     return new AgentRuntime({
-      provider: this.options.provider ?? new MockProvider(),
+      provider: this.resolveProvider(),
       store: new FileTranscriptStore({ rootDir: this.options.storageRoot ?? session.cwd }),
-      session
+      session,
+      approvalCallback: this.options.approvalCallback,
+      eventSink: this.options.eventSink
+    });
+  }
+
+  private resolveProvider(): ModelProvider {
+    const provider = this.options.provider;
+    if (!provider) {
+      return new MockProvider();
+    }
+    if ("createTurn" in provider) {
+      return provider;
+    }
+
+    const env = this.options.env ?? process.env;
+    if (provider.type === "mock") {
+      return new MockProvider();
+    }
+    if (provider.type === "openai-responses") {
+      return new OpenAIResponsesProvider({
+        apiKey: provider.apiKey ?? env.OPENAI_API_KEY ?? "",
+        model: provider.model,
+        baseUrl: provider.baseUrl
+      });
+    }
+    return new AnthropicMessagesProvider({
+      apiKey: provider.apiKey ?? env.ANTHROPIC_API_KEY ?? "",
+      model: provider.model,
+      baseUrl: provider.baseUrl,
+      maxTokens: provider.maxTokens,
+      anthropicVersion: provider.anthropicVersion
     });
   }
 }
@@ -122,4 +165,4 @@ function normalizeInput(input: ThreadInput): string {
     .join("\n");
 }
 
-export type { ModelProvider, PermissionMode, SessionState, TDCodeEvent, TranscriptEnvelope };
+export type { ModelProvider, PermissionApprovalCallback, PermissionMode, SessionState, TDCodeEvent, TDCodeEventSink, TranscriptEnvelope };

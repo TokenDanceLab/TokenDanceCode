@@ -84,6 +84,22 @@ export type PermissionDecision =
   | { status: "denied"; reason: string }
   | { status: "requires_approval"; reason: string };
 
+export interface PermissionApprovalRequest {
+  session: SessionState;
+  turnId: string;
+  call: ToolCall;
+  tool: ToolSpec;
+  decision: Extract<PermissionDecision, { status: "requires_approval" }>;
+}
+
+export type PermissionApprovalResponse = boolean | PermissionDecision;
+
+export type PermissionApprovalCallback = (
+  request: PermissionApprovalRequest
+) => PermissionApprovalResponse | Promise<PermissionApprovalResponse>;
+
+export type TDCodeEventSink = (event: TDCodeEvent) => void | Promise<void>;
+
 export type TDCodeEvent =
   | { type: "session.created"; session: SessionState }
   | { type: "user.message"; sessionId: string; turnId: string; message: TDMessage }

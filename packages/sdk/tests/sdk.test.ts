@@ -1,9 +1,31 @@
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { FileTranscriptStore, type SessionState } from "@tokendance/code-core";
+import { FileTranscriptStore, type ModelProvider, type ModelTurnRequest, type ModelTurnResponse, type SessionState } from "@tokendance/code-core";
 import { TokenDanceCode } from "../src/index.js";
+
+class WriteFileProvider implements ModelProvider {
+  async createTurn(request: ModelTurnRequest): Promise<ModelTurnResponse> {
+    if (request.toolResults.length > 0) {
+      const result = request.toolResults.at(-1);
+      return {
+        assistantMessage: `write ${result?.ok ? "ok" : "failed"}`,
+        toolCalls: []
+      };
+    }
+
+    return {
+      toolCalls: [
+        {
+          id: "write-approved",
+          name: "write_file",
+          input: { path: "approved.txt", content: "approved by AgentHub" }
+        }
+      ]
+    };
+  }
+}
 
 describe("TokenDanceCode SDK", () => {
   it("buffers a turn result for AgentHub callers", async () => {
@@ -64,5 +86,82 @@ describe("TokenDanceCode SDK", () => {
     expect(thread.id).toBe("session-load");
     expect(thread.recentTranscript).toHaveLength(1);
     expect(thread.recentTranscript[0]?.event.type).toBe("user.message");
+  });
+
+  it("lets AgentHub approve a write tool before execution", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
+    const approvals: string[] = [];
+    const client = new TokenDanceCode({
+      storageRoot: root,
+      provider: new WriteFileProvider(),
+      approvalCallback(request) {
+        approvals.push(`${request.tool.name}:${request.decision.status}`);
+        return true;
+      }
+    });
+    const thread = client.startThread({ workingDirectory: root, permissionMode: "default" });
+
+    const turn = await thread.run("write approved file");
+
+    expect(approvals).toEqual(["write_file:requires_approval"]);
+    expect(turn.finalResponse).toBe("write ok");
+    await expect(readFile(join(root, "approved.txt"), "utf8")).resolves.toBe("approved by AgentHub");
+    expect(turn.events).toContainEqual(
+      expect.objectContaining({
+        type: "tool.permission",
+        decision: expect.objectContaining({ status: "allowed" })
+      })
+    );
+  });
+
+  it("lets AgentHub deny a write tool before execution", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
+    const client = new TokenDanceCode({
+      storageRoot: root,
+      provider: new WriteFileProvider(),
+      approvalCallback() {
+        return false;
+      }
+    });
+    const thread = client.startThread({ workingDirectory: root, permissionMode: "default" });
+
+    const turn = await thread.run("write denied file");
+
+    expect(turn.finalResponse).toBe("write failed");
+    await expect(readFile(join(root, "approved.txt"), "utf8")).rejects.toThrow();
+    expect(turn.events).toContainEqual(
+      expect.objectContaining({
+        type: "tool.permission",
+        decision: expect.objectContaining({ status: "denied" })
+      })
+    );
+  });
+
+  it("uses SDK env when constructing configured providers", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
+    const client = new TokenDanceCode({
+      storageRoot: root,
+      provider: { type: "openai-responses", model: "gpt-test" },
+      env: {}
+    });
+    const thread = client.startThread({ workingDirectory: root });
+
+    await expect(thread.run("hello")).rejects.toThrow("OPENAI_API_KEY is not configured");
+  });
+
+  it("forwards runtime events to an AgentHub event sink", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
+    const received: string[] = [];
+    const client = new TokenDanceCode({
+      storageRoot: root,
+      eventSink(event) {
+        received.push(event.type);
+      }
+    });
+    const thread = client.startThread({ workingDirectory: root });
+
+    await thread.run("stream to sink");
+
+    expect(received).toEqual(["user.message", "assistant.delta", "assistant.completed", "turn.completed"]);
   });
 });

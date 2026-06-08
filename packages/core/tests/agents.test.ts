@@ -62,6 +62,35 @@ describe("agent manager", () => {
     await expect(readFile(join(root, "agent.txt"), "utf8")).rejects.toThrow();
   });
 
+  it("gets and discards coding subagent worktrees with dirty-change protection", async () => {
+    const root = await initRepo();
+    const manager = new AgentManager({
+      projectRoot: root,
+      runner: async (request: SubagentRequest) => {
+        await writeFile(join(request.cwd, "agent.txt"), "dirty subagent file\n", "utf8");
+        return { summary: "created dirty file" };
+      }
+    });
+    const result = await manager.runCoding("Create dirty file", { worktree: "dirty-agent" });
+
+    await expect(manager.get(result.id)).resolves.toMatchObject({
+      id: result.id,
+      worktree: "dirty-agent",
+      status: "completed"
+    });
+    await expect(manager.discard(result.id)).rejects.toThrow("uncommitted changes");
+
+    const discarded = await manager.discard(result.id, { discard: true });
+
+    expect(discarded).toMatchObject({
+      id: result.id,
+      status: "discarded",
+      worktree: "dirty-agent"
+    });
+    await expect(manager.get(result.id)).resolves.toMatchObject({ status: "discarded" });
+    await expect(readFile(join(root, ".worktrees", "dirty-agent", "agent.txt"), "utf8")).rejects.toThrow();
+  });
+
   it("exposes subagent tools through the default registry", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-agent-tools-"));
     const orchestrator = new ToolOrchestrator(createDefaultToolRegistry());

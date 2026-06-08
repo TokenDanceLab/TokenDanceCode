@@ -478,12 +478,20 @@ export class TokenDanceSubagents {
     return this.manager.list();
   }
 
+  get(id: string): Promise<AgentRunRecord | undefined> {
+    return this.manager.get(id);
+  }
+
   runReadonly(input: { prompt: string; agentType?: Exclude<AgentType, "coding"> }): Promise<AgentRunRecord> {
     return this.manager.runReadonly(input);
   }
 
   runCoding(input: { prompt: string; worktree?: string; taskId?: string }): Promise<AgentRunRecord> {
     return this.manager.runCoding(input.prompt, { worktree: input.worktree, taskId: input.taskId });
+  }
+
+  discard(id: string, options: { discard?: boolean } = {}): Promise<AgentRunRecord> {
+    return this.manager.discard(id, options);
   }
 }
 
@@ -520,4 +528,4 @@ function cloneSession(session: SessionState): SessionState {
   };
 }
 
-export type { CompactResult, ModelProvider, PermissionApprovalCallback, PermissionMode, SessionState, TDCodeEvent, TDCodeEventSink, TranscriptEnvelope };
+export type { AgentRunRecord, CompactResult, ModelProvider, PermissionApprovalCallback, PermissionMode, SessionState, TDCodeEvent, TDCodeEventSink, TranscriptEnvelope };

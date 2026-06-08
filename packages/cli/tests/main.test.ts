@@ -214,6 +214,34 @@ describe("TokenDanceCode CLI", () => {
     await expect(readFile(join(root, "agent.txt"), "utf8")).rejects.toThrow();
   });
 
+  it("shows and discards coding subagent worktrees from top-level commands", async () => {
+    const root = await initRepo();
+    const run = createTestIO("", root);
+    const show = createTestIO("", root);
+    const discardDirty = createTestIO("", root);
+    const discard = createTestIO("", root);
+    const list = createTestIO("", root);
+
+    await runCli(["agents", "run", "coding", "--worktree", "cli-discard", "Prepare", "discard"], run);
+    await writeFile(join(root, ".worktrees", "cli-discard", "agent.txt"), "dirty cli worktree\n", "utf8");
+
+    const showExitCode = await runCli(["agents", "show", "agent-0001"], show);
+    const discardDirtyExitCode = await runCli(["agents", "discard", "agent-0001"], discardDirty);
+    const discardExitCode = await runCli(["agents", "discard", "agent-0001", "--discard"], discard);
+    const listExitCode = await runCli(["agents"], list);
+
+    expect(showExitCode).toBe(0);
+    expect(show.stdoutText()).toContain("agent-0001 [coding] completed");
+    expect(show.stdoutText()).toContain("worktree: cli-discard");
+    expect(discardDirtyExitCode).toBe(1);
+    expect(discardDirty.stderrText()).toContain("uncommitted changes");
+    expect(discardExitCode).toBe(0);
+    expect(discard.stdoutText()).toContain("Discarded subagent agent-0001 worktree cli-discard.");
+    expect(listExitCode).toBe(0);
+    expect(list.stdoutText()).toContain("agent-0001 [coding] [discarded]");
+    await expect(readFile(join(root, ".worktrees", "cli-discard", "agent.txt"), "utf8")).rejects.toThrow();
+  });
+
   it("shows transcript metadata in interactive and top-level commands", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-cli-"));
     const interactive = createTestIO("hello transcript\n/transcript\n/exit\n", root);

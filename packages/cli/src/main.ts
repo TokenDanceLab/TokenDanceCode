@@ -5,6 +5,7 @@ import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
 import {
   TokenDanceCode,
+  type AgentRunRecord,
   type MemoryScope,
   type PermissionMode,
   type TDCodeEvent,
@@ -305,10 +306,24 @@ async function agentsCommand(args: string[], io: CliIO): Promise<number> {
       await printAgents(io, await agents.list());
       return 0;
     }
+    if (command === "show" && rawType) {
+      const agent = await agents.get(rawType);
+      if (!agent) {
+        await write(io.stderr, `Subagent ${rawType} was not found.\n`);
+        return 1;
+      }
+      await printAgentDetail(io, agent);
+      return 0;
+    }
+    if (command === "discard" && rawType) {
+      const discarded = await agents.discard(rawType, { discard: promptParts.includes("--discard") });
+      await write(io.stdout, `Discarded subagent ${discarded.id} worktree ${discarded.worktree}.\n`);
+      return 0;
+    }
     if (command === "run") {
       const parsed = parseAgentRunArgs(rawType, promptParts);
       if (!parsed) {
-        await write(io.stderr, "Usage: tokendance agents run investigator|reviewer <prompt> | coding [--worktree name] <prompt>\n");
+        await write(io.stderr, agentUsage());
         return 1;
       }
       const result = parsed.agentType === "coding"
@@ -320,7 +335,7 @@ async function agentsCommand(args: string[], io: CliIO): Promise<number> {
       }
       return 0;
     }
-    await write(io.stderr, "Usage: tokendance agents [run investigator|reviewer <prompt> | run coding [--worktree name] <prompt>]\n");
+    await write(io.stderr, agentUsage());
     return 1;
   } catch (error) {
     await write(io.stderr, `${error instanceof Error ? error.message : String(error)}\n`);
@@ -703,8 +718,29 @@ async function printAgents(io: CliIO, agents: Awaited<ReturnType<ReturnType<Toke
     return;
   }
   for (const agent of agents) {
-    await write(io.stdout, `${agent.id} [${agent.agentType}] ${agent.summary}\n`);
+    const status = agent.status === "completed" ? "" : ` [${agent.status}]`;
+    await write(io.stdout, `${agent.id} [${agent.agentType}]${status} ${agent.summary}\n`);
   }
+}
+
+async function printAgentDetail(io: CliIO, agent: AgentRunRecord): Promise<void> {
+  await write(io.stdout, `${agent.id} [${agent.agentType}] ${agent.status}\n`);
+  await write(io.stdout, `summary: ${agent.summary}\n`);
+  await write(io.stdout, `readonly: ${agent.readonly}\n`);
+  await write(io.stdout, `cwd: ${agent.cwd}\n`);
+  if (agent.worktree) {
+    await write(io.stdout, `worktree: ${agent.worktree}\n`);
+  }
+  if (agent.worktreePath) {
+    await write(io.stdout, `worktreePath: ${agent.worktreePath}\n`);
+  }
+  if (agent.changedFiles.length > 0) {
+    await write(io.stdout, `changedFiles: ${agent.changedFiles.join(", ")}\n`);
+  }
+  if (agent.validationResult) {
+    await write(io.stdout, `validation: ${agent.validationResult}\n`);
+  }
+  await write(io.stdout, `transcript: ${agent.transcriptPath}\n`);
 }
 
 async function printWorktrees(io: CliIO, worktrees: Awaited<ReturnType<ReturnType<TokenDanceCode["worktrees"]>["list"]>>): Promise<void> {
@@ -756,6 +792,8 @@ Usage:
   tokendance memory [add|delete] [project|global] [value]
   tokendance agents [run investigator|reviewer <prompt>]
   tokendance agents run coding [--worktree name] <prompt>
+  tokendance agents show <agent-id>
+  tokendance agents discard <agent-id> [--discard]
   tokendance diff [path ...]
   tokendance review
   tokendance tools
@@ -786,6 +824,8 @@ async function printInteractiveHelp(io: CliIO): Promise<void> {
   /memory [add|delete] [project|global] [value]
   /agents [run investigator|reviewer <prompt>]
   /agents run coding [--worktree name] <prompt>
+  /agents show <agent-id>
+  /agents discard <agent-id> [--discard]
   /diff [path ...]
   /review
   /tools
@@ -838,6 +878,10 @@ function parseAgentRunArgs(rawType: string | undefined, args: string[]): { agent
     return undefined;
   }
   return { agentType: "coding", prompt, worktree };
+}
+
+function agentUsage(): string {
+  return "Usage: tokendance agents [show <id> | discard <id> [--discard] | run investigator|reviewer <prompt> | run coding [--worktree name] <prompt>]\n";
 }
 
 function gitOutput(output: unknown): { stdout: string; stderr: string; exitCode: number | null } {

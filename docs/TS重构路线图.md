@@ -101,7 +101,7 @@ node packages/cli/dist/main.js run "hello"
 - [x] Git tool：status/diff/review quality gate 的最小集合。
 - [x] Tool metadata：默认 registry 和 SDK/CLI 可列出工具名称、说明、风险等级和并发属性。
 - [x] Worktree manager/tool：受控 `.worktrees` list/create/remove，dirty 删除需显式 `--discard`，并暴露 `worktree_list/create/remove` 默认 registry tools。
-- [x] Subagent manager/tool：readonly investigator/reviewer、coding worktree delegation、agent transcript/index、`subagent_run/list` 默认 registry tools。
+- [x] Subagent manager/tool：readonly investigator/reviewer、coding worktree delegation、agent transcript/index、get/discard 生命周期管理、dirty worktree 丢弃保护、`subagent_run/list` 默认 registry tools。
 - [x] Config loader：合并 defaults/global/project JSON 配置，只暴露 provider、model、permissionMode 白名单字段。
 
 ### P2：上下文与恢复
@@ -128,7 +128,7 @@ node packages/cli/dist/main.js run "hello"
 - [x] 增加 SDK `thread.searchTranscript(query, { limit? })`，供 AgentHub 调试面板或轻量索引读取匹配事件。
 - [x] 增加 SDK `client.memory({ projectRoot?, homeDir? })`，供 AgentHub 管理 project/global memory。
 - [x] 增加 SDK `client.tasks({ projectRoot? })` 和 `client.todos({ projectRoot?, sessionId? })`，供 AgentHub 管理任务图和 session todo。
-- [x] 增加 SDK `client.subagents({ projectRoot? })`，供 AgentHub 启动 readonly/coding subagent 并读取 agent run 记录。
+- [x] 增加 SDK `client.subagents({ projectRoot? })`，供 AgentHub 启动 readonly/coding subagent、读取 agent run 记录，并丢弃 coding subagent 的隔离 worktree。
 - [x] 增加 SDK `client.worktrees({ repositoryRoot?, worktreeRoot? })`，供 AgentHub 管理 coding subagent 的隔离 worktree 池。
 - [x] 增加 SDK `client.tools({ workingDirectory?, permissionMode? })`，供 AgentHub 查看工具能力 metadata、触发受控工具执行、Git diff/review、worktree 和质量门。
 - [x] 增加 SDK `client.config({ projectRoot?, homeDir? })`，供 AgentHub 读取有效配置和来源。
@@ -138,6 +138,6 @@ node packages/cli/dist/main.js run "hello"
 
 - [x] 交互式 REPL 最小闭环。
 - [x] `/new`、`/status`、`/doctor`、`/config`、`/permissions`。
-- [x] 顶层 `config`、`resume [session-id]`、`memory [add|delete] [project|global] [value]`、`agents [run investigator|reviewer <prompt>]`、`agents run coding [--worktree name] <prompt>`、`tasks [create|doing|done] [value]`、`todo [add|doing|done] [value]`、`worktree [list|create|remove] [name] [--discard]`、`diff [path ...]`、`review`、`tools`、`quality <command>`、`transcript [session-id]`、`transcript [session-id] search <query>`、`compact [session-id]`，交互式 `/config`、`/resume`、`/memory`、`/agents`、`/tasks`、`/todo`、`/worktree`、`/diff`、`/review`、`/tools`、`/quality`、`/transcript`、`/transcript search <query>`、`/compact`。
+- [x] 顶层 `config`、`resume [session-id]`、`memory [add|delete] [project|global] [value]`、`agents [run investigator|reviewer <prompt>]`、`agents run coding [--worktree name] <prompt>`、`agents show <agent-id>`、`agents discard <agent-id> [--discard]`、`tasks [create|doing|done] [value]`、`todo [add|doing|done] [value]`、`worktree [list|create|remove] [name] [--discard]`、`diff [path ...]`、`review`、`tools`、`quality <command>`、`transcript [session-id]`、`transcript [session-id] search <query>`、`compact [session-id]`，交互式 `/config`、`/resume`、`/memory`、`/agents`、`/tasks`、`/todo`、`/worktree`、`/diff`、`/review`、`/tools`、`/quality`、`/transcript`、`/transcript search <query>`、`/compact`。
 - [x] 滚动式事件 renderer 闭环：assistant 文本、tool started、permission decision、tool completed、tool failed reason、tool output summary、turn token usage。
 - [ ] 增强 renderer：未来真实 provider token delta 合并策略和更细进度显示。

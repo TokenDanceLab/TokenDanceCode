@@ -32,7 +32,7 @@ export interface AgentRunRecord {
   agentType: AgentType;
   prompt: string;
   summary: string;
-  status: "completed";
+  status: "completed" | "discarded";
   readonly: boolean;
   cwd: string;
   transcriptPath: string;
@@ -91,6 +91,31 @@ export class AgentManager {
     } catch {
       return [];
     }
+  }
+
+  async get(id: string): Promise<AgentRunRecord | undefined> {
+    const agentId = requiredText(id, "agent id");
+    return (await this.list()).find((agent) => agent.id === agentId);
+  }
+
+  async discard(id: string, options: { discard?: boolean } = {}): Promise<AgentRunRecord> {
+    const agentId = requiredText(id, "agent id");
+    const agents = await this.list();
+    const index = agents.findIndex((agent) => agent.id === agentId);
+    if (index < 0) {
+      throw new Error(`Subagent ${agentId} was not found.`);
+    }
+    const agent = agents[index];
+    if (!agent?.worktree) {
+      throw new Error(`Subagent ${agentId} does not have a managed worktree.`);
+    }
+
+    await this.worktreeManager.remove(agent.worktree, { discard: options.discard });
+    const updated: AgentRunRecord = { ...agent, status: "discarded", updatedAt: new Date().toISOString() };
+    agents[index] = updated;
+    await appendJsonl(agent.transcriptPath, { type: "subagent_discarded", payload: updated });
+    await this.writeIndex(agents);
+    return updated;
   }
 
   private async run(input: {

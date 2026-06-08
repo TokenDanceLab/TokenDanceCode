@@ -277,6 +277,28 @@ describe("TokenDanceCode SDK", () => {
     expect(await subagents.list()).toEqual([result]);
   });
 
+  it("gets and discards subagent worktrees through the SDK boundary for AgentHub callers", async () => {
+    const root = await initRepo();
+    const client = new TokenDanceCode();
+    const subagents = client.subagents({ projectRoot: root });
+
+    const result = await subagents.runCoding({ prompt: "Prepare SDK worktree", worktree: "sdk-agent" });
+    await writeFile(join(result.worktreePath ?? "", "agent.txt"), "dirty sdk worktree\n", "utf8");
+
+    await expect(subagents.get(result.id)).resolves.toMatchObject({
+      id: result.id,
+      agentType: "coding",
+      worktree: "sdk-agent"
+    });
+    await expect(subagents.discard(result.id)).rejects.toThrow("uncommitted changes");
+
+    const discarded = await subagents.discard(result.id, { discard: true });
+
+    expect(discarded).toMatchObject({ id: result.id, status: "discarded" });
+    await expect(subagents.get(result.id)).resolves.toMatchObject({ status: "discarded" });
+    expect(await client.worktrees({ repositoryRoot: root }).list()).toEqual([]);
+  });
+
   it("reads effective config through the SDK boundary for AgentHub callers", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-config-"));
     const projectRoot = join(root, "repo");

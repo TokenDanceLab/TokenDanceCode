@@ -150,6 +150,8 @@ node packages/cli/dist/main.js memory delete project 0
 node packages/cli/dist/main.js agents
 node packages/cli/dist/main.js agents run reviewer "Inspect task store"
 node packages/cli/dist/main.js agents run coding --worktree stage15-agent "Prepare isolated change"
+node packages/cli/dist/main.js agents show agent-0001
+node packages/cli/dist/main.js agents discard agent-0001 --discard
 node packages/cli/dist/main.js tasks
 node packages/cli/dist/main.js tasks create "Stage 15 E2E"
 node packages/cli/dist/main.js tasks done task-1
@@ -229,6 +231,9 @@ await todos.updateStatus(todo.id, "in_progress");
 const subagents = client.subagents({ projectRoot: process.cwd() });
 const agent = await subagents.runReadonly({ agentType: "reviewer", prompt: "Inspect task store" });
 console.log(agent.summary);
+console.log(await subagents.get(agent.id));
+const codingAgent = await subagents.runCoding({ prompt: "Prepare isolated change", worktree: "stage15-agent" });
+await subagents.discard(codingAgent.id, { discard: true });
 
 const worktrees = client.worktrees({ repositoryRoot: process.cwd() });
 const worktree = await worktrees.create({ name: "stage15-wt" });

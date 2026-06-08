@@ -16,10 +16,10 @@ export class FileTranscriptStore implements TranscriptStore {
 
   async initialize(session: SessionState): Promise<void> {
     this.cwdBySession.set(session.id, session.cwd);
-    this.nextSeqBySession.set(session.id, 1);
     const dir = this.sessionDir(session.id);
     await mkdir(dir, { recursive: true });
-    await writeFile(join(dir, "session.json"), `${JSON.stringify(session, null, 2)}\n`, "utf8");
+    await this.hydrateSessionCounters(session.id);
+    await this.saveSession(session);
   }
 
   async append(event: TDCodeEvent): Promise<void> {
@@ -53,6 +53,12 @@ export class FileTranscriptStore implements TranscriptStore {
   async loadSession(sessionId: string): Promise<SessionState> {
     const content = await readFile(join(this.sessionDir(sessionId), "session.json"), "utf8");
     return JSON.parse(content) as SessionState;
+  }
+
+  async saveSession(session: SessionState): Promise<void> {
+    const dir = this.sessionDir(session.id);
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, "session.json"), `${JSON.stringify(session, null, 2)}\n`, "utf8");
   }
 
   sessionDir(sessionId: string): string {

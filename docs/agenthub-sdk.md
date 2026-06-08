@@ -297,7 +297,7 @@ console.log(doctor.stateDir.writable);
 runner.decideApproval("tool-call-id", "allow", "approved in AgentHub");
 ```
 
-样例 runner 每次 `run()` 都会创建一个新的 `TokenDanceCode` client，并用 `createAgentHubAgentStreamSink()` 把 runtime events 投递为递增 `event_seq` 的 `agent.stream` payload。传入的 AgentHub `sessionId` 会同时作为 TokenDanceCode thread id 使用，保证 Hub 事件、SDK `TurnResult.threadId` 和 transcript 目录使用同一个 session 标识。`packageInfo()` 和 `doctor()` 只是把 SDK manifest/doctor facade 暴露给 Hub/Edge 启动检查，真实 AgentHub 集成可以直接复制这个组合方式，再替换为自己的 Hub client、任务状态和 session 生命周期。
+样例 runner 每次 `run()` 都会创建一个新的 `TokenDanceCode` client，并用 `createAgentHubAgentStreamSink()` 把 runtime events 投递为递增 `event_seq` 的 `agent.stream` payload。传入的 AgentHub `sessionId` 会同时作为 TokenDanceCode thread id 使用；runner 会先按该 id `resume()`，没有现存 session 时才 `startThread()`，保证 Hub 事件、SDK `TurnResult.threadId`、provider 可见的消息历史和 transcript 目录使用同一个 session 标识。`packageInfo()` 和 `doctor()` 只是把 SDK manifest/doctor facade 暴露给 Hub/Edge 启动检查，真实 AgentHub 集成可以直接复制这个组合方式，再替换为自己的 Hub client、任务状态和 session 生命周期。
 
 ## 9. Resume
 
@@ -309,7 +309,7 @@ console.log(latest.recentTranscript);
 const byId = await client.resume({ sessionId: "session-id", storageRoot });
 ```
 
-`resume()` 是 AgentHub 推荐使用的便捷入口；它在未传 `sessionId` 时恢复最新 session，传入 `sessionId` 时恢复指定 session。底层仍保留 `loadLatestThread(storageRoot)` 和 `loadThread(sessionId, storageRoot)`，供需要显式区分 latest/by-id 的调用方使用。
+`resume()` 是 AgentHub 推荐使用的便捷入口；它在未传 `sessionId` 时恢复最新 session，传入 `sessionId` 时恢复指定 session。恢复后的 thread 会继续使用同一份 session state 和 JSONL transcript，后续 turn 的 transcript `seq` 会接着历史事件递增。底层仍保留 `loadLatestThread(storageRoot)` 和 `loadThread(sessionId, storageRoot)`，供需要显式区分 latest/by-id 的调用方使用。
 
 `recentTranscript` 暴露的是过滤后的 JSONL envelope，用于 AgentHub 恢复侧栏、事件列表或继续 thread。完整 transcript 仍以 `.tokendance/sessions/<session-id>/transcript.jsonl` 为事实源。
 

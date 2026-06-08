@@ -47,6 +47,7 @@ export class AgentRuntime {
     const turnId = randomUUID();
     const userMessage: TDMessage = { role: "user", content: input };
     this.session = appendMessage(this.session, userMessage);
+    await this.persistSession();
     yield* this.emit({ type: "user.message", sessionId: this.session.id, turnId, message: userMessage });
 
     const orchestrator = new ToolOrchestrator(this.registry);
@@ -63,6 +64,7 @@ export class AgentRuntime {
         yield* this.emit({ type: "assistant.delta", sessionId: this.session.id, turnId, text: response.assistantMessage });
         const assistantMessage: TDMessage = { role: "assistant", content: response.assistantMessage };
         this.session = appendMessage(this.session, assistantMessage);
+        await this.persistSession();
         yield* this.emit({ type: "assistant.completed", sessionId: this.session.id, turnId, message: assistantMessage });
         yield* this.emit({
           type: "turn.completed",
@@ -123,5 +125,9 @@ export class AgentRuntime {
     await this.options.store?.append(event);
     await this.options.eventSink?.(event);
     yield event;
+  }
+
+  private persistSession(): Promise<void> {
+    return this.options.store?.saveSession?.(this.session) ?? Promise.resolve();
   }
 }

@@ -2,7 +2,7 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { AgentHubAgentStreamPayload } from "@tokendance/code-sdk";
+import type { AgentHubAgentStreamPayload, ModelProvider } from "@tokendance/code-sdk";
 import { createAgentHubTokenDanceRunner } from "../src/index.js";
 
 describe("AgentHub TokenDanceCode runner example", () => {
@@ -54,6 +54,50 @@ describe("AgentHub TokenDanceCode runner example", () => {
     });
   });
 
+  it("resumes the supplied AgentHub session id across runner calls", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-agenthub-example-"));
+    const seenMessages: string[][] = [];
+    const provider: ModelProvider = {
+      async createTurn(request) {
+        seenMessages.push(request.session.messages.map((message) => message.content));
+        return {
+          assistantMessage: `seen:${request.session.messages.map((message) => message.content).join("|")}`,
+          toolCalls: []
+        };
+      }
+    };
+    const runner = createAgentHubTokenDanceRunner({
+      storageRoot: root,
+      provider,
+      emitAgentStream() {}
+    });
+
+    await runner.run({
+      prompt: "first prompt",
+      workingDirectory: root,
+      permissionMode: "default",
+      taskId: "task-1",
+      edgeRunId: "edge-run-1",
+      sessionId: "hub-session-continuity",
+      agentInstanceId: "agent-1"
+    });
+    await runner.run({
+      prompt: "second prompt",
+      workingDirectory: root,
+      permissionMode: "default",
+      taskId: "task-1",
+      edgeRunId: "edge-run-2",
+      sessionId: "hub-session-continuity",
+      agentInstanceId: "agent-1"
+    });
+
+    expect(seenMessages[0]).toEqual(["first prompt"]);
+    expect(seenMessages[1]).toEqual(["first prompt", "seen:first prompt", "second prompt"]);
+
+    const transcript = await readTranscriptSeqs(root, "hub-session-continuity");
+    expect(transcript).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+
   it("exposes package metadata and doctor diagnostics for AgentHub startup checks", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-agenthub-example-"));
     const runner = createAgentHubTokenDanceRunner({
@@ -79,3 +123,11 @@ describe("AgentHub TokenDanceCode runner example", () => {
     expect(doctor.stateDir.writable).toBe(true);
   });
 });
+
+async function readTranscriptSeqs(root: string, sessionId: string): Promise<number[]> {
+  const content = await readFile(join(root, ".tokendance", "sessions", sessionId, "transcript.jsonl"), "utf8");
+  return content
+    .split(/\r?\n/)
+    .filter((line) => line.trim().length > 0)
+    .map((line) => (JSON.parse(line) as { seq: number }).seq);
+}

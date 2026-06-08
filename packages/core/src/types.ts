@@ -126,4 +126,5 @@ export interface TranscriptStore {
   initialize(session: SessionState): Promise<void>;
   append(event: TDCodeEvent): Promise<void>;
   loadSession(sessionId: string): Promise<SessionState>;
+  saveSession?(session: SessionState): Promise<void>;
 }

@@ -68,9 +68,10 @@ export function createAgentHubTokenDanceRunner(options: AgentHubTokenDanceRunner
     },
 
     async run(runOptions) {
+      const storageRoot = options.storageRoot ?? runOptions.workingDirectory;
       const client = new TokenDanceCode({
         provider: options.provider,
-        storageRoot: options.storageRoot,
+        storageRoot,
         env: options.env,
         approvalCallback: approvalBridge?.approvalCallback,
         eventSink: createAgentHubAgentStreamSink(
@@ -84,11 +85,7 @@ export function createAgentHubTokenDanceRunner(options: AgentHubTokenDanceRunner
           options.emitAgentStream
         )
       });
-      const thread = client.startThread({
-        id: runOptions.sessionId,
-        workingDirectory: runOptions.workingDirectory,
-        permissionMode: runOptions.permissionMode
-      });
+      const thread = await resumeOrStartThread(client, runOptions, storageRoot);
       return thread.run(runOptions.prompt);
     },
 
@@ -100,4 +97,23 @@ export function createAgentHubTokenDanceRunner(options: AgentHubTokenDanceRunner
       return approvalBridge?.pending() ?? [];
     }
   };
+}
+
+async function resumeOrStartThread(client: TokenDanceCode, runOptions: AgentHubTokenDanceRunOptions, storageRoot: string) {
+  try {
+    return await client.resume({ sessionId: runOptions.sessionId, storageRoot });
+  } catch (error) {
+    if (!isMissingSessionError(error)) {
+      throw error;
+    }
+    return client.startThread({
+      id: runOptions.sessionId,
+      workingDirectory: runOptions.workingDirectory,
+      permissionMode: runOptions.permissionMode
+    });
+  }
+}
+
+function isMissingSessionError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "code" in error && (error as { code?: unknown }).code === "ENOENT";
 }

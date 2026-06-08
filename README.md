@@ -143,6 +143,9 @@ node packages/cli/dist/main.js transcript
 node packages/cli/dist/main.js transcript <session-id>
 node packages/cli/dist/main.js transcript search <query>
 node packages/cli/dist/main.js transcript <session-id> search <query>
+node packages/cli/dist/main.js memory
+node packages/cli/dist/main.js memory add project "Use pnpm verify before commits"
+node packages/cli/dist/main.js memory delete project 0
 node packages/cli/dist/main.js compact
 node packages/cli/dist/main.js compact <session-id>
 ```
@@ -189,6 +192,10 @@ console.log(transcript.transcriptPath);
 
 const matches = await resumed.searchTranscript("needle");
 console.log(matches.map((match) => `${match.seq}:${match.eventType}`));
+
+const memory = client.memory({ projectRoot: process.cwd() });
+await memory.add("project", "Use pnpm verify before commits.");
+console.log(await memory.list("project"));
 ```
 
 AgentHub 集成可以接管审批和事件分发：
@@ -227,6 +234,9 @@ const client = new TokenDanceCode({
 /permissions auto
 /permissions yolo
 /resume
+/memory
+/memory add project <text>
+/memory delete project <index>
 /transcript
 /transcript search <query>
 /compact
@@ -242,7 +252,6 @@ const client = new TokenDanceCode({
 /quality pnpm verify
 /tasks
 /todo
-/memory
 /worktree
 ```
 

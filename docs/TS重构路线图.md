@@ -8,7 +8,7 @@
 - worktree：`D:\Code\TokenDance\TokenDanceCode\.worktrees\ts-refactor`
 - 目标：把 TokenDanceCode 从 Python v0.1 参考实现重构为 TypeScript monorepo，并给 AgentHub 暴露稳定 SDK。
 - 当前可验证命令：`pnpm verify`
-- 最近验证结果：typecheck 通过，Vitest 17 个测试文件 77 个测试通过。
+- 最近验证结果：typecheck 通过，Vitest 17 个测试文件 79 个测试通过。
 
 旧 `src/tokendance` 和 `tests/` 暂时保留为功能迁移参考。新增 TS 能力默认写入 `packages/*`，不要继续扩展 Python 运行时，除非明确是在补迁移对照或保护旧行为。
 
@@ -107,7 +107,7 @@ node packages/cli/dist/main.js run "hello"
 - [x] Resume：从 JSONL 恢复 session，过滤未闭合 tool call 和坏链路。
 - [x] Transcript metadata/search：SDK/CLI 可展示 sessionDir、transcriptPath、eventCount，并搜索源事件匹配。
 - [x] Compact helper：SDK/CLI 可对 latest 或指定 session 生成 compact summary。
-- [x] Memory：先支持项目/全局 Markdown 读取，不做自动抽取。
+- [x] Memory：支持项目/全局 Markdown 读写删除、SDK facade 和 CLI 管理入口，不做自动抽取。
 
 ### P3：AgentHub SDK 包装
 
@@ -121,12 +121,13 @@ node packages/cli/dist/main.js run "hello"
 - [x] 暴露 `thread.state` session snapshot，供 AgentHub 读取当前 thread 状态。
 - [x] 增加 SDK `client.resume({ sessionId?, storageRoot? })` 便捷入口，兼容 latest/by-id resume。
 - [x] 增加 SDK `thread.searchTranscript(query, { limit? })`，供 AgentHub 调试面板或轻量索引读取匹配事件。
+- [x] 增加 SDK `client.memory({ projectRoot?, homeDir? })`，供 AgentHub 管理 project/global memory。
 - [x] 增加 AgentHub 侧最小集成样例包，覆盖 SDK 事件映射与 Hub/Edge emitter 形态。
 
 ### P4：CLI 体验
 
 - [x] 交互式 REPL 最小闭环。
 - [x] `/new`、`/status`、`/doctor`、`/permissions`。
-- [x] 顶层 `resume [session-id]`、`transcript [session-id]`、`transcript [session-id] search <query>`、`compact [session-id]`，交互式 `/resume`、`/transcript`、`/transcript search <query>`、`/compact`。
+- [x] 顶层 `resume [session-id]`、`memory [add|delete] [project|global] [value]`、`transcript [session-id]`、`transcript [session-id] search <query>`、`compact [session-id]`，交互式 `/resume`、`/memory`、`/transcript`、`/transcript search <query>`、`/compact`。
 - [x] 滚动式事件 renderer 最小闭环：assistant 文本、tool started、permission decision、tool completed、tool failed reason、tool output summary。
 - [ ] 增强 renderer：未来真实 provider token delta 和更细进度显示。

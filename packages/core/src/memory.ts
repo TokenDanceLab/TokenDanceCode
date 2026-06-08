@@ -29,6 +29,10 @@ export class MemoryStore {
     return this.readEntries(this.globalMemoryPath());
   }
 
+  async deleteGlobalMemory(index: number): Promise<void> {
+    await this.delete(this.globalMemoryPath(), index);
+  }
+
   projectMemoryPath(): string {
     return join(this.options.projectRoot, ".tokendance", "memory", "project.md");
   }

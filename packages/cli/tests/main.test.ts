@@ -47,6 +47,29 @@ describe("TokenDanceCode CLI", () => {
     expect(output).toContain("Events: ");
   });
 
+  it("manages project memory in interactive and top-level commands", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-"));
+    const interactive = createTestIO("/memory\n/memory add project Keep SDK stable\n/memory\n/exit\n", root);
+    await runCli([], interactive);
+    const topLevelList = createTestIO("", root);
+    const topLevelDelete = createTestIO("", root);
+    const afterDelete = createTestIO("", root);
+
+    const listExitCode = await runCli(["memory"], topLevelList);
+    const deleteExitCode = await runCli(["memory", "delete", "project", "0"], topLevelDelete);
+    const afterDeleteExitCode = await runCli(["memory"], afterDelete);
+
+    expect(interactive.stdoutText()).toContain("No project memory.");
+    expect(interactive.stdoutText()).toContain("Added project memory.");
+    expect(interactive.stdoutText()).toContain("project[0]: Keep SDK stable");
+    expect(listExitCode).toBe(0);
+    expect(topLevelList.stdoutText()).toContain("project[0]: Keep SDK stable");
+    expect(deleteExitCode).toBe(0);
+    expect(topLevelDelete.stdoutText()).toContain("Deleted project memory 0.");
+    expect(afterDeleteExitCode).toBe(0);
+    expect(afterDelete.stdoutText()).toContain("No project memory.");
+  });
+
   it("shows transcript metadata in interactive and top-level commands", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-cli-"));
     const interactive = createTestIO("hello transcript\n/transcript\n/exit\n", root);

@@ -5,6 +5,7 @@ import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
 import {
   TokenDanceCode,
+  type MemoryScope,
   type PermissionMode,
   type TDCodeEvent,
   type Thread,
@@ -43,6 +44,10 @@ export async function runCli(argv: string[], io: CliIO = defaultIO()): Promise<n
 
   if (command === "resume") {
     return resumeCommand(rest, io);
+  }
+
+  if (command === "memory") {
+    return memoryCommand(rest, io);
   }
 
   if (command === "transcript") {
@@ -117,6 +122,11 @@ async function runInteractive(io: CliIO): Promise<void> {
       continue;
     }
 
+    if (line === "/memory" || line.startsWith("/memory ")) {
+      await memoryCommand(line.split(/\s+/).slice(1), io);
+      continue;
+    }
+
     if (line === "/transcript" || line.startsWith("/transcript ")) {
       await handleTranscript(io, thread, line);
       continue;
@@ -153,6 +163,43 @@ async function resumeCommand(args: string[], io: CliIO): Promise<number> {
     await write(io.stderr, `${message}\n`);
     return 1;
   }
+}
+
+async function memoryCommand(args: string[], io: CliIO): Promise<number> {
+  const memory = new TokenDanceCode().memory({ projectRoot: io.cwd() });
+  const [command, rawScope, ...rest] = args;
+  const scope = parseMemoryScope(rawScope);
+
+  if (!command) {
+    await printMemoryEntries(io, memory, "project");
+    await printMemoryEntries(io, memory, "global");
+    return 0;
+  }
+
+  if (command === "add") {
+    const text = rest.join(" ").trim();
+    if (!scope || !text) {
+      await write(io.stderr, "Usage: tokendance memory add project|global <text>\n");
+      return 1;
+    }
+    await memory.add(scope, text);
+    await write(io.stdout, `Added ${scope} memory.\n`);
+    return 0;
+  }
+
+  if (command === "delete") {
+    const index = Number.parseInt(rest[0] ?? "", 10);
+    if (!scope || Number.isNaN(index)) {
+      await write(io.stderr, "Usage: tokendance memory delete project|global <index>\n");
+      return 1;
+    }
+    await memory.delete(scope, index);
+    await write(io.stdout, `Deleted ${scope} memory ${index}.\n`);
+    return 0;
+  }
+
+  await write(io.stderr, "Usage: tokendance memory [add|delete] [project|global] [value]\n");
+  return 1;
 }
 
 async function transcriptCommand(args: string[], io: CliIO): Promise<number> {
@@ -322,6 +369,18 @@ async function printTranscriptSearchResults(io: CliIO, results: TranscriptSearch
   }
 }
 
+async function printMemoryEntries(io: CliIO, memory: ReturnType<TokenDanceCode["memory"]>, scope: MemoryScope): Promise<void> {
+  const entries = await memory.list(scope);
+  if (entries.length === 0) {
+    await write(io.stdout, `No ${scope} memory.\n`);
+    return;
+  }
+
+  for (const [index, entry] of entries.entries()) {
+    await write(io.stdout, `${scope}[${index}]: ${entry}\n`);
+  }
+}
+
 async function handleCompact(io: CliIO, thread: Thread): Promise<void> {
   const result = await thread.compact();
   await printCompactResult(io, result);
@@ -357,6 +416,7 @@ Usage:
   tokendance
   tokendance --version
   tokendance doctor
+  tokendance memory [add|delete] [project|global] [value]
   tokendance resume [session-id]
   tokendance transcript [session-id]
   tokendance transcript search <query>
@@ -376,6 +436,7 @@ async function printInteractiveHelp(io: CliIO): Promise<void> {
   /doctor
   /permissions [default|safe|auto|yolo]
   /resume
+  /memory [add|delete] [project|global] [value]
   /transcript [search <query>]
   /compact
   /exit
@@ -394,6 +455,10 @@ function parseTranscriptArgs(args: string[]): { sessionId?: string; query?: stri
   }
 
   return { sessionId };
+}
+
+function parseMemoryScope(value: string | undefined): MemoryScope | undefined {
+  return value === "project" || value === "global" ? value : undefined;
 }
 
 function defaultIO(): CliIO {

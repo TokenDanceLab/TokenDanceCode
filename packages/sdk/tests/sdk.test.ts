@@ -196,6 +196,23 @@ describe("TokenDanceCode SDK", () => {
     expect(none).toEqual([]);
   });
 
+  it("manages memory through the SDK boundary for AgentHub callers", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
+    const client = new TokenDanceCode();
+    const memory = client.memory({ projectRoot: root, homeDir: join(root, "home") });
+
+    await memory.add("project", "Keep SDK APIs stable.");
+    await memory.add("global", "Prefer concise output.");
+
+    expect(await memory.list("project")).toEqual(["Keep SDK APIs stable."]);
+    expect(await memory.list("global")).toEqual(["Prefer concise output."]);
+
+    await memory.delete("project", 0);
+
+    expect(await memory.list("project")).toEqual([]);
+    await expect(readFile(join(root, ".tokendance", "memory", "project.md"), "utf8")).resolves.toBe("");
+  });
+
   it("lets AgentHub approve a write tool before execution", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
     const approvals: string[] = [];

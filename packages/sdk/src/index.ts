@@ -3,6 +3,7 @@ import {
   AnthropicMessagesProvider,
   CompactService,
   FileTranscriptStore,
+  MemoryStore,
   MockProvider,
   OpenAIResponsesProvider,
   ResumeService,
@@ -70,6 +71,13 @@ export interface TranscriptSearchResult {
   preview: string;
 }
 
+export type MemoryScope = "project" | "global";
+
+export interface MemoryOptions {
+  projectRoot?: string;
+  homeDir?: string;
+}
+
 export class TokenDanceCode {
   constructor(private readonly options: TokenDanceCodeOptions = {}) {}
 
@@ -116,6 +124,15 @@ export class TokenDanceCode {
   async compact(options: ResumeThreadOptions = {}): Promise<CompactResult> {
     const thread = await this.resume(options);
     return thread.compact();
+  }
+
+  memory(options: MemoryOptions = {}): TokenDanceMemory {
+    return new TokenDanceMemory(
+      new MemoryStore({
+        projectRoot: options.projectRoot ?? this.options.storageRoot ?? process.cwd(),
+        homeDir: options.homeDir
+      })
+    );
   }
 
   async transcriptInfo(session: SessionState, recentEventCount = 0): Promise<TranscriptInfo> {
@@ -253,6 +270,22 @@ export class Thread {
 
   searchTranscript(query: string, options: { limit?: number } = {}): Promise<TranscriptSearchResult[]> {
     return this.options.client.searchTranscript(this.options.session, query, options.limit);
+  }
+}
+
+export class TokenDanceMemory {
+  constructor(private readonly store: MemoryStore) {}
+
+  add(scope: MemoryScope, text: string): Promise<void> {
+    return scope === "project" ? this.store.addProjectMemory(text) : this.store.addGlobalMemory(text);
+  }
+
+  list(scope: MemoryScope): Promise<string[]> {
+    return scope === "project" ? this.store.listProjectMemory() : this.store.listGlobalMemory();
+  }
+
+  delete(scope: MemoryScope, index: number): Promise<void> {
+    return scope === "project" ? this.store.deleteProjectMemory(index) : this.store.deleteGlobalMemory(index);
   }
 }
 

@@ -12,7 +12,7 @@ TokenDanceCode 是一个面向个人开发者的本地命令行 Coding Agent。
 tokendance
 ```
 
-![image-20260608180914434](C:\Users\29332\AppData\Roaming\Typora\typora-user-images\image-20260608180914434.png)
+![TokenDanceCode 启动界面](docs/images/image-01.png)
 
 ## 主要功能
 

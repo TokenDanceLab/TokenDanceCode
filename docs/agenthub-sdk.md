@@ -279,18 +279,20 @@ runner.decideApproval("tool-call-id", "allow", "approved in AgentHub");
 ## 8. Resume
 
 ```ts
-const latest = await client.loadLatestThread(storageRoot);
+const latest = await client.resume({ storageRoot });
 console.log(latest.id);
 console.log(latest.recentTranscript);
 
-const byId = await client.loadThread("session-id", storageRoot);
+const byId = await client.resume({ sessionId: "session-id", storageRoot });
 ```
+
+`resume()` 是 AgentHub 推荐使用的便捷入口；它在未传 `sessionId` 时恢复最新 session，传入 `sessionId` 时恢复指定 session。底层仍保留 `loadLatestThread(storageRoot)` 和 `loadThread(sessionId, storageRoot)`，供需要显式区分 latest/by-id 的调用方使用。
 
 `recentTranscript` 暴露的是过滤后的 JSONL envelope，用于 AgentHub 恢复侧栏、事件列表或继续 thread。完整 transcript 仍以 `.tokendance/sessions/<session-id>/transcript.jsonl` 为事实源。
 
 ## 9. 当前测试覆盖
 
-- `packages/sdk/tests/sdk.test.ts` 覆盖 buffered turn、streamed events、多轮 thread、latest resume、审批允许/拒绝、provider env 配置错误、event sink。
+- `packages/sdk/tests/sdk.test.ts` 覆盖 buffered turn、streamed events、多轮 thread、latest/by-id resume、审批允许/拒绝、provider env 配置错误、event sink。
 - `packages/sdk/tests/approval-bridge.test.ts` 覆盖 AgentHub 远程审批 bridge、pending 快照、allow/deny 决策回填。
 - `packages/sdk/tests/agenthub-events.test.ts` 覆盖 `TDCodeEvent` 到 AgentHub `run.agent.*` 的映射、sink 包装和 `agent.stream` payload fixture。
 - `packages/agenthub-example/tests/agenthub-runner.test.ts` 覆盖 AgentHub runner 示例、`agent.stream` payload 序列和 emitter 形态。

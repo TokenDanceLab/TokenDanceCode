@@ -40,6 +40,11 @@ export interface StartThreadOptions {
   permissionMode?: PermissionMode;
 }
 
+export interface ResumeThreadOptions {
+  sessionId?: string;
+  storageRoot?: string;
+}
+
 export interface TurnResult {
   threadId: string;
   finalResponse: string;
@@ -66,6 +71,13 @@ export class TokenDanceCode {
 
   resumeThread(session: SessionState): Thread {
     return new Thread({ client: this, session });
+  }
+
+  resume(options: ResumeThreadOptions = {}): Promise<Thread> {
+    if (options.sessionId) {
+      return this.loadThread(options.sessionId, options.storageRoot);
+    }
+    return this.loadLatestThread(options.storageRoot);
   }
 
   async loadThread(sessionId: string, storageRoot = process.cwd()): Promise<Thread> {

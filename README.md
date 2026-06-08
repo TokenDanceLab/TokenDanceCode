@@ -174,6 +174,9 @@ const client = new TokenDanceCode();
 const thread = client.startThread({ workingDirectory: process.cwd() });
 const turn = await thread.run("summarize repo");
 console.log(turn.finalResponse);
+
+const resumed = await client.resume({ storageRoot: process.cwd() });
+console.log(resumed.recentTranscript.length);
 ```
 
 AgentHub 集成可以接管审批和事件分发：

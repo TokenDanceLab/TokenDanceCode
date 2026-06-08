@@ -104,6 +104,31 @@ describe("TokenDanceCode SDK", () => {
     expect(thread.recentTranscript[0]?.event.type).toBe("user.message");
   });
 
+  it("resumes latest or selected thread through a single SDK helper", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
+    const client = new TokenDanceCode({ storageRoot: root });
+    const oldSession: SessionState = {
+      id: "session-old",
+      cwd: root,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      permissionMode: "default",
+      messages: []
+    };
+    const newSession: SessionState = { ...oldSession, id: "session-new" };
+    const store = new FileTranscriptStore({ rootDir: root });
+    await store.initialize(oldSession);
+    await store.initialize(newSession);
+    await store.append({ type: "user.message", sessionId: newSession.id, turnId: "turn-1", message: { role: "user", content: "latest" } });
+
+    const latest = await client.resume({ storageRoot: root });
+    const selected = await client.resume({ sessionId: "session-old", storageRoot: root });
+
+    expect(latest.id).toBe("session-new");
+    expect(latest.recentTranscript).toHaveLength(1);
+    expect(selected.id).toBe("session-old");
+  });
+
   it("compacts the current thread transcript for AgentHub callers", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
     const client = new TokenDanceCode({ storageRoot: root });

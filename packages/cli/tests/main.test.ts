@@ -194,6 +194,20 @@ describe("TokenDanceCode CLI", () => {
     expect(topLevelQuality.stdoutText()).toContain("Quality passed.");
   });
 
+  it("warns about uncommitted changes before exiting an interactive session", async () => {
+    const root = await initRepo();
+    await writeFile(join(root, "notes.txt"), "old\nunsaved\n", "utf8");
+    const io = createTestIO("/exit\n", root);
+
+    const exitCode = await runCli([], io);
+    const output = io.stdoutText();
+
+    expect(exitCode).toBe(0);
+    expect(output).toContain("Uncommitted changes detected:");
+    expect(output).toContain("M notes.txt");
+    expect(output.trim().endsWith("bye")).toBe(true);
+  });
+
   it("lists tool capabilities in interactive and top-level commands", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-cli-tools-"));
     const interactive = createTestIO("/tools\n/exit\n", root);

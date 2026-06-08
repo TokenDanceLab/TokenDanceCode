@@ -131,6 +131,7 @@ async function runInteractive(io: CliIO): Promise<void> {
     }
 
     if (line === "/exit" || line === "/quit") {
+      await warnUncommittedChanges(io);
       await write(io.stdout, "bye\n");
       return;
     }
@@ -232,6 +233,21 @@ async function runInteractive(io: CliIO): Promise<void> {
 
     await runPrompt(io, thread, line);
   }
+}
+
+async function warnUncommittedChanges(io: CliIO): Promise<void> {
+  const result = await new TokenDanceCode().tools({ workingDirectory: io.cwd() }).execute("git_status");
+  if (!result.ok) {
+    return;
+  }
+
+  const status = gitOutput(result.output).stdout.trim();
+  if (!status) {
+    return;
+  }
+
+  await write(io.stdout, "Uncommitted changes detected:\n");
+  await write(io.stdout, `${status}\n`);
 }
 
 async function resumeCommand(args: string[], io: CliIO): Promise<number> {

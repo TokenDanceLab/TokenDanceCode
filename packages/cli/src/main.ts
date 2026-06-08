@@ -7,6 +7,7 @@ import { TokenDanceCode, type PermissionMode, type TDCodeEvent, type Thread } fr
 
 const version = "0.2.0-ts.0";
 const permissionModes = new Set<PermissionMode>(["default", "safe", "auto", "yolo"]);
+const maxToolSummaryLength = 120;
 
 export interface CliIO {
   stdin: Readable;
@@ -168,7 +169,8 @@ async function renderEvent(io: CliIO, event: TDCodeEvent, renderedAssistantText:
       return;
     case "tool.completed":
       if (event.result.ok) {
-        await write(io.stdout, `tool ${event.result.toolName} completed\n`);
+        const summary = summarizeToolOutput(event.result.output);
+        await write(io.stdout, `tool ${event.result.toolName} completed${summary ? `: ${summary}` : ""}\n`);
         return;
       }
       await write(io.stdout, `tool ${event.result.toolName} failed: ${event.result.error ?? "unknown error"}\n`);
@@ -180,6 +182,31 @@ async function renderEvent(io: CliIO, event: TDCodeEvent, renderedAssistantText:
       return;
     default:
       return;
+  }
+}
+
+function summarizeToolOutput(output: unknown): string {
+  if (output === undefined) {
+    return "";
+  }
+
+  const serialized = serializeToolOutput(output);
+  if (serialized.length <= maxToolSummaryLength) {
+    return serialized;
+  }
+
+  const omitted = serialized.length - maxToolSummaryLength;
+  return `${serialized.slice(0, maxToolSummaryLength)}... omitted ${omitted} chars`;
+}
+
+function serializeToolOutput(output: unknown): string {
+  if (typeof output === "string") {
+    return output;
+  }
+  try {
+    return JSON.stringify(output);
+  } catch {
+    return String(output);
   }
 }
 

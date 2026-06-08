@@ -79,6 +79,30 @@ describe("TokenDanceCode CLI", () => {
     expect(output).toContain('Tool result: {"text":"hello renderer"}');
   });
 
+  it("renders compact summaries for successful tool results", async () => {
+    const io = createTestIO("echo: short result\n/exit\n");
+
+    const exitCode = await runCli([], io);
+    const output = io.stdoutText();
+
+    expect(exitCode).toBe(0);
+    expect(output).toContain('tool echo completed: {"text":"short result"}');
+  });
+
+  it("truncates long successful tool result summaries", async () => {
+    const longText = "x".repeat(180);
+    const io = createTestIO(`echo: ${longText}\n/exit\n`);
+
+    const exitCode = await runCli([], io);
+    const output = io.stdoutText();
+    const summaryLine = output.split("\n").find((line) => line.startsWith("tool echo completed:"));
+
+    expect(exitCode).toBe(0);
+    expect(summaryLine).toBeDefined();
+    expect(summaryLine?.length).toBeLessThanOrEqual(170);
+    expect(summaryLine).toContain("... omitted ");
+  });
+
   it("renders tool failure reasons", async () => {
     const io = createTestIO("missingtool: renderer\n/exit\n");
 

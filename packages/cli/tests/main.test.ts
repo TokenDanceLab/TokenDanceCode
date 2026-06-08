@@ -45,6 +45,15 @@ describe("TokenDanceCode CLI", () => {
     expect(exitCode).toBe(0);
     expect(output).toContain("TokenDanceCode 0.2.0-ts.0");
     expect(output).toContain(`cwd ${root}`);
+    expect(output).toContain("api OPENAI_API_KEY:");
+    expect(output).toContain("api ANTHROPIC_API_KEY:");
+    expect(output).toContain("git available:");
+    expect(output).toContain("git repository:");
+    expect(output).toContain("powershell available:");
+    expect(output).toContain("config project:");
+    expect(output).toContain("config global:");
+    expect(output).toContain("state dir:");
+    expect(output).toContain("state writable:");
     expect(output).toContain("Resumed session ");
     expect(output).toContain("recent transcript events.");
     expect(output).toContain("Compact summary ");

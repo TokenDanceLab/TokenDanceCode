@@ -1,8 +1,11 @@
 #!/usr/bin/env node
+import { execFile } from "node:child_process";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
+import { promisify } from "node:util";
 import {
   TokenDanceCode,
   type AgentRunRecord,
@@ -18,6 +21,7 @@ import {
 const version = "0.2.0-ts.0";
 const permissionModes = new Set<PermissionMode>(["default", "safe", "auto", "yolo"]);
 const maxToolSummaryLength = 120;
+const execFileAsync = promisify(execFile);
 
 export interface CliIO {
   stdin: Readable;
@@ -790,10 +794,57 @@ async function printStatus(io: CliIO, thread: Thread): Promise<void> {
 }
 
 async function printDoctor(io: CliIO): Promise<void> {
+  const cwd = io.cwd();
+  const config = await new TokenDanceCode().config({ projectRoot: cwd });
+  const stateDir = join(cwd, ".tokendance");
+  const gitAvailable = await commandAvailable("git", ["--version"], cwd);
+  const gitRepository = gitAvailable && await commandAvailable("git", ["rev-parse", "--is-inside-work-tree"], cwd);
+  const powershellAvailable = await commandAvailable("powershell.exe", ["-NoProfile", "-Command", "$PSVersionTable.PSVersion.ToString()"], cwd)
+    || await commandAvailable("pwsh", ["-NoProfile", "-Command", "$PSVersionTable.PSVersion.ToString()"], cwd);
+
   await write(io.stdout, `TokenDanceCode ${version}\n`);
   await write(io.stdout, `Node ${process.version}\n`);
-  await write(io.stdout, `cwd ${io.cwd()}\n`);
+  await write(io.stdout, `cwd ${cwd}\n`);
   await write(io.stdout, `platform ${process.platform}\n`);
+  await write(io.stdout, `api OPENAI_API_KEY: ${envStatus("OPENAI_API_KEY")}\n`);
+  await write(io.stdout, `api ANTHROPIC_API_KEY: ${envStatus("ANTHROPIC_API_KEY")}\n`);
+  await write(io.stdout, `git available: ${yesNo(gitAvailable)}\n`);
+  await write(io.stdout, `git repository: ${yesNo(gitRepository)}\n`);
+  await write(io.stdout, `powershell available: ${yesNo(powershellAvailable)}\n`);
+  await write(io.stdout, `config project: ${config.projectConfigPath}\n`);
+  await write(io.stdout, `config global: ${config.globalConfigPath}\n`);
+  await write(io.stdout, `config sources: ${config.sources.map((source) => source.kind).join(",")}\n`);
+  await write(io.stdout, `state dir: ${stateDir}\n`);
+  await write(io.stdout, `state writable: ${yesNo(await stateDirWritable(stateDir))}\n`);
+}
+
+function envStatus(name: string): "present" | "missing" {
+  return process.env[name] ? "present" : "missing";
+}
+
+function yesNo(value: boolean): "yes" | "no" {
+  return value ? "yes" : "no";
+}
+
+async function commandAvailable(command: string, args: string[], cwd: string): Promise<boolean> {
+  try {
+    await execFileAsync(command, args, { cwd, timeout: 3000, windowsHide: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function stateDirWritable(stateDir: string): Promise<boolean> {
+  const probe = join(stateDir, ".doctor-write-test");
+  try {
+    await mkdir(stateDir, { recursive: true });
+    await writeFile(probe, "ok", "utf8");
+    await rm(probe, { force: true });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function printHelp(io: CliIO): Promise<void> {

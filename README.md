@@ -80,6 +80,8 @@ node packages/cli/dist/main.js --version
 node packages/cli/dist/main.js doctor
 ```
 
+`doctor` 会输出 Node、cwd、platform、OpenAI/Anthropic API key 是否存在、Git/PowerShell 可用性、配置文件路径和 `.tokendance` 状态目录可写性。API key 只显示 `present`/`missing`，不会打印密钥值。
+
 运行一次 mock turn：
 
 ```powershell
@@ -388,6 +390,7 @@ tokendance doctor
 - CLI 通过 runtime event 渲染工具开始、权限决策、工具完成耗时、失败原因、成功结果摘要和 assistant 文本；后续会继续补更细的进度显示。
 - 真实模型集成测试默认跳过，需要显式配置相关环境变量后才会运行。
 - AgentHub 集成应使用 SDK 的 `approvalCallback` / `createAgentHubApprovalBridge()` 和 `eventSink`，不要直接调用 core runtime 内部类。
+- `doctor` 只输出 API key 是否存在，不输出 secret 值；配置输出也只展示白名单字段和路径。
 
 ## 当前状态
 

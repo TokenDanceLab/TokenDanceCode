@@ -19,7 +19,7 @@ tokendance
 当前分支已经建立 TypeScript 第一批可验证闭环：
 
 - `@tokendance/code-core`：session、event、runtime、tool registry、permission engine、JSONL transcript store、MockProvider。
-- `@tokendance/code-sdk`：AgentHub 可消费的 `TokenDanceCode -> Thread -> run/runStreamed` 编程接口，支持 provider 配置、审批回调、事件下沉、AgentHub runtime event 映射和 recent transcript resume。
+- `@tokendance/code-sdk`：AgentHub 可消费的 `TokenDanceCode -> Thread -> run/runStreamed` 编程接口，支持 provider 配置、审批回调、事件下沉、AgentHub runtime event 映射、recent transcript resume 和 transcript search。
 - `@tokendance/code-cli`：薄 CLI 入口，支持 `--version`、`doctor`、`run <prompt>`、最小交互式 REPL 和工具事件渲染。
 - `@tokendance/code-agenthub-example`：私有示例包，演示 AgentHub emitter 如何通过 SDK 接收 `agent.stream` payload 并桥接远程审批。
 - `pnpm verify`：同时执行 TypeScript typecheck 和 Vitest 测试。
@@ -141,6 +141,8 @@ node packages/cli/dist/main.js resume
 node packages/cli/dist/main.js resume <session-id>
 node packages/cli/dist/main.js transcript
 node packages/cli/dist/main.js transcript <session-id>
+node packages/cli/dist/main.js transcript search <query>
+node packages/cli/dist/main.js transcript <session-id> search <query>
 node packages/cli/dist/main.js compact
 node packages/cli/dist/main.js compact <session-id>
 ```
@@ -184,6 +186,9 @@ console.log(resumed.recentTranscript.length);
 
 const transcript = await resumed.transcript();
 console.log(transcript.transcriptPath);
+
+const matches = await resumed.searchTranscript("needle");
+console.log(matches.map((match) => `${match.seq}:${match.eventType}`));
 ```
 
 AgentHub 集成可以接管审批和事件分发：
@@ -223,6 +228,7 @@ const client = new TokenDanceCode({
 /permissions yolo
 /resume
 /transcript
+/transcript search <query>
 /compact
 /exit
 ```
@@ -236,7 +242,6 @@ const client = new TokenDanceCode({
 /quality pnpm verify
 /tasks
 /todo
-/transcript search <query>
 /memory
 /worktree
 ```

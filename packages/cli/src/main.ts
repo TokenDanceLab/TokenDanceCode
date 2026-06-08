@@ -3,7 +3,14 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
-import { TokenDanceCode, type PermissionMode, type TDCodeEvent, type Thread, type TranscriptInfo } from "@tokendance/code-sdk";
+import {
+  TokenDanceCode,
+  type PermissionMode,
+  type TDCodeEvent,
+  type Thread,
+  type TranscriptInfo,
+  type TranscriptSearchResult
+} from "@tokendance/code-sdk";
 
 const version = "0.2.0-ts.0";
 const permissionModes = new Set<PermissionMode>(["default", "safe", "auto", "yolo"]);
@@ -110,8 +117,8 @@ async function runInteractive(io: CliIO): Promise<void> {
       continue;
     }
 
-    if (line === "/transcript") {
-      await handleTranscript(io, thread);
+    if (line === "/transcript" || line.startsWith("/transcript ")) {
+      await handleTranscript(io, thread, line);
       continue;
     }
 
@@ -150,10 +157,14 @@ async function resumeCommand(args: string[], io: CliIO): Promise<number> {
 
 async function transcriptCommand(args: string[], io: CliIO): Promise<number> {
   const client = new TokenDanceCode();
-  const sessionId = args[0]?.trim();
+  const parsed = parseTranscriptArgs(args);
   try {
-    const thread = await client.resume({ sessionId, storageRoot: io.cwd() });
-    await printTranscriptInfo(io, await thread.transcript());
+    const thread = await client.resume({ sessionId: parsed.sessionId, storageRoot: io.cwd() });
+    if (parsed.query) {
+      await printTranscriptSearchResults(io, await thread.searchTranscript(parsed.query));
+    } else {
+      await printTranscriptInfo(io, await thread.transcript());
+    }
     return 0;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -283,7 +294,12 @@ async function printResumeResult(io: CliIO, thread: Thread): Promise<void> {
   await write(io.stdout, `Resumed session ${thread.id} with ${thread.recentTranscript.length} recent transcript events.\n`);
 }
 
-async function handleTranscript(io: CliIO, thread: Thread): Promise<void> {
+async function handleTranscript(io: CliIO, thread: Thread, line: string): Promise<void> {
+  const [, subcommand, ...queryParts] = line.split(/\s+/);
+  if (subcommand === "search") {
+    await printTranscriptSearchResults(io, await thread.searchTranscript(queryParts.join(" ")));
+    return;
+  }
   await printTranscriptInfo(io, await thread.transcript());
 }
 
@@ -293,6 +309,17 @@ async function printTranscriptInfo(io: CliIO, info: TranscriptInfo): Promise<voi
   await write(io.stdout, `sessionDir: ${info.sessionDir}\n`);
   await write(io.stdout, `Events: ${info.eventCount}\n`);
   await write(io.stdout, `Recent: ${info.recentEventCount}\n`);
+}
+
+async function printTranscriptSearchResults(io: CliIO, results: TranscriptSearchResult[]): Promise<void> {
+  if (results.length === 0) {
+    await write(io.stdout, "No transcript matches.\n");
+    return;
+  }
+
+  for (const result of results) {
+    await write(io.stdout, `seq ${result.seq} ${result.eventType} ${result.preview}\n`);
+  }
 }
 
 async function handleCompact(io: CliIO, thread: Thread): Promise<void> {
@@ -332,6 +359,8 @@ Usage:
   tokendance doctor
   tokendance resume [session-id]
   tokendance transcript [session-id]
+  tokendance transcript search <query>
+  tokendance transcript <session-id> search <query>
   tokendance compact [session-id]
   tokendance run <prompt>
 `
@@ -347,11 +376,24 @@ async function printInteractiveHelp(io: CliIO): Promise<void> {
   /doctor
   /permissions [default|safe|auto|yolo]
   /resume
-  /transcript
+  /transcript [search <query>]
   /compact
   /exit
 `
   );
+}
+
+function parseTranscriptArgs(args: string[]): { sessionId?: string; query?: string } {
+  if (args[0] === "search") {
+    return { query: args.slice(1).join(" ").trim() };
+  }
+
+  const sessionId = args[0]?.trim() || undefined;
+  if (args[1] === "search") {
+    return { sessionId, query: args.slice(2).join(" ").trim() };
+  }
+
+  return { sessionId };
 }
 
 function defaultIO(): CliIO {

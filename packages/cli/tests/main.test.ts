@@ -68,6 +68,27 @@ describe("TokenDanceCode CLI", () => {
     expect(byId.stdoutText()).toContain("transcript.jsonl");
   });
 
+  it("searches transcript content in interactive and top-level commands", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-"));
+    const interactive = createTestIO("/status\nhello search needle\n/transcript search needle\n/transcript search absent\n/exit\n", root);
+    await runCli([], interactive);
+    const sessionId = interactive.stdoutText().match(/sessionId: ([^\n]+)/)?.[1]?.trim();
+    const latest = createTestIO("", root);
+    const byId = createTestIO("", root);
+
+    const latestExitCode = await runCli(["transcript", "search", "needle"], latest);
+    const byIdExitCode = await runCli(["transcript", sessionId ?? "", "search", "needle"], byId);
+
+    expect(sessionId).toBeDefined();
+    expect(interactive.stdoutText()).toContain("seq 1 user.message");
+    expect(interactive.stdoutText()).toContain("needle");
+    expect(interactive.stdoutText()).toContain("No transcript matches.");
+    expect(latestExitCode).toBe(0);
+    expect(byIdExitCode).toBe(0);
+    expect(latest.stdoutText()).toContain("seq 1 user.message");
+    expect(byId.stdoutText()).toContain("seq 1 user.message");
+  });
+
   it("supports top-level resume latest and by session id", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-cli-"));
     const first = createTestIO("/status\nhello for resume\n/exit\n", root);

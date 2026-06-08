@@ -302,6 +302,18 @@ console.log(info.eventCount);
 
 `transcript()` 返回 `sessionDir`、`transcriptPath`、完整 `eventCount` 和当前 resume 入口带回的 `recentEventCount`，调用方不需要自己拼 `.tokendance/sessions/<session-id>/transcript.jsonl`。
 
+需要给 AgentHub 调试面板、会话侧栏或轻量索引提供 transcript 搜索时，使用 `thread.searchTranscript()`：
+
+```ts
+const matches = await latest.searchTranscript("needle", { limit: 10 });
+
+for (const match of matches) {
+  console.log(match.seq, match.eventType, match.preview);
+}
+```
+
+搜索结果包含 `sessionId`、`seq`、`eventType`、`timestamp`、可选 `turnId` 和 `preview`。SDK 会排除 `assistant.completed`、`turn.completed` 这类聚合事件，避免同一段 assistant 文本在源事件和完成事件中重复出现。
+
 需要从 AgentHub 触发 compact 时，可以使用 `client.compact()`：
 
 ```ts
@@ -316,7 +328,7 @@ console.log(selectedCompact.eventCount);
 
 ## 9. 当前测试覆盖
 
-- `packages/sdk/tests/sdk.test.ts` 覆盖 buffered turn、streamed events、多轮 thread、latest/by-id resume、latest/by-id compact、transcript metadata、审批允许/拒绝、provider env 配置错误、event sink。
+- `packages/sdk/tests/sdk.test.ts` 覆盖 buffered turn、streamed events、多轮 thread、latest/by-id resume、latest/by-id compact、transcript metadata/search、审批允许/拒绝、provider env 配置错误、event sink。
 - `packages/sdk/tests/approval-bridge.test.ts` 覆盖 AgentHub 远程审批 bridge、pending 快照、allow/deny 决策回填。
 - `packages/sdk/tests/agenthub-events.test.ts` 覆盖 `TDCodeEvent` 到 AgentHub `run.agent.*` 的映射、sink 包装和 `agent.stream` payload fixture。
 - `packages/agenthub-example/tests/agenthub-runner.test.ts` 覆盖 AgentHub runner 示例、`agent.stream` payload 序列和 emitter 形态。

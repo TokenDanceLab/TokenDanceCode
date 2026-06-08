@@ -61,6 +61,15 @@ export interface TranscriptInfo {
   recentEventCount: number;
 }
 
+export interface TranscriptSearchResult {
+  sessionId: string;
+  seq: number;
+  eventType: TDCodeEvent["type"];
+  timestamp: string;
+  turnId?: string;
+  preview: string;
+}
+
 export class TokenDanceCode {
   constructor(private readonly options: TokenDanceCodeOptions = {}) {}
 
@@ -120,6 +129,29 @@ export class TokenDanceCode {
       eventCount: envelopes.length,
       recentEventCount
     };
+  }
+
+  async searchTranscript(session: SessionState, query: string, limit = 20): Promise<TranscriptSearchResult[]> {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery || limit <= 0) {
+      return [];
+    }
+
+    const info = await this.transcriptInfo(session);
+    const envelopes = await readTranscript(info.transcriptPath);
+    return envelopes
+      .filter((envelope) => isSearchableTranscriptEvent(envelope.event))
+      .map((envelope) => ({ envelope, serialized: JSON.stringify(envelope.event) }))
+      .filter(({ serialized }) => serialized.toLowerCase().includes(normalizedQuery))
+      .slice(0, limit)
+      .map(({ envelope, serialized }) => ({
+        sessionId: envelope.sessionId,
+        seq: envelope.seq,
+        eventType: envelope.event.type,
+        timestamp: envelope.timestamp,
+        turnId: envelope.turnId,
+        preview: previewMatch(serialized, normalizedQuery)
+      }));
   }
 
   createRuntime(session: SessionState): AgentRuntime {
@@ -218,6 +250,26 @@ export class Thread {
   transcript(): Promise<TranscriptInfo> {
     return this.options.client.transcriptInfo(this.options.session, this.recentTranscript.length);
   }
+
+  searchTranscript(query: string, options: { limit?: number } = {}): Promise<TranscriptSearchResult[]> {
+    return this.options.client.searchTranscript(this.options.session, query, options.limit);
+  }
+}
+
+function isSearchableTranscriptEvent(event: TDCodeEvent): boolean {
+  return event.type !== "assistant.completed" && event.type !== "turn.completed";
+}
+
+function previewMatch(serialized: string, normalizedQuery: string): string {
+  const index = serialized.toLowerCase().indexOf(normalizedQuery);
+  if (index < 0) {
+    return serialized.slice(0, 120);
+  }
+  const start = Math.max(0, index - 40);
+  const end = Math.min(serialized.length, index + normalizedQuery.length + 80);
+  const prefix = start > 0 ? "..." : "";
+  const suffix = end < serialized.length ? "..." : "";
+  return `${prefix}${serialized.slice(start, end)}${suffix}`;
 }
 
 function normalizeInput(input: ThreadInput): string {

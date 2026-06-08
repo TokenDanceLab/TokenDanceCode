@@ -274,6 +274,18 @@ describe("TokenDanceCode CLI", () => {
     expect(output).toContain("permission allowed");
     expect(output).toContain("tool echo completed");
     expect(output).toContain('Tool result: {"text":"hello renderer"}');
+    expect(output).toContain("usage input=1 output=10");
+  });
+
+  it("renders token usage for direct assistant turns", async () => {
+    const io = createTestIO("hello usage\n/exit\n");
+
+    const exitCode = await runCli([], io);
+    const output = io.stdoutText();
+
+    expect(exitCode).toBe(0);
+    expect(output).toContain("Mock response: hello usage");
+    expect(output).toContain("usage input=11 output=5");
   });
 
   it("renders compact summaries for successful tool results", async () => {

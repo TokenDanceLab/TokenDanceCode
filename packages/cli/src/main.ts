@@ -525,6 +525,9 @@ async function renderEvent(io: CliIO, event: TDCodeEvent, renderedAssistantText:
       if (!renderedAssistantText && event.finalResponse) {
         await write(io.stdout, `${event.finalResponse}\n`);
       }
+      if (event.usage) {
+        await write(io.stdout, `usage input=${event.usage.inputTokens} output=${event.usage.outputTokens}\n`);
+      }
       return;
     default:
       return;

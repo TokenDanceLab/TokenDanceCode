@@ -107,7 +107,7 @@ node packages/cli/dist/main.js run "hello"
 
 ### P2：上下文与恢复
 
-- [x] Context builder：system prompt、AGENTS.md/README 摘要、recent messages。
+- [x] Context builder：system prompt、AGENTS.md/README 摘要、compact summary、memory、recent messages，并接入 runtime provider request；transient context 不写回 session/transcript。
 - [x] Compact：确定性 summary boundary，不引入复杂 microcompact。
 - [x] Resume：从 JSONL 恢复 session，过滤未闭合 tool call 和坏链路。
 - [x] Transcript metadata/search：SDK/CLI 可展示 sessionDir、transcriptPath、eventCount，并搜索源事件匹配。

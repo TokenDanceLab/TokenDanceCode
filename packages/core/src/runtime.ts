@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { ContextBuilder } from "./context-builder.js";
 import { PermissionEngine } from "./permissions.js";
 import { appendMessage, createSession } from "./session.js";
 import { createDefaultToolRegistry, ToolOrchestrator, ToolRegistry } from "./tools.js";
@@ -46,16 +47,18 @@ export class AgentRuntime {
   async *runTurn(input: string): AsyncGenerator<TDCodeEvent> {
     const turnId = randomUUID();
     const userMessage: TDMessage = { role: "user", content: input };
+    const context = await new ContextBuilder().build({ session: this.session, userMessage: input, workspaceRoot: this.session.cwd });
     this.session = appendMessage(this.session, userMessage);
     await this.persistSession();
     yield* this.emit({ type: "user.message", sessionId: this.session.id, turnId, message: userMessage });
 
     const orchestrator = new ToolOrchestrator(this.registry);
     const toolResults: ToolResult[] = [];
+    const providerSession: SessionState = { ...this.session, messages: context.messages };
 
     for (let step = 0; step < 8; step += 1) {
       const response = await this.options.provider.createTurn({
-        session: this.session,
+        session: providerSession,
         tools: this.registry.list(),
         toolResults
       });

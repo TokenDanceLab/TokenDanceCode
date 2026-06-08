@@ -1,8 +1,8 @@
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { AgentRuntime, FileTranscriptStore, MockProvider } from "../src/index.js";
+import { AgentRuntime, FileTranscriptStore, MockProvider, type ModelProvider, type TDMessage } from "../src/index.js";
 
 describe("AgentRuntime", () => {
   it("runs a mock turn and emits a final response", async () => {
@@ -45,6 +45,41 @@ describe("AgentRuntime", () => {
     expect(types).toContain("tool.permission");
     expect(types).toContain("tool.completed");
     expect(types.at(-1)).toBe("turn.completed");
+  });
+
+  it("passes workspace context to the provider without persisting it as session messages", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-core-context-"));
+    await writeFile(join(root, "AGENTS.md"), "Use repo agent rules.\n", "utf8");
+    await writeFile(join(root, "README.md"), "Project readme context.\n", "utf8");
+    const seenMessages: TDMessage[][] = [];
+    const provider: ModelProvider = {
+      async createTurn(request) {
+        seenMessages.push(request.session.messages);
+        return {
+          assistantMessage: "context seen",
+          toolCalls: []
+        };
+      }
+    };
+    const runtime = new AgentRuntime({
+      cwd: root,
+      provider,
+      store: new FileTranscriptStore({ rootDir: root })
+    });
+
+    await runtime.initialize();
+    for await (const _event of runtime.runTurn("inspect workspace")) {
+      // Drain the event stream.
+    }
+
+    expect(seenMessages[0]?.[0]).toMatchObject({ role: "system" });
+    expect(seenMessages[0]?.[0]?.content).toContain("Use repo agent rules.");
+    expect(seenMessages[0]?.[0]?.content).toContain("Project readme context.");
+    expect(seenMessages[0]?.at(-1)).toEqual({ role: "user", content: "inspect workspace" });
+    expect(runtime.state.messages).toEqual([
+      { role: "user", content: "inspect workspace" },
+      { role: "assistant", content: "context seen" }
+    ]);
   });
 
   it("emits a failed result for unknown tool calls", async () => {

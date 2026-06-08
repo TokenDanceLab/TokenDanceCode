@@ -60,8 +60,9 @@ describe("AgentHub TokenDanceCode runner example", () => {
     const provider: ModelProvider = {
       async createTurn(request) {
         seenMessages.push(request.session.messages.map((message) => message.content));
+        const conversation = request.session.messages.filter((message) => message.role !== "system").map((message) => message.content);
         return {
-          assistantMessage: `seen:${request.session.messages.map((message) => message.content).join("|")}`,
+          assistantMessage: `seen:${conversation.join("|")}`,
           toolCalls: []
         };
       }
@@ -91,8 +92,10 @@ describe("AgentHub TokenDanceCode runner example", () => {
       agentInstanceId: "agent-1"
     });
 
-    expect(seenMessages[0]).toEqual(["first prompt"]);
-    expect(seenMessages[1]).toEqual(["first prompt", "seen:first prompt", "second prompt"]);
+    expect(seenMessages[0]?.[0]).toContain("TokenDanceCode is a local command-line coding agent");
+    expect(seenMessages[0]?.slice(1)).toEqual(["first prompt"]);
+    expect(seenMessages[1]?.[0]).toContain("TokenDanceCode is a local command-line coding agent");
+    expect(seenMessages[1]?.slice(1)).toEqual(["first prompt", "seen:first prompt", "second prompt"]);
 
     const transcript = await readTranscriptSeqs(root, "hub-session-continuity");
     expect(transcript).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);

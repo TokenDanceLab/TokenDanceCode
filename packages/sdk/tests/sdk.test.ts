@@ -1,9 +1,13 @@
-import { mkdtemp, readFile } from "node:fs/promises";
+import { execFile } from "node:child_process";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { FileTranscriptStore, type ModelProvider, type ModelTurnRequest, type ModelTurnResponse, type SessionState } from "@tokendance/code-core";
 import { TokenDanceCode } from "../src/index.js";
+
+const execFileAsync = promisify(execFile);
 
 class WriteFileProvider implements ModelProvider {
   async createTurn(request: ModelTurnRequest): Promise<ModelTurnResponse> {
@@ -213,6 +217,28 @@ describe("TokenDanceCode SDK", () => {
     await expect(readFile(join(root, ".tokendance", "memory", "project.md"), "utf8")).resolves.toBe("");
   });
 
+  it("executes registered tools through the SDK boundary for AgentHub callers", async () => {
+    const root = await initRepo();
+    const client = new TokenDanceCode();
+    const tools = client.tools({ workingDirectory: root });
+    await writeFile(join(root, "notes.txt"), "old\nnew TODO\n", "utf8");
+
+    const status = await tools.execute("git_status");
+    const diff = await tools.execute("git_diff");
+    const review = await tools.execute("git_review");
+    const quality = await tools.execute("quality_gate", { command: "Get-ChildItem -Name", timeout: 5 }, { permissionMode: "yolo" });
+
+    expect(status).toMatchObject({ ok: true });
+    expect(JSON.stringify(status.output)).toContain("M notes.txt");
+    expect(diff).toMatchObject({ ok: true });
+    expect(JSON.stringify(diff.output)).toContain("+new TODO");
+    expect(review).toMatchObject({
+      ok: true,
+      output: { findings: [{ severity: "medium", message: "Diff adds TODO text that may need a tracked follow-up." }] }
+    });
+    expect(quality).toMatchObject({ ok: true, output: { passed: true } });
+  });
+
   it("lets AgentHub approve a write tool before execution", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
     const approvals: string[] = [];
@@ -290,3 +316,14 @@ describe("TokenDanceCode SDK", () => {
     expect(received).toEqual(["user.message", "assistant.delta", "assistant.completed", "turn.completed"]);
   });
 });
+
+async function initRepo(): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-git-"));
+  await execFileAsync("git", ["init"], { cwd: root });
+  await execFileAsync("git", ["config", "user.email", "test@example.com"], { cwd: root });
+  await execFileAsync("git", ["config", "user.name", "TokenDance Test"], { cwd: root });
+  await writeFile(join(root, "notes.txt"), "old\n", "utf8");
+  await execFileAsync("git", ["add", "."], { cwd: root });
+  await execFileAsync("git", ["commit", "-m", "initial"], { cwd: root });
+  return root;
+}

@@ -50,6 +50,18 @@ export async function runCli(argv: string[], io: CliIO = defaultIO()): Promise<n
     return memoryCommand(rest, io);
   }
 
+  if (command === "diff") {
+    return diffCommand(rest, io);
+  }
+
+  if (command === "review") {
+    return reviewCommand(io);
+  }
+
+  if (command === "quality") {
+    return qualityCommand(rest, io);
+  }
+
   if (command === "transcript") {
     return transcriptCommand(rest, io);
   }
@@ -127,6 +139,21 @@ async function runInteractive(io: CliIO): Promise<void> {
       continue;
     }
 
+    if (line === "/diff" || line.startsWith("/diff ")) {
+      await diffCommand(line.split(/\s+/).slice(1), io);
+      continue;
+    }
+
+    if (line === "/review") {
+      await reviewCommand(io);
+      continue;
+    }
+
+    if (line.startsWith("/quality")) {
+      await qualityCommand(line.split(/\s+/).slice(1), io);
+      continue;
+    }
+
     if (line === "/transcript" || line.startsWith("/transcript ")) {
       await handleTranscript(io, thread, line);
       continue;
@@ -200,6 +227,63 @@ async function memoryCommand(args: string[], io: CliIO): Promise<number> {
 
   await write(io.stderr, "Usage: tokendance memory [add|delete] [project|global] [value]\n");
   return 1;
+}
+
+async function diffCommand(paths: string[], io: CliIO): Promise<number> {
+  const result = await new TokenDanceCode().tools({ workingDirectory: io.cwd() }).execute("git_diff", { paths });
+  if (!result.ok) {
+    await write(io.stderr, `${result.error ?? "git diff failed"}\n`);
+    return 1;
+  }
+
+  const output = gitOutput(result.output);
+  await write(io.stdout, output.stdout.trim() ? output.stdout : "No git diff.\n");
+  return 0;
+}
+
+async function reviewCommand(io: CliIO): Promise<number> {
+  const result = await new TokenDanceCode().tools({ workingDirectory: io.cwd() }).execute("git_review");
+  if (!result.ok) {
+    await write(io.stderr, `${result.error ?? "git review failed"}\n`);
+    return 1;
+  }
+
+  const findings = reviewFindings(result.output);
+  if (findings.length === 0) {
+    await write(io.stdout, "No review findings.\n");
+    return 0;
+  }
+
+  for (const finding of findings) {
+    await write(io.stdout, `[${finding.severity}] ${finding.message}\n`);
+  }
+  return 0;
+}
+
+async function qualityCommand(args: string[], io: CliIO): Promise<number> {
+  const command = args.join(" ").trim();
+  if (!command) {
+    await write(io.stderr, "Usage: tokendance quality <command>\n");
+    return 1;
+  }
+
+  const result = await new TokenDanceCode()
+    .tools({ workingDirectory: io.cwd() })
+    .execute("quality_gate", { command, timeout: 60 }, { permissionMode: "yolo" });
+  if (!result.ok) {
+    await write(io.stderr, `${result.error ?? "quality failed"}\n`);
+    return 1;
+  }
+
+  const quality = qualityOutput(result.output);
+  await write(io.stdout, quality.passed ? "Quality passed.\n" : "Quality failed.\n");
+  if (quality.result.stdout.trim()) {
+    await write(io.stdout, quality.result.stdout);
+  }
+  if (quality.result.stderr.trim()) {
+    await write(io.stderr, quality.result.stderr);
+  }
+  return quality.passed ? 0 : 1;
 }
 
 async function transcriptCommand(args: string[], io: CliIO): Promise<number> {
@@ -417,6 +501,9 @@ Usage:
   tokendance --version
   tokendance doctor
   tokendance memory [add|delete] [project|global] [value]
+  tokendance diff [path ...]
+  tokendance review
+  tokendance quality <command>
   tokendance resume [session-id]
   tokendance transcript [session-id]
   tokendance transcript search <query>
@@ -437,6 +524,9 @@ async function printInteractiveHelp(io: CliIO): Promise<void> {
   /permissions [default|safe|auto|yolo]
   /resume
   /memory [add|delete] [project|global] [value]
+  /diff [path ...]
+  /review
+  /quality <command>
   /transcript [search <query>]
   /compact
   /exit
@@ -459,6 +549,45 @@ function parseTranscriptArgs(args: string[]): { sessionId?: string; query?: stri
 
 function parseMemoryScope(value: string | undefined): MemoryScope | undefined {
   return value === "project" || value === "global" ? value : undefined;
+}
+
+function gitOutput(output: unknown): { stdout: string; stderr: string; exitCode: number | null } {
+  if (typeof output === "object" && output !== null) {
+    const candidate = output as { stdout?: unknown; stderr?: unknown; exitCode?: unknown };
+    return {
+      stdout: typeof candidate.stdout === "string" ? candidate.stdout : "",
+      stderr: typeof candidate.stderr === "string" ? candidate.stderr : "",
+      exitCode: typeof candidate.exitCode === "number" || candidate.exitCode === null ? candidate.exitCode : null
+    };
+  }
+  return { stdout: "", stderr: "", exitCode: null };
+}
+
+function reviewFindings(output: unknown): Array<{ severity: string; message: string }> {
+  if (typeof output !== "object" || output === null || !Array.isArray((output as { findings?: unknown }).findings)) {
+    return [];
+  }
+  return (output as { findings: unknown[] }).findings.flatMap((finding) => {
+    if (typeof finding !== "object" || finding === null) {
+      return [];
+    }
+    const candidate = finding as { severity?: unknown; message?: unknown };
+    if (typeof candidate.severity !== "string" || typeof candidate.message !== "string") {
+      return [];
+    }
+    return [{ severity: candidate.severity, message: candidate.message }];
+  });
+}
+
+function qualityOutput(output: unknown): { passed: boolean; result: { stdout: string; stderr: string; exitCode: number | null } } {
+  if (typeof output === "object" && output !== null) {
+    const candidate = output as { passed?: unknown; result?: unknown };
+    return {
+      passed: candidate.passed === true,
+      result: gitOutput(candidate.result)
+    };
+  }
+  return { passed: false, result: { stdout: "", stderr: "", exitCode: null } };
 }
 
 function defaultIO(): CliIO {

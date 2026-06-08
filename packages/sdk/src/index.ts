@@ -7,6 +7,8 @@ import {
   MockProvider,
   OpenAIResponsesProvider,
   ResumeService,
+  ToolOrchestrator,
+  createDefaultToolRegistry,
   readTranscript,
   type ModelProvider,
   type PermissionApprovalCallback,
@@ -15,7 +17,8 @@ import {
   type TDCodeEvent,
   type TDCodeEventSink,
   type CompactResult,
-  type TranscriptEnvelope
+  type TranscriptEnvelope,
+  type ToolResult
 } from "@tokendance/code-core";
 import { join } from "node:path";
 
@@ -78,6 +81,15 @@ export interface MemoryOptions {
   homeDir?: string;
 }
 
+export interface ToolFacadeOptions {
+  workingDirectory?: string;
+  permissionMode?: PermissionMode;
+}
+
+export interface ToolExecuteOptions {
+  permissionMode?: PermissionMode;
+}
+
 export class TokenDanceCode {
   constructor(private readonly options: TokenDanceCodeOptions = {}) {}
 
@@ -133,6 +145,15 @@ export class TokenDanceCode {
         homeDir: options.homeDir
       })
     );
+  }
+
+  tools(options: ToolFacadeOptions = {}): TokenDanceTools {
+    const now = new Date().toISOString();
+    return new TokenDanceTools({
+      cwd: options.workingDirectory ?? this.options.storageRoot ?? process.cwd(),
+      permissionMode: options.permissionMode ?? "default",
+      now
+    });
   }
 
   async transcriptInfo(session: SessionState, recentEventCount = 0): Promise<TranscriptInfo> {
@@ -286,6 +307,29 @@ export class TokenDanceMemory {
 
   delete(scope: MemoryScope, index: number): Promise<void> {
     return scope === "project" ? this.store.deleteProjectMemory(index) : this.store.deleteGlobalMemory(index);
+  }
+}
+
+export class TokenDanceTools {
+  constructor(private readonly options: { cwd: string; permissionMode: PermissionMode; now: string }) {}
+
+  execute(name: string, input: unknown = {}, options: ToolExecuteOptions = {}): Promise<ToolResult> {
+    const session: SessionState = {
+      id: crypto.randomUUID(),
+      cwd: this.options.cwd,
+      createdAt: this.options.now,
+      updatedAt: new Date().toISOString(),
+      permissionMode: options.permissionMode ?? this.options.permissionMode,
+      messages: []
+    };
+    return new ToolOrchestrator(createDefaultToolRegistry()).execute(
+      {
+        id: crypto.randomUUID(),
+        name,
+        input
+      },
+      session
+    );
   }
 }
 

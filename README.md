@@ -146,6 +146,9 @@ node packages/cli/dist/main.js transcript <session-id> search <query>
 node packages/cli/dist/main.js memory
 node packages/cli/dist/main.js memory add project "Use pnpm verify before commits"
 node packages/cli/dist/main.js memory delete project 0
+node packages/cli/dist/main.js diff
+node packages/cli/dist/main.js review
+node packages/cli/dist/main.js quality "pnpm verify"
 node packages/cli/dist/main.js compact
 node packages/cli/dist/main.js compact <session-id>
 ```
@@ -196,6 +199,10 @@ console.log(matches.map((match) => `${match.seq}:${match.eventType}`));
 const memory = client.memory({ projectRoot: process.cwd() });
 await memory.add("project", "Use pnpm verify before commits.");
 console.log(await memory.list("project"));
+
+const tools = client.tools({ workingDirectory: process.cwd() });
+const status = await tools.execute("git_status");
+console.log(status.ok);
 ```
 
 AgentHub 集成可以接管审批和事件分发：
@@ -237,6 +244,9 @@ const client = new TokenDanceCode({
 /memory
 /memory add project <text>
 /memory delete project <index>
+/diff
+/review
+/quality pnpm verify
 /transcript
 /transcript search <query>
 /compact
@@ -247,9 +257,6 @@ const client = new TokenDanceCode({
 
 ```text
 /config
-/diff
-/review
-/quality pnpm verify
 /tasks
 /todo
 /worktree

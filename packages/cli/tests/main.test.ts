@@ -1,9 +1,13 @@
+import { execFile } from "node:child_process";
 import { Readable, Writable } from "node:stream";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { runCli, type CliIO } from "../src/main.js";
+
+const execFileAsync = promisify(execFile);
 
 describe("TokenDanceCode CLI", () => {
   it("prints version through the exported runner", async () => {
@@ -68,6 +72,30 @@ describe("TokenDanceCode CLI", () => {
     expect(topLevelDelete.stdoutText()).toContain("Deleted project memory 0.");
     expect(afterDeleteExitCode).toBe(0);
     expect(afterDelete.stdoutText()).toContain("No project memory.");
+  });
+
+  it("renders git diff, review, and quality commands in interactive and top-level modes", async () => {
+    const root = await initRepo();
+    await writeFile(join(root, "notes.txt"), "old\nnew TODO\n", "utf8");
+    const interactive = createTestIO("/diff\n/review\n/quality Get-ChildItem -Name\n/exit\n", root);
+    await runCli([], interactive);
+    const topLevelDiff = createTestIO("", root);
+    const topLevelReview = createTestIO("", root);
+    const topLevelQuality = createTestIO("", root);
+
+    const diffExitCode = await runCli(["diff"], topLevelDiff);
+    const reviewExitCode = await runCli(["review"], topLevelReview);
+    const qualityExitCode = await runCli(["quality", "Get-ChildItem", "-Name"], topLevelQuality);
+
+    expect(interactive.stdoutText()).toContain("+new TODO");
+    expect(interactive.stdoutText()).toContain("[medium] Diff adds TODO text that may need a tracked follow-up.");
+    expect(interactive.stdoutText()).toContain("Quality passed.");
+    expect(diffExitCode).toBe(0);
+    expect(reviewExitCode).toBe(0);
+    expect(qualityExitCode).toBe(0);
+    expect(topLevelDiff.stdoutText()).toContain("+new TODO");
+    expect(topLevelReview.stdoutText()).toContain("[medium] Diff adds TODO text that may need a tracked follow-up.");
+    expect(topLevelQuality.stdoutText()).toContain("Quality passed.");
   });
 
   it("shows transcript metadata in interactive and top-level commands", async () => {
@@ -235,4 +263,15 @@ function createTestIO(input = "", cwd = "D:/workspace"): CliIO & { stdoutText():
     stdoutText: () => stdout,
     stderrText: () => stderr
   };
+}
+
+async function initRepo(): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), "tdcode-cli-git-"));
+  await execFileAsync("git", ["init"], { cwd: root });
+  await execFileAsync("git", ["config", "user.email", "test@example.com"], { cwd: root });
+  await execFileAsync("git", ["config", "user.name", "TokenDance Test"], { cwd: root });
+  await writeFile(join(root, "notes.txt"), "old\n", "utf8");
+  await execFileAsync("git", ["add", "."], { cwd: root });
+  await execFileAsync("git", ["commit", "-m", "initial"], { cwd: root });
+  return root;
 }

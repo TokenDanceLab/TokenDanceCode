@@ -1,5 +1,6 @@
 import { PermissionEngine } from "./permissions.js";
 import { buildFileTools } from "./file-tools.js";
+import { createRunPowerShellTool } from "./shell-tools.js";
 import type { SessionState, ToolCall, ToolResult, ToolSpec } from "./types.js";
 
 export class ToolRegistry {
@@ -70,5 +71,6 @@ export function createDefaultToolRegistry(): ToolRegistry {
   for (const tool of buildFileTools()) {
     registry.register(tool);
   }
+  registry.register(createRunPowerShellTool());
   return registry;
 }

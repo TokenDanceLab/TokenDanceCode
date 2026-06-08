@@ -124,6 +124,10 @@ export class Thread {
     this.recentTranscript = options.recentTranscript ?? [];
   }
 
+  get state(): SessionState {
+    return cloneSession(this.options.session);
+  }
+
   async run(input: ThreadInput): Promise<TurnResult> {
     const events: TDCodeEvent[] = [];
     let finalResponse = "";
@@ -165,6 +169,13 @@ function normalizeInput(input: ThreadInput): string {
     .filter((item) => item.type === "text")
     .map((item) => item.text)
     .join("\n");
+}
+
+function cloneSession(session: SessionState): SessionState {
+  return {
+    ...session,
+    messages: session.messages.map((message) => ({ ...message }))
+  };
 }
 
 export type { ModelProvider, PermissionApprovalCallback, PermissionMode, SessionState, TDCodeEvent, TDCodeEventSink, TranscriptEnvelope };

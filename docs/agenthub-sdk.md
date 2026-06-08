@@ -72,6 +72,7 @@ const result = await thread.run("summarize this repo");
 
 console.log(result.threadId);
 console.log(result.finalResponse);
+console.log(thread.state.messages.length);
 ```
 
 `run()` 会缓冲完整事件并返回：
@@ -83,6 +84,8 @@ console.log(result.finalResponse);
   events: TDCodeEvent[];
 }
 ```
+
+`thread.state` 返回当前 session 的只读快照副本，方便 AgentHub 做侧栏、调试面板或持久化索引。不要修改这个快照后再期待影响 SDK 内部状态；后续运行仍应通过 `thread.run()` 或 `thread.runStreamed()`。
 
 ## 4. 流式事件
 

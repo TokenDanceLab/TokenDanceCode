@@ -66,6 +66,22 @@ describe("TokenDanceCode SDK", () => {
     expect(second.events.find((event) => event.type === "turn.completed")).toBeDefined();
   });
 
+  it("exposes a read-only session snapshot for AgentHub callers", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
+    const client = new TokenDanceCode({ storageRoot: root });
+    const thread = client.startThread({ workingDirectory: root });
+
+    await thread.run("first");
+    const snapshot = thread.state;
+    snapshot.messages.push({ role: "user", content: "mutated outside" });
+    const second = await thread.run("second");
+
+    expect(snapshot.id).toBe(thread.id);
+    expect(snapshot.messages.map((message) => message.content)).toContain("first");
+    expect(second.finalResponse).toBe("Mock response: second");
+    expect(thread.state.messages.map((message) => message.content)).not.toContain("mutated outside");
+  });
+
   it("loads latest thread with recent transcript for AgentHub callers", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
     const client = new TokenDanceCode({ storageRoot: root });

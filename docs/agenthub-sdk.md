@@ -475,6 +475,11 @@ const status = await tools.execute("git_status");
 const diff = await tools.execute("git_diff", { paths: ["README.md"] });
 const review = await tools.execute("git_review");
 const metadata = tools.list();
+const autoQuality = await tools.execute(
+  "quality_gate",
+  {},
+  { permissionMode: "yolo" }
+);
 const quality = await tools.execute(
   "quality_gate",
   { command: "pnpm verify", timeout: 120 },
@@ -484,7 +489,7 @@ const quality = await tools.execute(
 
 `tools.list()` 返回不含 executor/parse 函数的工具能力 metadata：`name`、`description`、`risk`、`concurrency`。AgentHub 可以用它渲染调试面板、权限说明或工具开关。
 
-这个 facade 的 `execute()` 返回 core `ToolResult`，用于 AgentHub 调试面板、手动质量门、Git diff/review、worktree/subagent 管理工作流和受控工具执行。`quality_gate` 需要显式传入可执行命令；即使用 `yolo` 让质量命令运行，PowerShell 工具层仍会拒绝已知高风险命令。`worktree_create`、`worktree_remove`、`subagent_run`、`subagent_accept` 和 `subagent_discard` 是 shell 风险工具，默认模式下需要审批或显式 tool facade 覆盖权限。
+这个 facade 的 `execute()` 返回 core `ToolResult`，用于 AgentHub 调试面板、手动质量门、Git diff/review、worktree/subagent 管理工作流和受控工具执行。`quality_gate` 不传 `command` 时会自动发现 `package.json` 的 `verify` 脚本，缺少 `verify` 时回退到 `test`；传入 `command` 时使用显式命令覆盖。即使用 `yolo` 让质量命令运行，PowerShell 工具层仍会拒绝已知高风险命令。`worktree_create`、`worktree_remove`、`subagent_run`、`subagent_accept` 和 `subagent_discard` 是 shell 风险工具，默认模式下需要审批或显式 tool facade 覆盖权限。
 
 ## 15. 当前测试覆盖
 

@@ -146,24 +146,34 @@ describe("TokenDanceCode CLI", () => {
   it("renders git diff, review, and quality commands in interactive and top-level modes", async () => {
     const root = await initRepo();
     await writeFile(join(root, "notes.txt"), "old\nnew TODO\n", "utf8");
-    const interactive = createTestIO("/diff\n/review\n/quality Get-ChildItem -Name\n/exit\n", root);
+    await writeFile(
+      join(root, "package.json"),
+      JSON.stringify({ scripts: { verify: "node -e \"console.log('cli auto quality')\"" } }),
+      "utf8"
+    );
+    const interactive = createTestIO("/diff\n/review\n/quality\n/quality Get-ChildItem -Name\n/exit\n", root);
     await runCli([], interactive);
     const topLevelDiff = createTestIO("", root);
     const topLevelReview = createTestIO("", root);
+    const topLevelQualityAuto = createTestIO("", root);
     const topLevelQuality = createTestIO("", root);
 
     const diffExitCode = await runCli(["diff"], topLevelDiff);
     const reviewExitCode = await runCli(["review"], topLevelReview);
+    const qualityAutoExitCode = await runCli(["quality"], topLevelQualityAuto);
     const qualityExitCode = await runCli(["quality", "Get-ChildItem", "-Name"], topLevelQuality);
 
     expect(interactive.stdoutText()).toContain("+new TODO");
     expect(interactive.stdoutText()).toContain("[medium] Diff adds TODO text that may need a tracked follow-up.");
     expect(interactive.stdoutText()).toContain("Quality passed.");
+    expect(interactive.stdoutText()).toContain("cli auto quality");
     expect(diffExitCode).toBe(0);
     expect(reviewExitCode).toBe(0);
+    expect(qualityAutoExitCode).toBe(0);
     expect(qualityExitCode).toBe(0);
     expect(topLevelDiff.stdoutText()).toContain("+new TODO");
     expect(topLevelReview.stdoutText()).toContain("[medium] Diff adds TODO text that may need a tracked follow-up.");
+    expect(topLevelQualityAuto.stdoutText()).toContain("cli auto quality");
     expect(topLevelQuality.stdoutText()).toContain("Quality passed.");
   });
 

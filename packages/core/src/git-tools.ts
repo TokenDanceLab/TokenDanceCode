@@ -1,5 +1,7 @@
 import { spawn } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
+import { join } from "node:path";
 import type { ToolSpec } from "./types.js";
 import { runPowerShell } from "./shell-tools.js";
 
@@ -108,28 +110,35 @@ export function createGitReviewTool(): ToolSpec<unknown, { findings: Array<{ sev
   };
 }
 
-export function createQualityGateTool(): ToolSpec<{ command: string; timeoutMs: number }, { passed: boolean; result: GitOutput }> {
+export function createQualityGateTool(): ToolSpec<{ command?: string; timeoutMs: number }, { passed: boolean; command: string; result: GitOutput }> {
   return {
     name: "quality_gate",
-    description: "Run a PowerShell quality command in the workspace and report pass/fail.",
+    description: "Run a PowerShell quality command in the workspace and report pass/fail. Omitting command auto-discovers package verify scripts.",
     risk: "shell",
     concurrency: "exclusive",
     parse(input) {
-      if (typeof input !== "object" || input === null || typeof (input as { command?: unknown }).command !== "string") {
-        throw new Error("quality_gate input requires a string command field");
+      if (input !== undefined && input !== null && typeof input !== "object") {
+        throw new Error("quality_gate input must be an object");
       }
-      const timeout = (input as { timeout?: unknown; timeoutMs?: unknown }).timeoutMs ?? (input as { timeout?: unknown }).timeout;
+      const command = typeof input === "object" && input !== null ? (input as { command?: unknown }).command : undefined;
+      if (command !== undefined && typeof command !== "string") {
+        throw new Error("quality_gate command must be a string");
+      }
+      const timeout = typeof input === "object" && input !== null
+        ? (input as { timeout?: unknown; timeoutMs?: unknown }).timeoutMs ?? (input as { timeout?: unknown }).timeout
+        : undefined;
       if (timeout !== undefined && typeof timeout !== "number") {
         throw new Error("quality_gate timeout must be a number");
       }
       return {
-        command: (input as { command: string }).command,
+        command: command?.trim() || undefined,
         timeoutMs: Math.max(1, Math.floor((timeout ?? 60) * 1000))
       };
     },
     async execute(input, context) {
-      const result = await runPowerShell(input.command, context.cwd, input.timeoutMs);
-      return { passed: result.exitCode === 0 && !result.timedOut, result };
+      const command = input.command ?? await discoverQualityCommand(context.cwd);
+      const result = await runPowerShell(command, context.cwd, input.timeoutMs);
+      return { passed: result.exitCode === 0 && !result.timedOut, command, result };
     }
   };
 }
@@ -151,6 +160,40 @@ async function runGit(cwd: string, args: string[]): Promise<GitOutput> {
     throw new Error(result.stderr.trim() || result.stdout.trim() || `git exited with ${result.exitCode}`);
   }
   return result;
+}
+
+async function discoverQualityCommand(cwd: string): Promise<string> {
+  const packageJson = await readPackageJson(cwd);
+  const scripts = typeof packageJson?.scripts === "object" && packageJson.scripts !== null
+    ? packageJson.scripts as Record<string, unknown>
+    : {};
+  if (typeof scripts.verify === "string" && scripts.verify.trim()) {
+    return packageManagerScriptCommand(packageJson, "verify");
+  }
+  if (typeof scripts.test === "string" && scripts.test.trim()) {
+    return packageManagerScriptCommand(packageJson, "test");
+  }
+  throw new Error("No quality command provided and no package.json verify/test script was found.");
+}
+
+async function readPackageJson(cwd: string): Promise<Record<string, unknown> | undefined> {
+  try {
+    const parsed = JSON.parse(await readFile(join(cwd, "package.json"), "utf8"));
+    return typeof parsed === "object" && parsed !== null ? parsed as Record<string, unknown> : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function packageManagerScriptCommand(packageJson: Record<string, unknown> | undefined, script: string): string {
+  const packageManager = typeof packageJson?.packageManager === "string" ? packageJson.packageManager : "";
+  if (packageManager.startsWith("pnpm@")) {
+    return `pnpm ${script}`;
+  }
+  if (packageManager.startsWith("yarn@")) {
+    return `yarn ${script}`;
+  }
+  return `npm run ${script} --silent`;
 }
 
 function validateWorkspaceRelativePath(cwd: string, rawPath: string): string {

@@ -222,11 +222,17 @@ describe("TokenDanceCode SDK", () => {
     const client = new TokenDanceCode();
     const tools = client.tools({ workingDirectory: root });
     await writeFile(join(root, "notes.txt"), "old\nnew TODO\n", "utf8");
+    await writeFile(
+      join(root, "package.json"),
+      JSON.stringify({ scripts: { verify: "node -e \"console.log('sdk auto quality')\"" } }),
+      "utf8"
+    );
 
     const status = await tools.execute("git_status");
     const diff = await tools.execute("git_diff");
     const review = await tools.execute("git_review");
     const quality = await tools.execute("quality_gate", { command: "Get-ChildItem -Name", timeout: 5 }, { permissionMode: "yolo" });
+    const qualityAuto = await tools.execute("quality_gate", {}, { permissionMode: "yolo" });
     const worktreeCreate = await tools.execute("worktree_create", { name: "sdk-tool-wt" }, { permissionMode: "yolo" });
     const worktreeList = await tools.execute("worktree_list");
     const worktreeRemove = await tools.execute("worktree_remove", { name: "sdk-tool-wt" }, { permissionMode: "yolo" });
@@ -256,6 +262,8 @@ describe("TokenDanceCode SDK", () => {
       output: { findings: [{ severity: "medium", message: "Diff adds TODO text that may need a tracked follow-up." }] }
     });
     expect(quality).toMatchObject({ ok: true, output: { passed: true } });
+    expect(qualityAuto).toMatchObject({ ok: true, output: { passed: true } });
+    expect(JSON.stringify(qualityAuto.output)).toContain("sdk auto quality");
     expect(worktreeCreate).toMatchObject({ ok: true });
     expect(JSON.stringify(worktreeCreate.output)).toContain("codex/sdk-tool-wt");
     expect(worktreeList).toMatchObject({ ok: true });

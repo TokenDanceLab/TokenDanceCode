@@ -76,6 +76,24 @@ describe("git tools", () => {
     expect(result).toMatchObject({ ok: true, output: { passed: true } });
     expect(JSON.stringify(result.output)).toContain("notes.txt");
   });
+
+  it("discovers a package verify script when quality gate command is omitted", async () => {
+    const root = await initRepo();
+    await writeFile(
+      join(root, "package.json"),
+      JSON.stringify({ scripts: { verify: "node -e \"console.log('auto quality')\"" } }),
+      "utf8"
+    );
+    const orchestrator = new ToolOrchestrator(createDefaultToolRegistry());
+
+    const result = await orchestrator.execute(
+      { id: "quality-auto", name: "quality_gate", input: {} },
+      { ...createSession(root), permissionMode: "yolo" }
+    );
+
+    expect(result).toMatchObject({ ok: true, output: { passed: true } });
+    expect(JSON.stringify(result.output)).toContain("auto quality");
+  });
 });
 
 async function initRepo(): Promise<string> {

@@ -389,14 +389,10 @@ async function toolsCommand(io: CliIO): Promise<number> {
 
 async function qualityCommand(args: string[], io: CliIO): Promise<number> {
   const command = args.join(" ").trim();
-  if (!command) {
-    await write(io.stderr, "Usage: tokendance quality <command>\n");
-    return 1;
-  }
 
   const result = await new TokenDanceCode()
     .tools({ workingDirectory: io.cwd() })
-    .execute("quality_gate", { command, timeout: 60 }, { permissionMode: "yolo" });
+    .execute("quality_gate", command ? { command, timeout: 60 } : { timeout: 60 }, { permissionMode: "yolo" });
   if (!result.ok) {
     await write(io.stderr, `${result.error ?? "quality failed"}\n`);
     return 1;
@@ -806,7 +802,7 @@ Usage:
   tokendance diff [path ...]
   tokendance review
   tokendance tools
-  tokendance quality <command>
+  tokendance quality [command]
   tokendance tasks [create|doing|done] [value]
   tokendance todo [add|doing|done] [value]
   tokendance worktree [list|create|remove] [name] [--discard]
@@ -839,7 +835,7 @@ async function printInteractiveHelp(io: CliIO): Promise<void> {
   /diff [path ...]
   /review
   /tools
-  /quality <command>
+  /quality [command]
   /tasks [create|doing|done] [value]
   /todo [add|doing|done] [value]
   /worktree [list|create|remove] [name] [--discard]

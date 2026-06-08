@@ -8,7 +8,7 @@
 - worktree：`D:\Code\TokenDance\TokenDanceCode\.worktrees\ts-refactor`
 - 目标：把 TokenDanceCode 从 Python v0.1 参考实现重构为 TypeScript monorepo，并给 AgentHub 暴露稳定 SDK。
 - 当前可验证命令：`pnpm verify`
-- 最近验证结果：typecheck 通过，Vitest 22 个测试文件 110 个测试通过。
+- 最近验证结果：typecheck 通过，Vitest 22 个测试文件 111 个测试通过。
 
 旧 `src/tokendance` 和 `tests/` 暂时保留为功能迁移参考。新增 TS 能力默认写入 `packages/*`，不要继续扩展 Python 运行时，除非明确是在补迁移对照或保护旧行为。
 
@@ -98,7 +98,7 @@ node packages/cli/dist/main.js run "hello"
 - [x] File tools：read/write/edit/glob，全部走 permission engine。
 - [x] PowerShell shell tool：风险分类、工作区边界、输出截断。
 - [x] Patch tool：结构化 apply patch，失败可诊断。
-- [x] Git tool：status/diff/review quality gate 的最小集合。
+- [x] Git tool：status/diff/review quality gate 的最小集合；quality gate 可自动发现 `package.json` 的 `verify`/`test` 脚本，显式命令可覆盖。
 - [x] Tool metadata：默认 registry 和 SDK/CLI 可列出工具名称、说明、风险等级和并发属性。
 - [x] Worktree manager/tool：受控 `.worktrees` list/create/remove，dirty 删除需显式 `--discard`，并暴露 `worktree_list/create/remove` 默认 registry tools。
 - [x] Subagent manager/tool：readonly investigator/reviewer、coding worktree delegation、agent transcript/index、accept/discard 生命周期管理、target dirty 保护、dirty worktree 丢弃保护、`subagent_run/list/get/accept/discard` 默认 registry tools。

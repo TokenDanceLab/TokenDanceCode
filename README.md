@@ -165,6 +165,7 @@ node packages/cli/dist/main.js worktree remove stage15-wt
 node packages/cli/dist/main.js diff
 node packages/cli/dist/main.js review
 node packages/cli/dist/main.js tools
+node packages/cli/dist/main.js quality
 node packages/cli/dist/main.js quality "pnpm verify"
 node packages/cli/dist/main.js compact
 node packages/cli/dist/main.js compact <session-id>
@@ -313,6 +314,7 @@ const client = new TokenDanceCode({
 /diff
 /review
 /tools
+/quality
 /quality pnpm verify
 /transcript
 /transcript search <query>

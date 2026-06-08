@@ -418,7 +418,13 @@ const review = await subagents.runReadonly({
   prompt: "Inspect SDK boundary"
 });
 
+const coding = await subagents.runCoding({
+  prompt: "Prepare isolated change",
+  worktree: "agenthub-coding"
+});
+
 console.log(review.summary);
+console.log(coding.worktreePath);
 console.log(await subagents.list());
 ```
 

@@ -149,6 +149,7 @@ node packages/cli/dist/main.js memory add project "Use pnpm verify before commit
 node packages/cli/dist/main.js memory delete project 0
 node packages/cli/dist/main.js agents
 node packages/cli/dist/main.js agents run reviewer "Inspect task store"
+node packages/cli/dist/main.js agents run coding --worktree stage15-agent "Prepare isolated change"
 node packages/cli/dist/main.js tasks
 node packages/cli/dist/main.js tasks create "Stage 15 E2E"
 node packages/cli/dist/main.js tasks done task-1
@@ -286,6 +287,7 @@ const client = new TokenDanceCode({
 /agents
 /agents run investigator <prompt>
 /agents run reviewer <prompt>
+/agents run coding [--worktree name] <prompt>
 /tasks
 /tasks create <title>
 /tasks doing <task-id>

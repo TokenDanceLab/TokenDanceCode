@@ -306,17 +306,21 @@ async function agentsCommand(args: string[], io: CliIO): Promise<number> {
       return 0;
     }
     if (command === "run") {
-      const agentType = parseReadonlyAgentType(rawType);
-      const prompt = promptParts.join(" ").trim();
-      if (!agentType || !prompt) {
-        await write(io.stderr, "Usage: tokendance agents run investigator|reviewer <prompt>\n");
+      const parsed = parseAgentRunArgs(rawType, promptParts);
+      if (!parsed) {
+        await write(io.stderr, "Usage: tokendance agents run investigator|reviewer <prompt> | coding [--worktree name] <prompt>\n");
         return 1;
       }
-      const result = await agents.runReadonly({ agentType, prompt });
+      const result = parsed.agentType === "coding"
+        ? await agents.runCoding({ prompt: parsed.prompt, worktree: parsed.worktree })
+        : await agents.runReadonly({ agentType: parsed.agentType, prompt: parsed.prompt });
       await write(io.stdout, `${result.id} [${result.agentType}] ${result.summary}\n`);
+      if (result.worktreePath) {
+        await write(io.stdout, `worktree: ${result.worktreePath}\n`);
+      }
       return 0;
     }
-    await write(io.stderr, "Usage: tokendance agents [run investigator|reviewer <prompt>]\n");
+    await write(io.stderr, "Usage: tokendance agents [run investigator|reviewer <prompt> | run coding [--worktree name] <prompt>]\n");
     return 1;
   } catch (error) {
     await write(io.stderr, `${error instanceof Error ? error.message : String(error)}\n`);
@@ -751,6 +755,7 @@ Usage:
   tokendance config
   tokendance memory [add|delete] [project|global] [value]
   tokendance agents [run investigator|reviewer <prompt>]
+  tokendance agents run coding [--worktree name] <prompt>
   tokendance diff [path ...]
   tokendance review
   tokendance tools
@@ -780,6 +785,7 @@ async function printInteractiveHelp(io: CliIO): Promise<void> {
   /resume
   /memory [add|delete] [project|global] [value]
   /agents [run investigator|reviewer <prompt>]
+  /agents run coding [--worktree name] <prompt>
   /diff [path ...]
   /review
   /tools
@@ -813,6 +819,25 @@ function parseMemoryScope(value: string | undefined): MemoryScope | undefined {
 
 function parseReadonlyAgentType(value: string | undefined): "investigator" | "reviewer" | undefined {
   return value === "investigator" || value === "reviewer" ? value : undefined;
+}
+
+function parseAgentRunArgs(rawType: string | undefined, args: string[]): { agentType: "investigator" | "reviewer" | "coding"; prompt: string; worktree?: string } | undefined {
+  const readonlyType = parseReadonlyAgentType(rawType);
+  if (readonlyType) {
+    const prompt = args.join(" ").trim();
+    return prompt ? { agentType: readonlyType, prompt } : undefined;
+  }
+  if (rawType !== "coding") {
+    return undefined;
+  }
+  const worktreeFlagIndex = args.indexOf("--worktree");
+  const worktree = worktreeFlagIndex >= 0 ? args[worktreeFlagIndex + 1] : undefined;
+  const promptParts = worktreeFlagIndex >= 0 ? args.filter((_, index) => index !== worktreeFlagIndex && index !== worktreeFlagIndex + 1) : args;
+  const prompt = promptParts.join(" ").trim();
+  if (!prompt || (worktreeFlagIndex >= 0 && !worktree)) {
+    return undefined;
+  }
+  return { agentType: "coding", prompt, worktree };
 }
 
 function gitOutput(output: unknown): { stdout: string; stderr: string; exitCode: number | null } {

@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { Readable, Writable } from "node:stream";
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -194,6 +194,24 @@ describe("TokenDanceCode CLI", () => {
     expect(interactive.stdoutText()).toContain("agent-0001 [reviewer] reviewer subagent completed: Inspect CLI");
     expect(exitCode).toBe(0);
     expect(topLevel.stdoutText()).toContain("agent-0001 [reviewer] reviewer subagent completed: Inspect CLI");
+  });
+
+  it("runs coding subagents in managed worktrees from top-level commands", async () => {
+    const root = await initRepo();
+    const run = createTestIO("", root);
+    const list = createTestIO("", root);
+
+    const runExitCode = await runCli(["agents", "run", "coding", "--worktree", "cli-code", "Prepare", "isolated", "change"], run);
+    const listExitCode = await runCli(["agents"], list);
+
+    expect(runExitCode).toBe(0);
+    expect(listExitCode).toBe(0);
+    expect(run.stdoutText()).toContain("agent-0001 [coding] coding subagent prepared worktree cli-code: Prepare isolated change");
+    expect(run.stdoutText()).toContain(".worktrees");
+    expect(list.stdoutText()).toContain("agent-0001 [coding] coding subagent prepared worktree cli-code: Prepare isolated change");
+    await expect(readFile(join(root, ".tokendance", "agents", "agents.json"), "utf8")).resolves.toContain("\"agentType\": \"coding\"");
+    await expect(readFile(join(root, ".worktrees", "cli-code", "notes.txt"), "utf8")).resolves.toContain("old");
+    await expect(readFile(join(root, "agent.txt"), "utf8")).rejects.toThrow();
   });
 
   it("shows transcript metadata in interactive and top-level commands", async () => {

@@ -101,6 +101,37 @@ describe("AgentHub TokenDanceCode runner example", () => {
     expect(transcript).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
   });
 
+  it("previews context for the supplied AgentHub session without writing transcript events", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-agenthub-example-"));
+    const runner = createAgentHubTokenDanceRunner({
+      storageRoot: root,
+      emitAgentStream() {}
+    });
+
+    await runner.run({
+      prompt: "first AgentHub context turn",
+      workingDirectory: root,
+      permissionMode: "default",
+      taskId: "task-1",
+      edgeRunId: "edge-run-1",
+      sessionId: "hub-session-context",
+      agentInstanceId: "agent-1"
+    });
+    const beforeSeqs = await readTranscriptSeqs(root, "hub-session-context");
+
+    const preview = await runner.context({
+      prompt: "preview next turn",
+      workingDirectory: root,
+      permissionMode: "default",
+      sessionId: "hub-session-context"
+    });
+
+    expect(preview.messages[0]).toMatchObject({ role: "system" });
+    expect(preview.messages.map((message) => message.content)).toContain("first AgentHub context turn");
+    expect(preview.messages.at(-1)).toEqual({ role: "user", content: "preview next turn" });
+    await expect(readTranscriptSeqs(root, "hub-session-context")).resolves.toEqual(beforeSeqs);
+  });
+
   it("exposes package metadata and doctor diagnostics for AgentHub startup checks", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-agenthub-example-"));
     const runner = createAgentHubTokenDanceRunner({

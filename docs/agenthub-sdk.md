@@ -295,6 +295,15 @@ const turn = await runner.run({
 
 console.log(turn.finalResponse);
 
+const preview = await runner.context({
+  prompt: "preview the next turn",
+  workingDirectory: "D:/Code/TokenDance/AgentHub",
+  permissionMode: "default",
+  sessionId: "sess_01HX..."
+});
+
+console.log(preview.includedFiles);
+
 const packageInfo = runner.packageInfo();
 const doctor = await runner.doctor({
   workingDirectory: "D:/Code/TokenDance/AgentHub"
@@ -307,7 +316,7 @@ console.log(doctor.stateDir.writable);
 runner.decideApproval("tool-call-id", "allow", "approved in AgentHub");
 ```
 
-样例 runner 每次 `run()` 都会创建一个新的 `TokenDanceCode` client，并用 `createAgentHubAgentStreamSink()` 把 runtime events 投递为递增 `event_seq` 的 `agent.stream` payload。传入的 AgentHub `sessionId` 会同时作为 TokenDanceCode thread id 使用；runner 会先按该 id `resume()`，没有现存 session 时才 `startThread()`，保证 Hub 事件、SDK `TurnResult.threadId`、provider 可见的消息历史和 transcript 目录使用同一个 session 标识。`packageInfo()` 和 `doctor()` 只是把 SDK manifest/doctor facade 暴露给 Hub/Edge 启动检查，真实 AgentHub 集成可以直接复制这个组合方式，再替换为自己的 Hub client、任务状态和 session 生命周期。
+样例 runner 每次 `run()` 都会创建一个新的 `TokenDanceCode` client，并用 `createAgentHubAgentStreamSink()` 把 runtime events 投递为递增 `event_seq` 的 `agent.stream` payload。传入的 AgentHub `sessionId` 会同时作为 TokenDanceCode thread id 使用；runner 会先按该 id `resume()`，没有现存 session 时才 `startThread()`，保证 Hub 事件、SDK `TurnResult.threadId`、provider 可见的消息历史和 transcript 目录使用同一个 session 标识。`runner.context()` 复用同一条按 Hub `sessionId` resume-or-start 的路径，返回下一轮 transient provider context preview；它不会发出 `agent.stream` 事件，也不会把 preview prompt 或 system context 追加进 transcript。`packageInfo()` 和 `doctor()` 只是把 SDK manifest/doctor facade 暴露给 Hub/Edge 启动检查，真实 AgentHub 集成可以直接复制这个组合方式，再替换为自己的 Hub client、任务状态和 session 生命周期。
 
 ## 9. Resume
 

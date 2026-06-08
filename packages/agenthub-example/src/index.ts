@@ -9,6 +9,7 @@ import {
   type DoctorInfo,
   type ModelProvider,
   type PermissionMode,
+  type ThreadContext,
   type TokenDanceCodePackageInfo,
   type TokenDanceProviderConfig,
   type TurnResult
@@ -33,6 +34,13 @@ export interface AgentHubTokenDanceRunOptions {
   agentInstanceId: string;
 }
 
+export interface AgentHubTokenDanceContextOptions {
+  prompt: string;
+  workingDirectory: string;
+  permissionMode?: PermissionMode;
+  sessionId: string;
+}
+
 export interface AgentHubTokenDanceDoctorOptions {
   workingDirectory?: string;
   homeDir?: string;
@@ -40,6 +48,7 @@ export interface AgentHubTokenDanceDoctorOptions {
 
 export interface AgentHubTokenDanceRunner {
   run(options: AgentHubTokenDanceRunOptions): Promise<TurnResult>;
+  context(options: AgentHubTokenDanceContextOptions): Promise<ThreadContext>;
   packageInfo(): TokenDanceCodePackageInfo;
   doctor(options?: AgentHubTokenDanceDoctorOptions): Promise<DoctorInfo>;
   decideApproval(requestId: string, decision: AgentHubApprovalDecision, reason?: string): boolean;
@@ -89,6 +98,17 @@ export function createAgentHubTokenDanceRunner(options: AgentHubTokenDanceRunner
       return thread.run(runOptions.prompt);
     },
 
+    async context(contextOptions) {
+      const storageRoot = options.storageRoot ?? contextOptions.workingDirectory;
+      const client = new TokenDanceCode({
+        provider: options.provider,
+        storageRoot,
+        env: options.env
+      });
+      const thread = await resumeOrStartThread(client, contextOptions, storageRoot);
+      return thread.context(contextOptions.prompt);
+    },
+
     decideApproval(requestId, decision, reason) {
       return approvalBridge?.decide(requestId, decision, reason) ?? false;
     },
@@ -99,7 +119,11 @@ export function createAgentHubTokenDanceRunner(options: AgentHubTokenDanceRunner
   };
 }
 
-async function resumeOrStartThread(client: TokenDanceCode, runOptions: AgentHubTokenDanceRunOptions, storageRoot: string) {
+async function resumeOrStartThread(
+  client: TokenDanceCode,
+  runOptions: Pick<AgentHubTokenDanceRunOptions, "sessionId" | "workingDirectory" | "permissionMode">,
+  storageRoot: string
+) {
   try {
     return await client.resume({ sessionId: runOptions.sessionId, storageRoot });
   } catch (error) {

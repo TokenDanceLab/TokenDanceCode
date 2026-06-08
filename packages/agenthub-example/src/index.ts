@@ -85,6 +85,7 @@ export function createAgentHubTokenDanceRunner(options: AgentHubTokenDanceRunner
         )
       });
       const thread = client.startThread({
+        id: runOptions.sessionId,
         workingDirectory: runOptions.workingDirectory,
         permissionMode: runOptions.permissionMode
       });

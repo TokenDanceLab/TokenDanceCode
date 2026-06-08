@@ -27,6 +27,7 @@ describe("AgentHub TokenDanceCode runner example", () => {
       agentInstanceId: "agent-1"
     });
 
+    expect(turn.threadId).toBe("hub-session-1");
     expect(turn.finalResponse).toBe('Tool result: {"text":"agenthub"}');
     expect(frames.map((frame) => frame.event_type)).toEqual([
       "run.agent.tool_call",

@@ -237,8 +237,15 @@ describe("TokenDanceCode SDK", () => {
     );
     const subagentGet = await tools.execute("subagent_get", { id: "agent-0001" });
     await writeFile(join(root, ".worktrees", "sdk-agent-tool", "agent.txt"), "dirty sdk tool worktree\n", "utf8");
-    const subagentDiscardDirty = await tools.execute("subagent_discard", { id: "agent-0001" }, { permissionMode: "yolo" });
-    const subagentDiscard = await tools.execute("subagent_discard", { id: "agent-0001", discard: true }, { permissionMode: "yolo" });
+    const subagentAccept = await tools.execute("subagent_accept", { id: "agent-0001", discardWorktree: true, allowDirtyTarget: true }, { permissionMode: "yolo" });
+    const subagentDiscardRun = await tools.execute(
+      "subagent_run",
+      { prompt: "Prepare SDK discard worktree", agentType: "coding", worktree: "sdk-agent-discard-tool" },
+      { permissionMode: "yolo" }
+    );
+    await writeFile(join(root, ".worktrees", "sdk-agent-discard-tool", "discard.txt"), "dirty sdk discard worktree\n", "utf8");
+    const subagentDiscardDirty = await tools.execute("subagent_discard", { id: "agent-0002" }, { permissionMode: "yolo" });
+    const subagentDiscard = await tools.execute("subagent_discard", { id: "agent-0002", discard: true }, { permissionMode: "yolo" });
 
     expect(status).toMatchObject({ ok: true });
     expect(JSON.stringify(status.output)).toContain("M notes.txt");
@@ -257,6 +264,10 @@ describe("TokenDanceCode SDK", () => {
     expect(subagentRun).toMatchObject({ ok: true });
     expect(subagentGet).toMatchObject({ ok: true });
     expect(JSON.stringify(subagentGet.output)).toContain("sdk-agent-tool");
+    expect(subagentAccept).toMatchObject({ ok: true });
+    expect(JSON.stringify(subagentAccept.output)).toContain("\"status\":\"accepted\"");
+    await expect(readFile(join(root, "agent.txt"), "utf8")).resolves.toContain("dirty sdk tool worktree");
+    expect(subagentDiscardRun).toMatchObject({ ok: true });
     expect(subagentDiscardDirty).toMatchObject({ ok: false });
     expect(subagentDiscardDirty.error).toContain("uncommitted changes");
     expect(subagentDiscard).toMatchObject({ ok: true });
@@ -276,6 +287,7 @@ describe("TokenDanceCode SDK", () => {
     );
     expect(tools.list().map((tool) => tool.name)).toContain("quality_gate");
     expect(tools.list().map((tool) => tool.name)).toContain("subagent_discard");
+    expect(tools.list().map((tool) => tool.name)).toContain("subagent_accept");
   });
 
   it("runs and lists subagents through the SDK boundary for AgentHub callers", async () => {
@@ -313,6 +325,22 @@ describe("TokenDanceCode SDK", () => {
 
     expect(discarded).toMatchObject({ id: result.id, status: "discarded" });
     await expect(subagents.get(result.id)).resolves.toMatchObject({ status: "discarded" });
+    expect(await client.worktrees({ repositoryRoot: root }).list()).toEqual([]);
+  });
+
+  it("accepts subagent worktree changes through the SDK boundary for AgentHub callers", async () => {
+    const root = await initRepo();
+    const client = new TokenDanceCode();
+    const subagents = client.subagents({ projectRoot: root });
+
+    const result = await subagents.runCoding({ prompt: "Prepare SDK accept worktree", worktree: "sdk-agent-accept" });
+    await writeFile(join(result.worktreePath ?? "", "accepted.txt"), "accepted sdk worktree\n", "utf8");
+
+    const accepted = await subagents.accept(result.id, { discardWorktree: true });
+
+    expect(accepted).toMatchObject({ id: result.id, status: "accepted", changedFiles: ["accepted.txt"] });
+    await expect(readFile(join(root, "accepted.txt"), "utf8")).resolves.toContain("accepted sdk worktree");
+    await expect(subagents.get(result.id)).resolves.toMatchObject({ status: "accepted" });
     expect(await client.worktrees({ repositoryRoot: root }).list()).toEqual([]);
   });
 

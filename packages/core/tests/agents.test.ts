@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -91,6 +91,34 @@ describe("agent manager", () => {
     await expect(readFile(join(root, ".worktrees", "dirty-agent", "agent.txt"), "utf8")).rejects.toThrow();
   });
 
+  it("accepts coding subagent worktree changes with target dirty protection", async () => {
+    const root = await initRepo();
+    const manager = new AgentManager({
+      projectRoot: root,
+      runner: async (request: SubagentRequest) => {
+        await writeFile(join(request.cwd, "agent.txt"), "accepted subagent file\n", "utf8");
+        return { summary: "created accepted file" };
+      }
+    });
+    const result = await manager.runCoding("Create accepted file", { worktree: "accepted-agent" });
+    await writeFile(join(root, "target-dirty.txt"), "dirty target\n", "utf8");
+
+    await expect(manager.accept(result.id)).rejects.toThrow("Target repository has uncommitted changes");
+
+    await rm(join(root, "target-dirty.txt"));
+    const accepted = await manager.accept(result.id, { discardWorktree: true });
+
+    expect(accepted).toMatchObject({
+      id: result.id,
+      status: "accepted",
+      worktree: "accepted-agent",
+      changedFiles: ["agent.txt"]
+    });
+    await expect(readFile(join(root, "agent.txt"), "utf8")).resolves.toContain("accepted subagent file");
+    await expect(manager.get(result.id)).resolves.toMatchObject({ status: "accepted" });
+    await expect(readFile(join(root, ".worktrees", "accepted-agent", "agent.txt"), "utf8")).rejects.toThrow();
+  });
+
   it("exposes subagent tools through the default registry", async () => {
     const root = await initRepo();
     const orchestrator = new ToolOrchestrator(createDefaultToolRegistry());
@@ -106,15 +134,25 @@ describe("agent manager", () => {
     );
     const get = await orchestrator.execute({ id: "subagent-get", name: "subagent_get", input: { id: "agent-0002" } }, createSession(root));
     await writeFile(join(root, ".worktrees", "tool-agent", "agent.txt"), "dirty tool worktree\n", "utf8");
+    const accept = await orchestrator.execute(
+      { id: "subagent-accept", name: "subagent_accept", input: { id: "agent-0002", discardWorktree: true } },
+      { ...createSession(root), permissionMode: "yolo" }
+    );
+    const acceptedGet = await orchestrator.execute({ id: "subagent-get-accepted", name: "subagent_get", input: { id: "agent-0002" } }, createSession(root));
+    const secondCoding = await orchestrator.execute(
+      { id: "subagent-coding-discard", name: "subagent_run", input: { prompt: "Prepare discard worktree", agentType: "coding", worktree: "tool-discard-agent" } },
+      { ...createSession(root), permissionMode: "yolo" }
+    );
+    await writeFile(join(root, ".worktrees", "tool-discard-agent", "discard.txt"), "discard tool worktree\n", "utf8");
     const dirtyDiscard = await orchestrator.execute(
-      { id: "subagent-discard-dirty", name: "subagent_discard", input: { id: "agent-0002" } },
+      { id: "subagent-discard-dirty", name: "subagent_discard", input: { id: "agent-0003" } },
       { ...createSession(root), permissionMode: "yolo" }
     );
     const discard = await orchestrator.execute(
-      { id: "subagent-discard", name: "subagent_discard", input: { id: "agent-0002", discard: true } },
+      { id: "subagent-discard", name: "subagent_discard", input: { id: "agent-0003", discard: true } },
       { ...createSession(root), permissionMode: "yolo" }
     );
-    const discardedGet = await orchestrator.execute({ id: "subagent-get-discarded", name: "subagent_get", input: { id: "agent-0002" } }, createSession(root));
+    const discardedGet = await orchestrator.execute({ id: "subagent-get-discarded", name: "subagent_get", input: { id: "agent-0003" } }, createSession(root));
 
     expect(run).toMatchObject({ ok: true });
     expect(JSON.stringify(run.output)).toContain("reviewer subagent completed: Inspect registry");
@@ -123,6 +161,10 @@ describe("agent manager", () => {
     expect(coding).toMatchObject({ ok: true });
     expect(get).toMatchObject({ ok: true });
     expect(JSON.stringify(get.output)).toContain("tool-agent");
+    expect(accept).toMatchObject({ ok: true });
+    expect(JSON.stringify(accept.output)).toContain("\"status\":\"accepted\"");
+    expect(JSON.stringify(acceptedGet.output)).toContain("\"status\":\"accepted\"");
+    expect(secondCoding).toMatchObject({ ok: true });
     expect(dirtyDiscard).toMatchObject({ ok: false });
     expect(dirtyDiscard.error).toContain("uncommitted changes");
     expect(discard).toMatchObject({ ok: true });

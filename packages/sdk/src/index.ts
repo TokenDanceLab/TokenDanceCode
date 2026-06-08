@@ -490,6 +490,10 @@ export class TokenDanceSubagents {
     return this.manager.runCoding(input.prompt, { worktree: input.worktree, taskId: input.taskId });
   }
 
+  accept(id: string, options: { discardWorktree?: boolean; allowDirtyTarget?: boolean } = {}): Promise<AgentRunRecord> {
+    return this.manager.accept(id, options);
+  }
+
   discard(id: string, options: { discard?: boolean } = {}): Promise<AgentRunRecord> {
     return this.manager.discard(id, options);
   }

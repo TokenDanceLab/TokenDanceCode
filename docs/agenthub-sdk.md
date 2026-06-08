@@ -428,10 +428,18 @@ console.log(coding.worktreePath);
 console.log(await subagents.get(coding.id));
 console.log(await subagents.list());
 
-await subagents.discard(coding.id, { discard: true });
+await subagents.accept(coding.id, {
+  discardWorktree: true
+});
+
+const throwaway = await subagents.runCoding({
+  prompt: "Try disposable change",
+  worktree: "agenthub-throwaway"
+});
+await subagents.discard(throwaway.id, { discard: true });
 ```
 
-Subagent 索引写入 `<projectRoot>/.tokendance/agents/agents.json`，单个 subagent transcript 写入 `<projectRoot>/.tokendance/agents/<agent-id>/transcript.jsonl`。`subagents.get(id)` 读取单条记录；`subagents.discard(id)` 会移除 coding subagent 的 managed worktree 并把 run 标记为 `discarded`，dirty worktree 默认拒绝删除，只有显式 `discard(id, { discard: true })` 才会强制丢弃未提交改动。默认 registry 同时暴露 `subagent_run`、`subagent_list`、`subagent_get` 和 `subagent_discard`；`subagent_run` 和 `subagent_discard` 是 shell 风险工具，因为它们会创建或移除 worktree。
+Subagent 索引写入 `<projectRoot>/.tokendance/agents/agents.json`，单个 subagent transcript 写入 `<projectRoot>/.tokendance/agents/<agent-id>/transcript.jsonl`。`subagents.get(id)` 读取单条记录；`subagents.accept(id)` 会把 coding subagent worktree 的当前 diff 应用回目标仓库并把 run 标记为 `accepted`，目标仓库存在用户可见未提交改动时默认拒绝，避免把 subagent diff 混进脏工作区；只有显式 `accept(id, { allowDirtyTarget: true })` 才覆盖这个保护。`subagents.discard(id)` 会移除 coding subagent 的 managed worktree 并把 run 标记为 `discarded`，dirty worktree 默认拒绝删除，只有显式 `discard(id, { discard: true })` 才会强制丢弃未提交改动。默认 registry 同时暴露 `subagent_run`、`subagent_list`、`subagent_get`、`subagent_accept` 和 `subagent_discard`；`subagent_run`、`subagent_accept` 和 `subagent_discard` 是 shell 风险工具，因为它们会创建、应用或移除 worktree。
 
 ## 13. Memory
 
@@ -476,7 +484,7 @@ const quality = await tools.execute(
 
 `tools.list()` 返回不含 executor/parse 函数的工具能力 metadata：`name`、`description`、`risk`、`concurrency`。AgentHub 可以用它渲染调试面板、权限说明或工具开关。
 
-这个 facade 的 `execute()` 返回 core `ToolResult`，用于 AgentHub 调试面板、手动质量门、Git diff/review、worktree 管理工作流和受控工具执行。`quality_gate` 需要显式传入可执行命令；即使用 `yolo` 让质量命令运行，PowerShell 工具层仍会拒绝已知高风险命令。`worktree_create` 和 `worktree_remove` 是 shell 风险工具，默认模式下需要审批或显式 tool facade 覆盖权限。
+这个 facade 的 `execute()` 返回 core `ToolResult`，用于 AgentHub 调试面板、手动质量门、Git diff/review、worktree/subagent 管理工作流和受控工具执行。`quality_gate` 需要显式传入可执行命令；即使用 `yolo` 让质量命令运行，PowerShell 工具层仍会拒绝已知高风险命令。`worktree_create`、`worktree_remove`、`subagent_run`、`subagent_accept` 和 `subagent_discard` 是 shell 风险工具，默认模式下需要审批或显式 tool facade 覆盖权限。
 
 ## 15. 当前测试覆盖
 

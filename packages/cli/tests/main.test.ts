@@ -180,6 +180,7 @@ describe("TokenDanceCode CLI", () => {
     expect(exitCode).toBe(0);
     expect(topLevel.stdoutText()).toContain("[shell/exclusive] quality_gate");
     expect(topLevel.stdoutText()).toContain("[shell/exclusive] worktree_remove");
+    expect(topLevel.stdoutText()).toContain("[shell/exclusive] subagent_accept");
     expect(topLevel.stdoutText()).toContain("[shell/exclusive] subagent_discard");
   });
 
@@ -241,6 +242,26 @@ describe("TokenDanceCode CLI", () => {
     expect(listExitCode).toBe(0);
     expect(list.stdoutText()).toContain("agent-0001 [coding] [discarded]");
     await expect(readFile(join(root, ".worktrees", "cli-discard", "agent.txt"), "utf8")).rejects.toThrow();
+  });
+
+  it("accepts coding subagent worktrees from top-level commands", async () => {
+    const root = await initRepo();
+    const run = createTestIO("", root);
+    const accept = createTestIO("", root);
+    const list = createTestIO("", root);
+
+    await runCli(["agents", "run", "coding", "--worktree", "cli-accept", "Prepare", "accept"], run);
+    await writeFile(join(root, ".worktrees", "cli-accept", "accepted.txt"), "accepted cli worktree\n", "utf8");
+
+    const acceptExitCode = await runCli(["agents", "accept", "agent-0001", "--discard-worktree"], accept);
+    const listExitCode = await runCli(["agents"], list);
+
+    expect(acceptExitCode).toBe(0);
+    expect(accept.stdoutText()).toContain("Accepted subagent agent-0001 worktree cli-accept.");
+    expect(listExitCode).toBe(0);
+    expect(list.stdoutText()).toContain("agent-0001 [coding] [accepted]");
+    await expect(readFile(join(root, "accepted.txt"), "utf8")).resolves.toContain("accepted cli worktree");
+    await expect(readFile(join(root, ".worktrees", "cli-accept", "accepted.txt"), "utf8")).rejects.toThrow();
   });
 
   it("shows transcript metadata in interactive and top-level commands", async () => {

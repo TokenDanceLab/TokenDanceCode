@@ -151,6 +151,7 @@ node packages/cli/dist/main.js agents
 node packages/cli/dist/main.js agents run reviewer "Inspect task store"
 node packages/cli/dist/main.js agents run coding --worktree stage15-agent "Prepare isolated change"
 node packages/cli/dist/main.js agents show agent-0001
+node packages/cli/dist/main.js agents accept agent-0001 --discard-worktree
 node packages/cli/dist/main.js agents discard agent-0001 --discard
 node packages/cli/dist/main.js tasks
 node packages/cli/dist/main.js tasks create "Stage 15 E2E"
@@ -232,8 +233,10 @@ const subagents = client.subagents({ projectRoot: process.cwd() });
 const agent = await subagents.runReadonly({ agentType: "reviewer", prompt: "Inspect task store" });
 console.log(agent.summary);
 console.log(await subagents.get(agent.id));
-const codingAgent = await subagents.runCoding({ prompt: "Prepare isolated change", worktree: "stage15-agent" });
-await subagents.discard(codingAgent.id, { discard: true });
+const acceptedAgent = await subagents.runCoding({ prompt: "Prepare isolated change", worktree: "stage15-agent" });
+await subagents.accept(acceptedAgent.id, { discardWorktree: true });
+const throwawayAgent = await subagents.runCoding({ prompt: "Try disposable change", worktree: "throwaway-agent" });
+await subagents.discard(throwawayAgent.id, { discard: true });
 
 const worktrees = client.worktrees({ repositoryRoot: process.cwd() });
 const worktree = await worktrees.create({ name: "stage15-wt" });
@@ -293,6 +296,9 @@ const client = new TokenDanceCode({
 /agents run investigator <prompt>
 /agents run reviewer <prompt>
 /agents run coding [--worktree name] <prompt>
+/agents show <agent-id>
+/agents accept <agent-id> [--discard-worktree] [--allow-dirty-target]
+/agents discard <agent-id> [--discard]
 /tasks
 /tasks create <title>
 /tasks doing <task-id>

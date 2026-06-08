@@ -32,7 +32,7 @@ export interface AgentRunRecord {
   agentType: AgentType;
   prompt: string;
   summary: string;
-  status: "completed" | "discarded";
+  status: "completed" | "accepted" | "discarded";
   readonly: boolean;
   cwd: string;
   transcriptPath: string;
@@ -51,6 +51,11 @@ export interface AgentManagerOptions {
   projectRoot: string;
   runner?: SubagentRunner;
   worktreeManager?: WorktreeManager;
+}
+
+export interface AcceptSubagentOptions {
+  discardWorktree?: boolean;
+  allowDirtyTarget?: boolean;
 }
 
 export class AgentManager {
@@ -114,6 +119,47 @@ export class AgentManager {
     const updated: AgentRunRecord = { ...agent, status: "discarded", updatedAt: new Date().toISOString() };
     agents[index] = updated;
     await appendJsonl(agent.transcriptPath, { type: "subagent_discarded", payload: updated });
+    await this.writeIndex(agents);
+    return updated;
+  }
+
+  async accept(id: string, options: AcceptSubagentOptions = {}): Promise<AgentRunRecord> {
+    const agentId = requiredText(id, "agent id");
+    const agents = await this.list();
+    const index = agents.findIndex((agent) => agent.id === agentId);
+    if (index < 0) {
+      throw new Error(`Subagent ${agentId} was not found.`);
+    }
+    const agent = agents[index];
+    if (!agent?.worktree || !agent.worktreePath) {
+      throw new Error(`Subagent ${agentId} does not have a managed worktree.`);
+    }
+
+    const targetStatus = await git(this.options.projectRoot, ["status", "--short"]);
+    if (hasUserVisibleChanges(targetStatus) && !options.allowDirtyTarget) {
+      throw new Error("Target repository has uncommitted changes.");
+    }
+
+    const changes = await collectChanges(agent.worktreePath);
+    if (changes.diff.trim()) {
+      const patchPath = join(this.stateDir(), agent.id, "accepted.patch");
+      await mkdir(dirname(patchPath), { recursive: true });
+      await writeFile(patchPath, changes.diff.endsWith("\n") ? changes.diff : `${changes.diff}\n`, "utf8");
+      await git(this.options.projectRoot, ["apply", "--whitespace=nowarn", patchPath]);
+    }
+    if (options.discardWorktree) {
+      await this.worktreeManager.remove(agent.worktree, { discard: true });
+    }
+
+    const updated: AgentRunRecord = {
+      ...agent,
+      status: "accepted",
+      changedFiles: changes.changedFiles,
+      diff: changes.diff,
+      updatedAt: new Date().toISOString()
+    };
+    agents[index] = updated;
+    await appendJsonl(agent.transcriptPath, { type: "subagent_accepted", payload: updated });
     await this.writeIndex(agents);
     return updated;
   }
@@ -191,7 +237,7 @@ export class AgentManager {
 }
 
 export function buildSubagentTools(): ToolSpec[] {
-  return [createSubagentRunTool(), createSubagentListTool(), createSubagentGetTool(), createSubagentDiscardTool()];
+  return [createSubagentRunTool(), createSubagentListTool(), createSubagentGetTool(), createSubagentAcceptTool(), createSubagentDiscardTool()];
 }
 
 export function createSubagentRunTool(): ToolSpec<{ prompt: string; agentType: AgentType; worktree?: string; taskId?: string }, AgentRunRecord> {
@@ -272,6 +318,39 @@ export function createSubagentDiscardTool(): ToolSpec<{ id: string; discard?: bo
   };
 }
 
+export function createSubagentAcceptTool(): ToolSpec<{ id: string; discardWorktree?: boolean; allowDirtyTarget?: boolean }, AgentRunRecord> {
+  return {
+    name: "subagent_accept",
+    description: "Apply a coding subagent worktree diff into the target repository.",
+    risk: "shell",
+    concurrency: "exclusive",
+    parse(input) {
+      if (typeof input !== "object" || input === null || typeof (input as { id?: unknown }).id !== "string") {
+        throw new Error("subagent_accept input requires a string id field");
+      }
+      const discardWorktree = (input as { discardWorktree?: unknown; discard_worktree?: unknown }).discardWorktree
+        ?? (input as { discard_worktree?: unknown }).discard_worktree;
+      const allowDirtyTarget = (input as { allowDirtyTarget?: unknown; allow_dirty_target?: unknown }).allowDirtyTarget
+        ?? (input as { allow_dirty_target?: unknown }).allow_dirty_target;
+      if (discardWorktree !== undefined && typeof discardWorktree !== "boolean") {
+        throw new Error("subagent_accept discardWorktree must be a boolean");
+      }
+      if (allowDirtyTarget !== undefined && typeof allowDirtyTarget !== "boolean") {
+        throw new Error("subagent_accept allowDirtyTarget must be a boolean");
+      }
+      return {
+        id: (input as { id: string }).id,
+        discardWorktree,
+        allowDirtyTarget
+      };
+    },
+    execute: async (input, context) => new AgentManager({ projectRoot: context.cwd }).accept(input.id, {
+      discardWorktree: input.discardWorktree,
+      allowDirtyTarget: input.allowDirtyTarget
+    })
+  };
+}
+
 async function defaultSubagentRunner(request: SubagentRequest): Promise<SubagentOutput> {
   if (request.readonly) {
     return { summary: `${request.agentType} subagent completed: ${request.prompt}` };
@@ -305,6 +384,10 @@ function parseStatusFiles(status: string): string[] {
     const path = line.slice(3).trim();
     return [path.includes(" -> ") ? path.split(" -> ").at(-1) ?? path : path];
   });
+}
+
+function hasUserVisibleChanges(status: string): boolean {
+  return parseStatusFiles(status).some((path) => !path.startsWith(".tokendance/") && !path.startsWith(".worktrees/"));
 }
 
 async function untrackedDiff(cwd: string, file: string): Promise<string> {

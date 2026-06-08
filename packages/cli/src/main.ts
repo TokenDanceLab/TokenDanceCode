@@ -315,6 +315,14 @@ async function agentsCommand(args: string[], io: CliIO): Promise<number> {
       await printAgentDetail(io, agent);
       return 0;
     }
+    if (command === "accept" && rawType) {
+      const accepted = await agents.accept(rawType, {
+        discardWorktree: promptParts.includes("--discard-worktree"),
+        allowDirtyTarget: promptParts.includes("--allow-dirty-target")
+      });
+      await write(io.stdout, `Accepted subagent ${accepted.id} worktree ${accepted.worktree}.\n`);
+      return 0;
+    }
     if (command === "discard" && rawType) {
       const discarded = await agents.discard(rawType, { discard: promptParts.includes("--discard") });
       await write(io.stdout, `Discarded subagent ${discarded.id} worktree ${discarded.worktree}.\n`);
@@ -793,6 +801,7 @@ Usage:
   tokendance agents [run investigator|reviewer <prompt>]
   tokendance agents run coding [--worktree name] <prompt>
   tokendance agents show <agent-id>
+  tokendance agents accept <agent-id> [--discard-worktree] [--allow-dirty-target]
   tokendance agents discard <agent-id> [--discard]
   tokendance diff [path ...]
   tokendance review
@@ -825,6 +834,7 @@ async function printInteractiveHelp(io: CliIO): Promise<void> {
   /agents [run investigator|reviewer <prompt>]
   /agents run coding [--worktree name] <prompt>
   /agents show <agent-id>
+  /agents accept <agent-id> [--discard-worktree] [--allow-dirty-target]
   /agents discard <agent-id> [--discard]
   /diff [path ...]
   /review
@@ -881,7 +891,7 @@ function parseAgentRunArgs(rawType: string | undefined, args: string[]): { agent
 }
 
 function agentUsage(): string {
-  return "Usage: tokendance agents [show <id> | discard <id> [--discard] | run investigator|reviewer <prompt> | run coding [--worktree name] <prompt>]\n";
+  return "Usage: tokendance agents [show <id> | accept <id> [--discard-worktree] [--allow-dirty-target] | discard <id> [--discard] | run investigator|reviewer <prompt> | run coding [--worktree name] <prompt>]\n";
 }
 
 function gitOutput(output: unknown): { stdout: string; stderr: string; exitCode: number | null } {

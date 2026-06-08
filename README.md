@@ -205,7 +205,10 @@ hello
 当前 SDK 可供 AgentHub 或本地脚本嵌入：
 
 ```ts
-import { TokenDanceCode } from "@tokendance/code-sdk";
+import { TOKEN_DANCE_CODE_PACKAGE, TokenDanceCode } from "@tokendance/code-sdk";
+
+console.log(TOKEN_DANCE_CODE_PACKAGE.packages.sdk.name);
+console.log(TOKEN_DANCE_CODE_PACKAGE.verification.test);
 
 const client = new TokenDanceCode();
 const thread = client.startThread({ workingDirectory: process.cwd() });

@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
+import { TOKEN_DANCE_CODE_PACKAGE } from "../src/index.js";
 
 const workspaceRoot = new URL("../../../", import.meta.url);
 
@@ -32,6 +33,32 @@ describe("package metadata", () => {
     expect(cliPackage.bin?.tokendance).toBe("./dist/main.js");
     expect(sdkPackage.dependencies?.["@tokendance/code-core"]).toBe("workspace:*");
     expect(cliPackage.dependencies?.["@tokendance/code-sdk"]).toBe("workspace:*");
+  });
+
+  it("exports AgentHub-readable package entrypoint metadata", () => {
+    expect(TOKEN_DANCE_CODE_PACKAGE).toEqual({
+      version: "0.2.0-ts.0",
+      packages: {
+        core: {
+          name: "@tokendance/code-core",
+          import: "@tokendance/code-core",
+          types: "@tokendance/code-core"
+        },
+        sdk: {
+          name: "@tokendance/code-sdk",
+          import: "@tokendance/code-sdk",
+          types: "@tokendance/code-sdk"
+        },
+        cli: {
+          name: "@tokendance/code-cli",
+          bin: "tokendance"
+        }
+      },
+      verification: {
+        test: "pnpm verify",
+        package: "pnpm pack:check"
+      }
+    });
   });
 });
 

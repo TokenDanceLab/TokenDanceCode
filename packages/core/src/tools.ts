@@ -1,4 +1,5 @@
 import { PermissionEngine } from "./permissions.js";
+import { buildFileTools } from "./file-tools.js";
 import type { SessionState, ToolCall, ToolResult, ToolSpec } from "./types.js";
 
 export class ToolRegistry {
@@ -62,4 +63,12 @@ export function createEchoTool(): ToolSpec<{ text: string }, { text: string }> {
       return input;
     }
   };
+}
+
+export function createDefaultToolRegistry(): ToolRegistry {
+  const registry = new ToolRegistry().register(createEchoTool());
+  for (const tool of buildFileTools()) {
+    registry.register(tool);
+  }
+  return registry;
 }

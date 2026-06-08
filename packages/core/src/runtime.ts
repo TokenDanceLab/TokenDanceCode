@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { PermissionEngine } from "./permissions.js";
 import { appendMessage, createSession } from "./session.js";
-import { createEchoTool, ToolOrchestrator, ToolRegistry } from "./tools.js";
+import { createDefaultToolRegistry, ToolOrchestrator, ToolRegistry } from "./tools.js";
 import type { ModelProvider, SessionState, TDCodeEvent, TDMessage, ToolResult, TranscriptStore } from "./types.js";
 
 export interface AgentRuntimeOptions {
@@ -18,7 +18,7 @@ export class AgentRuntime {
 
   constructor(private readonly options: AgentRuntimeOptions) {
     this.session = options.session ?? createSession({ cwd: options.cwd ?? process.cwd() });
-    this.registry = options.registry ?? new ToolRegistry().register(createEchoTool());
+    this.registry = options.registry ?? createDefaultToolRegistry();
   }
 
   get state(): SessionState {

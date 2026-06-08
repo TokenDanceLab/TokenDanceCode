@@ -1,3 +1,4 @@
+export * from "./file-tools.js";
 export * from "./mock-provider.js";
 export * from "./permissions.js";
 export * from "./runtime.js";

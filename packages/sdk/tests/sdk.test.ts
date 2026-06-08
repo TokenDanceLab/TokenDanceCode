@@ -261,6 +261,22 @@ describe("TokenDanceCode SDK", () => {
     expect(tools.list().map((tool) => tool.name)).toContain("quality_gate");
   });
 
+  it("runs and lists subagents through the SDK boundary for AgentHub callers", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-agents-"));
+    const client = new TokenDanceCode();
+    const subagents = client.subagents({ projectRoot: root });
+
+    const result = await subagents.runReadonly({ prompt: "Inspect SDK surface", agentType: "reviewer" });
+
+    expect(result).toMatchObject({
+      id: "agent-0001",
+      agentType: "reviewer",
+      readonly: true,
+      summary: "reviewer subagent completed: Inspect SDK surface"
+    });
+    expect(await subagents.list()).toEqual([result]);
+  });
+
   it("reads effective config through the SDK boundary for AgentHub callers", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-config-"));
     const projectRoot = join(root, "repo");

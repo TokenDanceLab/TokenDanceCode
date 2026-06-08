@@ -55,6 +55,10 @@ export async function runCli(argv: string[], io: CliIO = defaultIO()): Promise<n
     return memoryCommand(rest, io);
   }
 
+  if (command === "agents") {
+    return agentsCommand(rest, io);
+  }
+
   if (command === "diff") {
     return diffCommand(rest, io);
   }
@@ -162,6 +166,11 @@ async function runInteractive(io: CliIO): Promise<void> {
 
     if (line === "/memory" || line.startsWith("/memory ")) {
       await memoryCommand(line.split(/\s+/).slice(1), io);
+      continue;
+    }
+
+    if (line === "/agents" || line.startsWith("/agents ")) {
+      await agentsCommand(line.split(/\s+/).slice(1), io);
       continue;
     }
 
@@ -286,6 +295,33 @@ async function configCommand(io: CliIO): Promise<number> {
     await write(io.stdout, `source: ${source.kind}${source.path ? ` ${source.path}` : ""}\n`);
   }
   return 0;
+}
+
+async function agentsCommand(args: string[], io: CliIO): Promise<number> {
+  const agents = new TokenDanceCode().subagents({ projectRoot: io.cwd() });
+  const [command, rawType, ...promptParts] = args;
+  try {
+    if (!command) {
+      await printAgents(io, await agents.list());
+      return 0;
+    }
+    if (command === "run") {
+      const agentType = parseReadonlyAgentType(rawType);
+      const prompt = promptParts.join(" ").trim();
+      if (!agentType || !prompt) {
+        await write(io.stderr, "Usage: tokendance agents run investigator|reviewer <prompt>\n");
+        return 1;
+      }
+      const result = await agents.runReadonly({ agentType, prompt });
+      await write(io.stdout, `${result.id} [${result.agentType}] ${result.summary}\n`);
+      return 0;
+    }
+    await write(io.stderr, "Usage: tokendance agents [run investigator|reviewer <prompt>]\n");
+    return 1;
+  } catch (error) {
+    await write(io.stderr, `${error instanceof Error ? error.message : String(error)}\n`);
+    return 1;
+  }
 }
 
 async function diffCommand(paths: string[], io: CliIO): Promise<number> {
@@ -657,6 +693,16 @@ async function printToolMetadata(io: CliIO, tools: TokenDanceTools): Promise<voi
   }
 }
 
+async function printAgents(io: CliIO, agents: Awaited<ReturnType<ReturnType<TokenDanceCode["subagents"]>["list"]>>): Promise<void> {
+  if (agents.length === 0) {
+    await write(io.stdout, "No subagents.\n");
+    return;
+  }
+  for (const agent of agents) {
+    await write(io.stdout, `${agent.id} [${agent.agentType}] ${agent.summary}\n`);
+  }
+}
+
 async function printWorktrees(io: CliIO, worktrees: Awaited<ReturnType<ReturnType<TokenDanceCode["worktrees"]>["list"]>>): Promise<void> {
   if (worktrees.length === 0) {
     await write(io.stdout, "No worktrees.\n");
@@ -704,6 +750,7 @@ Usage:
   tokendance doctor
   tokendance config
   tokendance memory [add|delete] [project|global] [value]
+  tokendance agents [run investigator|reviewer <prompt>]
   tokendance diff [path ...]
   tokendance review
   tokendance tools
@@ -732,6 +779,7 @@ async function printInteractiveHelp(io: CliIO): Promise<void> {
   /permissions [default|safe|auto|yolo]
   /resume
   /memory [add|delete] [project|global] [value]
+  /agents [run investigator|reviewer <prompt>]
   /diff [path ...]
   /review
   /tools
@@ -761,6 +809,10 @@ function parseTranscriptArgs(args: string[]): { sessionId?: string; query?: stri
 
 function parseMemoryScope(value: string | undefined): MemoryScope | undefined {
   return value === "project" || value === "global" ? value : undefined;
+}
+
+function parseReadonlyAgentType(value: string | undefined): "investigator" | "reviewer" | undefined {
+  return value === "investigator" || value === "reviewer" ? value : undefined;
 }
 
 function gitOutput(output: unknown): { stdout: string; stderr: string; exitCode: number | null } {

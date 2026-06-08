@@ -1,4 +1,5 @@
 import { PermissionEngine } from "./permissions.js";
+import { buildSubagentTools } from "./agents.js";
 import { buildFileTools } from "./file-tools.js";
 import { buildGitTools } from "./git-tools.js";
 import { createApplyPatchTool } from "./patch-tools.js";
@@ -94,6 +95,9 @@ export function createDefaultToolRegistry(): ToolRegistry {
     registry.register(tool);
   }
   for (const tool of buildWorktreeTools()) {
+    registry.register(tool);
+  }
+  for (const tool of buildSubagentTools()) {
     registry.register(tool);
   }
   registry.register(createApplyPatchTool());

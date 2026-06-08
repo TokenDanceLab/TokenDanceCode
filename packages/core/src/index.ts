@@ -1,4 +1,5 @@
 export * from "./anthropic-provider.js";
+export * from "./agents.js";
 export * from "./compact.js";
 export * from "./config.js";
 export * from "./context-builder.js";

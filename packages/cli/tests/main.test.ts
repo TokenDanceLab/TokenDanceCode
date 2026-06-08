@@ -182,6 +182,20 @@ describe("TokenDanceCode CLI", () => {
     expect(topLevel.stdoutText()).toContain("[shell/exclusive] worktree_remove");
   });
 
+  it("runs and lists readonly subagents in interactive and top-level commands", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-agents-"));
+    const interactive = createTestIO("/agents\n/agents run reviewer Inspect CLI\n/agents\n/exit\n", root);
+    await runCli([], interactive);
+    const topLevel = createTestIO("", root);
+
+    const exitCode = await runCli(["agents"], topLevel);
+
+    expect(interactive.stdoutText()).toContain("No subagents.");
+    expect(interactive.stdoutText()).toContain("agent-0001 [reviewer] reviewer subagent completed: Inspect CLI");
+    expect(exitCode).toBe(0);
+    expect(topLevel.stdoutText()).toContain("agent-0001 [reviewer] reviewer subagent completed: Inspect CLI");
+  });
+
   it("shows transcript metadata in interactive and top-level commands", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-cli-"));
     const interactive = createTestIO("hello transcript\n/transcript\n/exit\n", root);

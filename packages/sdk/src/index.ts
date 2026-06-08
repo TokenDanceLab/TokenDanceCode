@@ -1,5 +1,6 @@
 import {
   AgentRuntime,
+  AgentManager,
   AnthropicMessagesProvider,
   CompactService,
   FileTranscriptStore,
@@ -14,6 +15,8 @@ import {
   createDefaultToolRegistry,
   readTokenDanceConfig,
   readTranscript,
+  type AgentRunRecord,
+  type AgentType,
   type ModelProvider,
   type PermissionApprovalCallback,
   type PermissionMode,
@@ -120,6 +123,10 @@ export interface WorktreeOptions {
   worktreeRoot?: string;
 }
 
+export interface SubagentOptions {
+  projectRoot?: string;
+}
+
 export class TokenDanceCode {
   constructor(private readonly options: TokenDanceCodeOptions = {}) {}
 
@@ -213,6 +220,10 @@ export class TokenDanceCode {
         worktreeRoot: options.worktreeRoot
       })
     );
+  }
+
+  subagents(options: SubagentOptions = {}): TokenDanceSubagents {
+    return new TokenDanceSubagents(new AgentManager({ projectRoot: options.projectRoot ?? this.options.storageRoot ?? process.cwd() }));
   }
 
   async transcriptInfo(session: SessionState, recentEventCount = 0): Promise<TranscriptInfo> {
@@ -457,6 +468,22 @@ export class TokenDanceWorktrees {
 
   remove(name: string, options: { discard?: boolean } = {}): Promise<void> {
     return this.manager.remove(name, options);
+  }
+}
+
+export class TokenDanceSubagents {
+  constructor(private readonly manager: AgentManager) {}
+
+  list(): Promise<AgentRunRecord[]> {
+    return this.manager.list();
+  }
+
+  runReadonly(input: { prompt: string; agentType?: Exclude<AgentType, "coding"> }): Promise<AgentRunRecord> {
+    return this.manager.runReadonly(input);
+  }
+
+  runCoding(input: { prompt: string; worktree?: string; taskId?: string }): Promise<AgentRunRecord> {
+    return this.manager.runCoding(input.prompt, { worktree: input.worktree, taskId: input.taskId });
   }
 }
 

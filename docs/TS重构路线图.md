@@ -8,7 +8,7 @@
 - worktree：`D:\Code\TokenDance\TokenDanceCode\.worktrees\ts-refactor`
 - 目标：把 TokenDanceCode 从 Python v0.1 参考实现重构为 TypeScript monorepo，并给 AgentHub 暴露稳定 SDK。
 - 当前可验证命令：`pnpm verify`
-- 最近验证结果：typecheck 通过，Vitest 21 个测试文件 98 个测试通过。
+- 最近验证结果：typecheck 通过，Vitest 22 个测试文件 103 个测试通过。
 
 旧 `src/tokendance` 和 `tests/` 暂时保留为功能迁移参考。新增 TS 能力默认写入 `packages/*`，不要继续扩展 Python 运行时，除非明确是在补迁移对照或保护旧行为。
 
@@ -43,7 +43,7 @@
 
 | 包 | 职责 | 状态 |
 |---|---|---|
-| `@tokendance/code-core` | session、runtime、event、tool registry、permission engine、transcript、task/todo、worktree、MockProvider | 已建骨架和测试 |
+| `@tokendance/code-core` | session、runtime、event、tool registry、permission engine、transcript、task/todo、subagent、worktree、MockProvider | 已建骨架和测试 |
 | `@tokendance/code-sdk` | AgentHub/本地脚本可消费的 `Thread` API 和 facade | 已建骨架和测试 |
 | `@tokendance/code-cli` | `tokendance` 命令入口、最小交互 shell、task/todo 管理、工具事件渲染 | 已建薄入口和 REPL |
 | `@tokendance/code-agenthub-example` | AgentHub emitter/审批桥接样例 | 已建私有示例包和测试 |
@@ -101,6 +101,7 @@ node packages/cli/dist/main.js run "hello"
 - [x] Git tool：status/diff/review quality gate 的最小集合。
 - [x] Tool metadata：默认 registry 和 SDK/CLI 可列出工具名称、说明、风险等级和并发属性。
 - [x] Worktree manager/tool：受控 `.worktrees` list/create/remove，dirty 删除需显式 `--discard`，并暴露 `worktree_list/create/remove` 默认 registry tools。
+- [x] Subagent manager/tool：readonly investigator/reviewer、coding worktree delegation、agent transcript/index、`subagent_run/list` 默认 registry tools。
 - [x] Config loader：合并 defaults/global/project JSON 配置，只暴露 provider、model、permissionMode 白名单字段。
 
 ### P2：上下文与恢复
@@ -127,6 +128,7 @@ node packages/cli/dist/main.js run "hello"
 - [x] 增加 SDK `thread.searchTranscript(query, { limit? })`，供 AgentHub 调试面板或轻量索引读取匹配事件。
 - [x] 增加 SDK `client.memory({ projectRoot?, homeDir? })`，供 AgentHub 管理 project/global memory。
 - [x] 增加 SDK `client.tasks({ projectRoot? })` 和 `client.todos({ projectRoot?, sessionId? })`，供 AgentHub 管理任务图和 session todo。
+- [x] 增加 SDK `client.subagents({ projectRoot? })`，供 AgentHub 启动 readonly/coding subagent 并读取 agent run 记录。
 - [x] 增加 SDK `client.worktrees({ repositoryRoot?, worktreeRoot? })`，供 AgentHub 管理 coding subagent 的隔离 worktree 池。
 - [x] 增加 SDK `client.tools({ workingDirectory?, permissionMode? })`，供 AgentHub 查看工具能力 metadata、触发受控工具执行、Git diff/review、worktree 和质量门。
 - [x] 增加 SDK `client.config({ projectRoot?, homeDir? })`，供 AgentHub 读取有效配置和来源。
@@ -136,6 +138,6 @@ node packages/cli/dist/main.js run "hello"
 
 - [x] 交互式 REPL 最小闭环。
 - [x] `/new`、`/status`、`/doctor`、`/config`、`/permissions`。
-- [x] 顶层 `config`、`resume [session-id]`、`memory [add|delete] [project|global] [value]`、`tasks [create|doing|done] [value]`、`todo [add|doing|done] [value]`、`worktree [list|create|remove] [name] [--discard]`、`diff [path ...]`、`review`、`tools`、`quality <command>`、`transcript [session-id]`、`transcript [session-id] search <query>`、`compact [session-id]`，交互式 `/config`、`/resume`、`/memory`、`/tasks`、`/todo`、`/worktree`、`/diff`、`/review`、`/tools`、`/quality`、`/transcript`、`/transcript search <query>`、`/compact`。
+- [x] 顶层 `config`、`resume [session-id]`、`memory [add|delete] [project|global] [value]`、`agents [run investigator|reviewer <prompt>]`、`tasks [create|doing|done] [value]`、`todo [add|doing|done] [value]`、`worktree [list|create|remove] [name] [--discard]`、`diff [path ...]`、`review`、`tools`、`quality <command>`、`transcript [session-id]`、`transcript [session-id] search <query>`、`compact [session-id]`，交互式 `/config`、`/resume`、`/memory`、`/agents`、`/tasks`、`/todo`、`/worktree`、`/diff`、`/review`、`/tools`、`/quality`、`/transcript`、`/transcript search <query>`、`/compact`。
 - [x] 滚动式事件 renderer 闭环：assistant 文本、tool started、permission decision、tool completed、tool failed reason、tool output summary、turn token usage。
 - [ ] 增强 renderer：未来真实 provider token delta 合并策略和更细进度显示。

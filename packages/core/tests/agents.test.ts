@@ -1,0 +1,102 @@
+import { execFile } from "node:child_process";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
+import { describe, expect, it } from "vitest";
+import { AgentManager, createDefaultToolRegistry, ToolOrchestrator, type SessionState, type SubagentRequest } from "../src/index.js";
+
+const execFileAsync = promisify(execFile);
+
+describe("agent manager", () => {
+  it("runs readonly subagents and records an index plus transcript", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-agents-"));
+    const manager = new AgentManager({
+      projectRoot: root,
+      runner: async (request: SubagentRequest) => {
+        expect(request.readonly).toBe(true);
+        expect(request.agentType).toBe("investigator");
+        return { summary: `inspected: ${request.prompt}` };
+      }
+    });
+
+    const result = await manager.runReadonly("Inspect task store");
+
+    expect(result).toMatchObject({
+      id: "agent-0001",
+      agentType: "investigator",
+      readonly: true,
+      summary: "inspected: Inspect task store",
+      changedFiles: [],
+      diff: ""
+    });
+    expect(await manager.list()).toEqual([result]);
+    await expect(readFile(result.transcriptPath, "utf8")).resolves.toContain("subagent_completed");
+    await expect(readFile(join(root, ".tokendance", "agents", "agents.json"), "utf8")).resolves.toContain("agent-0001");
+  });
+
+  it("runs coding subagents in managed worktrees and reports changes", async () => {
+    const root = await initRepo();
+    const manager = new AgentManager({
+      projectRoot: root,
+      runner: async (request: SubagentRequest) => {
+        expect(request.readonly).toBe(false);
+        expect(request.cwd).not.toBe(root);
+        await writeFile(join(request.cwd, "agent.txt"), "hello from subagent\n", "utf8");
+        return { summary: "created agent file", validationResult: "manual validation" };
+      }
+    });
+
+    const result = await manager.runCoding("Create an agent file", { worktree: "agent-file" });
+
+    expect(result).toMatchObject({
+      id: "agent-0001",
+      agentType: "coding",
+      readonly: false,
+      worktree: "agent-file",
+      summary: "created agent file",
+      changedFiles: ["agent.txt"],
+      validationResult: "manual validation"
+    });
+    expect(result.diff).toContain("+hello from subagent");
+    await expect(readFile(join(root, "agent.txt"), "utf8")).rejects.toThrow();
+  });
+
+  it("exposes subagent tools through the default registry", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-agent-tools-"));
+    const orchestrator = new ToolOrchestrator(createDefaultToolRegistry());
+
+    const run = await orchestrator.execute(
+      { id: "subagent-run", name: "subagent_run", input: { prompt: "Inspect registry", agentType: "reviewer" } },
+      { ...createSession(root), permissionMode: "yolo" }
+    );
+    const list = await orchestrator.execute({ id: "subagent-list", name: "subagent_list", input: {} }, createSession(root));
+
+    expect(run).toMatchObject({ ok: true });
+    expect(JSON.stringify(run.output)).toContain("reviewer subagent completed: Inspect registry");
+    expect(list).toMatchObject({ ok: true });
+    expect(JSON.stringify(list.output)).toContain("agent-0001");
+  });
+});
+
+async function initRepo(): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), "tdcode-agent-repo-"));
+  await execFileAsync("git", ["init"], { cwd: root });
+  await execFileAsync("git", ["config", "user.email", "test@example.com"], { cwd: root });
+  await execFileAsync("git", ["config", "user.name", "TokenDance Test"], { cwd: root });
+  await writeFile(join(root, "notes.txt"), "base\n", "utf8");
+  await execFileAsync("git", ["add", "."], { cwd: root });
+  await execFileAsync("git", ["commit", "-m", "initial"], { cwd: root });
+  return root;
+}
+
+function createSession(cwd: string): SessionState {
+  return {
+    id: "test-session",
+    cwd,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    permissionMode: "default",
+    messages: []
+  };
+}

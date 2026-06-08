@@ -404,7 +404,27 @@ await worktrees.remove("agenthub-wt");
 
 `remove(name)` 会先检查目标 worktree 的 `git status --porcelain`；存在未提交改动时拒绝删除。只有调用方显式传 `remove(name, { discard: true })` 时才会使用 `git worktree remove --force`。CLI 对应 `tokendance worktree remove <name> --discard`。
 
-## 12. Memory
+## 12. Subagents
+
+AgentHub 可以通过 SDK 启动和查看 delegated subagent 结果。首版不是多 Agent 团队系统，而是自用的 bounded delegation：readonly investigator/reviewer 返回 summary 且不报告文件修改；coding subagent 在 managed worktree 中运行，并报告 changed files、diff、validation result。
+
+```ts
+const subagents = client.subagents({
+  projectRoot: "D:/Code/TokenDance/AgentHub"
+});
+
+const review = await subagents.runReadonly({
+  agentType: "reviewer",
+  prompt: "Inspect SDK boundary"
+});
+
+console.log(review.summary);
+console.log(await subagents.list());
+```
+
+Subagent 索引写入 `<projectRoot>/.tokendance/agents/agents.json`，单个 subagent transcript 写入 `<projectRoot>/.tokendance/agents/<agent-id>/transcript.jsonl`。默认 registry 同时暴露 `subagent_run` 和 `subagent_list`；`subagent_run` 是 shell 风险工具，因为 coding 模式会创建 worktree。
+
+## 13. Memory
 
 AgentHub 如果需要把项目约定或用户偏好写入 TokenDanceCode 的上下文来源，可以通过 SDK 管理 project/global memory，不需要直接依赖 core `MemoryStore`：
 
@@ -424,7 +444,7 @@ await memory.delete("project", 0);
 
 `project` memory 写入 `<projectRoot>/.tokendance/memory/project.md`，`global` memory 写入 `<homeDir>/.tokendance/memory/global.md`。当前只做显式增删查和 ContextBuilder 注入，不做自动抽取、自动改写或隐式上传。
 
-## 13. Tool Facade
+## 14. Tool Facade
 
 AgentHub 如果需要在 UI 或任务编排层触发 TokenDanceCode 已注册工具，可以使用 SDK 的 `client.tools()`，避免直接依赖 core `ToolOrchestrator`：
 
@@ -449,13 +469,13 @@ const quality = await tools.execute(
 
 这个 facade 的 `execute()` 返回 core `ToolResult`，用于 AgentHub 调试面板、手动质量门、Git diff/review、worktree 管理工作流和受控工具执行。`quality_gate` 需要显式传入可执行命令；即使用 `yolo` 让质量命令运行，PowerShell 工具层仍会拒绝已知高风险命令。`worktree_create` 和 `worktree_remove` 是 shell 风险工具，默认模式下需要审批或显式 tool facade 覆盖权限。
 
-## 14. 当前测试覆盖
+## 15. 当前测试覆盖
 
-- `packages/sdk/tests/sdk.test.ts` 覆盖 buffered turn、streamed events、多轮 thread、latest/by-id resume、latest/by-id compact、transcript metadata/search、config facade、memory facade、task/todo facade、worktree facade、tool metadata facade、tool execution facade、worktree tools、审批允许/拒绝、provider env 配置错误、event sink。
+- `packages/sdk/tests/sdk.test.ts` 覆盖 buffered turn、streamed events、多轮 thread、latest/by-id resume、latest/by-id compact、transcript metadata/search、config facade、memory facade、task/todo facade、subagent facade、worktree facade、tool metadata facade、tool execution facade、worktree/subagent tools、审批允许/拒绝、provider env 配置错误、event sink。
 - `packages/sdk/tests/approval-bridge.test.ts` 覆盖 AgentHub 远程审批 bridge、pending 快照、allow/deny 决策回填。
 - `packages/sdk/tests/agenthub-events.test.ts` 覆盖 `TDCodeEvent` 到 AgentHub `run.agent.*` 的映射、sink 包装和 `agent.stream` payload fixture。
 - `packages/agenthub-example/tests/agenthub-runner.test.ts` 覆盖 AgentHub runner 示例、`agent.stream` payload 序列和 emitter 形态。
-- `packages/core/tests/*` 覆盖 runtime、permission、provider adapter、file/shell/patch/git/worktree/tool metadata/context/resume/config/memory/task/todo。
+- `packages/core/tests/*` 覆盖 runtime、permission、provider adapter、file/shell/patch/git/subagent/worktree/tool metadata/context/resume/config/memory/task/todo。
 
 完整验证命令：
 

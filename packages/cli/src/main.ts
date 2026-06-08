@@ -33,6 +33,10 @@ export async function runCli(argv: string[], io: CliIO = defaultIO()): Promise<n
     return 0;
   }
 
+  if (command === "resume") {
+    return resumeCommand(rest, io);
+  }
+
   if (command === "run") {
     const prompt = rest.join(" ").trim();
     if (!prompt) {
@@ -116,6 +120,20 @@ async function runInteractive(io: CliIO): Promise<void> {
   }
 }
 
+async function resumeCommand(args: string[], io: CliIO): Promise<number> {
+  const client = new TokenDanceCode();
+  const sessionId = args[0]?.trim();
+  try {
+    const thread = sessionId ? await client.loadThread(sessionId, io.cwd()) : await client.loadLatestThread(io.cwd());
+    await printResumeResult(io, thread);
+    return 0;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await write(io.stderr, `${message}\n`);
+    return 1;
+  }
+}
+
 async function handleNewThread(io: CliIO, client: TokenDanceCode, previous: Thread): Promise<Thread> {
   const thread = client.startThread({
     workingDirectory: previous.state.cwd,
@@ -185,8 +203,12 @@ async function handlePermissions(io: CliIO, client: TokenDanceCode, thread: Thre
 
 async function handleResume(io: CliIO, client: TokenDanceCode): Promise<Thread> {
   const thread = await client.loadLatestThread(io.cwd());
-  await write(io.stdout, `Resumed session ${thread.id} with ${thread.recentTranscript.length} recent transcript events.\n`);
+  await printResumeResult(io, thread);
   return thread;
+}
+
+async function printResumeResult(io: CliIO, thread: Thread): Promise<void> {
+  await write(io.stdout, `Resumed session ${thread.id} with ${thread.recentTranscript.length} recent transcript events.\n`);
 }
 
 async function handleCompact(io: CliIO, thread: Thread): Promise<void> {
@@ -220,6 +242,7 @@ Usage:
   tokendance
   tokendance --version
   tokendance doctor
+  tokendance resume [session-id]
   tokendance run <prompt>
 `
   );

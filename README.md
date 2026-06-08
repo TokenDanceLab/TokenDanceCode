@@ -133,10 +133,12 @@ MODEL_ID=deepseek-v4-pro
 
 ## 启动使用
 
-当前 TS CLI 支持一次性 mock 运行：
+当前 TS CLI 支持一次性 mock 运行和恢复历史 session：
 
 ```powershell
 node packages/cli/dist/main.js run "完整阅读这个项目"
+node packages/cli/dist/main.js resume
+node packages/cli/dist/main.js resume <session-id>
 ```
 
 工具调用会通过同一套 runtime 事件流渲染，例如 mock echo 工具：

@@ -1,5 +1,6 @@
 import { PermissionEngine } from "./permissions.js";
 import { buildFileTools } from "./file-tools.js";
+import { buildGitTools } from "./git-tools.js";
 import { createApplyPatchTool } from "./patch-tools.js";
 import { createRunPowerShellTool } from "./shell-tools.js";
 import type { SessionState, ToolCall, ToolResult, ToolSpec } from "./types.js";
@@ -70,6 +71,9 @@ export function createEchoTool(): ToolSpec<{ text: string }, { text: string }> {
 export function createDefaultToolRegistry(): ToolRegistry {
   const registry = new ToolRegistry().register(createEchoTool());
   for (const tool of buildFileTools()) {
+    registry.register(tool);
+  }
+  for (const tool of buildGitTools()) {
     registry.register(tool);
   }
   registry.register(createApplyPatchTool());

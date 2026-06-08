@@ -9,16 +9,15 @@ import {
   type AgentRunRecord,
   type MemoryScope,
   type PermissionMode,
-  type TDCodeEvent,
   type Thread,
   type TokenDanceTools,
   type TranscriptInfo,
   type TranscriptSearchResult
 } from "@tokendance/code-sdk";
+import { createEventRenderer } from "./renderer.js";
 
 const version = "0.2.0-ts.0";
 const permissionModes = new Set<PermissionMode>(["default", "safe", "auto", "yolo"]);
-const maxToolSummaryLength = 120;
 
 export interface CliIO {
   stdin: Readable;
@@ -552,83 +551,10 @@ async function handleNewThread(io: CliIO, client: TokenDanceCode, previous: Thre
 
 async function runPrompt(io: CliIO, thread: Thread, prompt: string): Promise<void> {
   const streamed = await thread.runStreamed(prompt);
-  let renderedAssistantText = false;
-  const rendererState: RendererState = { toolStarts: new Map() };
+  const renderer = createEventRenderer({ stdout: io.stdout });
 
   for await (const event of streamed.events) {
-    if (event.type === "assistant.delta") {
-      renderedAssistantText = true;
-    }
-    await renderEvent(io, event, renderedAssistantText, rendererState);
-  }
-}
-
-interface RendererState {
-  toolStarts: Map<string, number>;
-}
-
-async function renderEvent(io: CliIO, event: TDCodeEvent, renderedAssistantText: boolean, state: RendererState): Promise<void> {
-  switch (event.type) {
-    case "assistant.delta":
-      await write(io.stdout, `${event.text}\n`);
-      return;
-    case "tool.started":
-      state.toolStarts.set(event.call.id, Date.now());
-      await write(io.stdout, `tool ${event.call.name} started\n`);
-      return;
-    case "tool.permission":
-      await write(io.stdout, `permission ${event.decision.status}: ${event.decision.reason}\n`);
-      return;
-    case "tool.completed":
-      const duration = renderToolDuration(state, event.result.callId);
-      if (event.result.ok) {
-        const summary = summarizeToolOutput(event.result.output);
-        await write(io.stdout, `tool ${event.result.toolName} completed${summary ? `: ${summary}` : ""}${duration}\n`);
-        return;
-      }
-      await write(io.stdout, `tool ${event.result.toolName} failed: ${event.result.error ?? "unknown error"}${duration}\n`);
-      return;
-    case "turn.completed":
-      if (!renderedAssistantText && event.finalResponse) {
-        await write(io.stdout, `${event.finalResponse}\n`);
-      }
-      if (event.usage) {
-        await write(io.stdout, `usage input=${event.usage.inputTokens} output=${event.usage.outputTokens}\n`);
-      }
-      return;
-    default:
-      return;
-  }
-}
-
-function renderToolDuration(state: RendererState, callId: string): string {
-  const startedAt = state.toolStarts.get(callId);
-  state.toolStarts.delete(callId);
-  return startedAt === undefined ? "" : ` duration=${Math.max(0, Date.now() - startedAt)}ms`;
-}
-
-function summarizeToolOutput(output: unknown): string {
-  if (output === undefined) {
-    return "";
-  }
-
-  const serialized = serializeToolOutput(output);
-  if (serialized.length <= maxToolSummaryLength) {
-    return serialized;
-  }
-
-  const omitted = serialized.length - maxToolSummaryLength;
-  return `${serialized.slice(0, maxToolSummaryLength)}... omitted ${omitted} chars`;
-}
-
-function serializeToolOutput(output: unknown): string {
-  if (typeof output === "string") {
-    return output;
-  }
-  try {
-    return JSON.stringify(output);
-  } catch {
-    return String(output);
+    await renderer.render(event);
   }
 }
 

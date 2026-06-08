@@ -1,6 +1,7 @@
 import {
   AgentRuntime,
   AnthropicMessagesProvider,
+  CompactService,
   FileTranscriptStore,
   MockProvider,
   OpenAIResponsesProvider,
@@ -11,6 +12,7 @@ import {
   type SessionState,
   type TDCodeEvent,
   type TDCodeEventSink,
+  type CompactResult,
   type TranscriptEnvelope
 } from "@tokendance/code-core";
 
@@ -76,14 +78,22 @@ export class TokenDanceCode {
     return new Thread({ client: this, session: result.session, recentTranscript: result.recent });
   }
 
+  compactSession(session: SessionState): Promise<CompactResult> {
+    return new CompactService(new FileTranscriptStore({ rootDir: this.storageRootFor(session) }).sessionDir(session.id)).manualCompact();
+  }
+
   createRuntime(session: SessionState): AgentRuntime {
     return new AgentRuntime({
       provider: this.resolveProvider(),
-      store: new FileTranscriptStore({ rootDir: this.options.storageRoot ?? session.cwd }),
+      store: new FileTranscriptStore({ rootDir: this.storageRootFor(session) }),
       session,
       approvalCallback: this.options.approvalCallback,
       eventSink: this.options.eventSink
     });
+  }
+
+  private storageRootFor(session: SessionState): string {
+    return this.options.storageRoot ?? session.cwd;
   }
 
   private resolveProvider(): ModelProvider {
@@ -160,6 +170,10 @@ export class Thread {
 
     return { events: events() };
   }
+
+  compact(): Promise<CompactResult> {
+    return this.options.client.compactSession(this.options.session);
+  }
 }
 
 function normalizeInput(input: ThreadInput): string {
@@ -179,4 +193,4 @@ function cloneSession(session: SessionState): SessionState {
   };
 }
 
-export type { ModelProvider, PermissionApprovalCallback, PermissionMode, SessionState, TDCodeEvent, TDCodeEventSink, TranscriptEnvelope };
+export type { CompactResult, ModelProvider, PermissionApprovalCallback, PermissionMode, SessionState, TDCodeEvent, TDCodeEventSink, TranscriptEnvelope };

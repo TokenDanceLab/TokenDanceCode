@@ -104,6 +104,19 @@ describe("TokenDanceCode SDK", () => {
     expect(thread.recentTranscript[0]?.event.type).toBe("user.message");
   });
 
+  it("compacts the current thread transcript for AgentHub callers", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
+    const client = new TokenDanceCode({ storageRoot: root });
+    const thread = client.startThread({ workingDirectory: root });
+    await thread.run("compact me");
+
+    const compact = await thread.compact();
+
+    expect(compact.summary).toContain("# Compact Summary");
+    expect(compact.eventCount).toBeGreaterThan(0);
+    await expect(readFile(compact.path, "utf8")).resolves.toContain("Events:");
+  });
+
   it("lets AgentHub approve a write tool before execution", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
     const approvals: string[] = [];

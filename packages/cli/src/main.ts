@@ -78,8 +78,23 @@ async function runInteractive(io: CliIO): Promise<void> {
       continue;
     }
 
+    if (line === "/doctor") {
+      await printDoctor(io);
+      continue;
+    }
+
     if (line === "/status") {
       await printStatus(io, thread);
+      continue;
+    }
+
+    if (line === "/resume") {
+      thread = await handleResume(io, client);
+      continue;
+    }
+
+    if (line === "/compact") {
+      await handleCompact(io, thread);
       continue;
     }
 
@@ -120,6 +135,19 @@ async function handlePermissions(io: CliIO, client: TokenDanceCode, thread: Thre
   return next;
 }
 
+async function handleResume(io: CliIO, client: TokenDanceCode): Promise<Thread> {
+  const thread = await client.loadLatestThread(io.cwd());
+  await write(io.stdout, `Resumed session ${thread.id} with ${thread.recentTranscript.length} recent transcript events.\n`);
+  return thread;
+}
+
+async function handleCompact(io: CliIO, thread: Thread): Promise<void> {
+  const result = await thread.compact();
+  await write(io.stdout, `Compact summary ${result.path}\n`);
+  await write(io.stdout, `Range: ${result.range}\n`);
+  await write(io.stdout, `Events: ${result.eventCount}\n`);
+}
+
 async function printStatus(io: CliIO, thread: Thread): Promise<void> {
   const state = thread.state;
   await write(io.stdout, `sessionId: ${state.id}\n`);
@@ -154,7 +182,10 @@ async function printInteractiveHelp(io: CliIO): Promise<void> {
     io.stdout,
     `Commands:
   /status
+  /doctor
   /permissions [default|safe|auto|yolo]
+  /resume
+  /compact
   /exit
 `
   );

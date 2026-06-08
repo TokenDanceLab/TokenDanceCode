@@ -1,4 +1,7 @@
 import { Readable, Writable } from "node:stream";
+import { mkdtemp } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { runCli, type CliIO } from "../src/main.js";
 
@@ -25,9 +28,27 @@ describe("TokenDanceCode CLI", () => {
     expect(output).toContain("Mock response: hello cli");
     expect(output).toContain("bye");
   });
+
+  it("supports interactive doctor, resume, and compact commands", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-"));
+    const first = createTestIO("hello before resume\n/exit\n", root);
+    await runCli([], first);
+    const second = createTestIO("/doctor\n/resume\n/compact\n/exit\n", root);
+
+    const exitCode = await runCli([], second);
+    const output = second.stdoutText();
+
+    expect(exitCode).toBe(0);
+    expect(output).toContain("TokenDanceCode 0.2.0-ts.0");
+    expect(output).toContain(`cwd ${root}`);
+    expect(output).toContain("Resumed session ");
+    expect(output).toContain("recent transcript events.");
+    expect(output).toContain("Compact summary ");
+    expect(output).toContain("Events: ");
+  });
 });
 
-function createTestIO(input = ""): CliIO & { stdoutText(): string; stderrText(): string } {
+function createTestIO(input = "", cwd = "D:/workspace"): CliIO & { stdoutText(): string; stderrText(): string } {
   let stdout = "";
   let stderr = "";
   return {
@@ -44,7 +65,7 @@ function createTestIO(input = ""): CliIO & { stdoutText(): string; stderrText():
         callback();
       }
     }),
-    cwd: () => "D:/workspace",
+    cwd: () => cwd,
     stdoutText: () => stdout,
     stderrText: () => stderr
   };

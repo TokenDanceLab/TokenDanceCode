@@ -35,9 +35,11 @@ import {
   type WorktreeRecord
 } from "@tokendance/code-core";
 import { join } from "node:path";
+import { collectDoctorInfo } from "./doctor.js";
 
 export * from "./agenthub-events.js";
 export * from "./approval-bridge.js";
+export * from "./doctor.js";
 export * from "./package-info.js";
 
 export type ThreadInput = string | Array<{ type: "text"; text: string }>;
@@ -106,6 +108,11 @@ export interface ToolExecuteOptions {
 }
 
 export interface ConfigOptions {
+  projectRoot?: string;
+  homeDir?: string;
+}
+
+export interface DoctorFacadeOptions {
   projectRoot?: string;
   homeDir?: string;
 }
@@ -198,6 +205,14 @@ export class TokenDanceCode {
     return readTokenDanceConfig({
       projectRoot: options.projectRoot ?? this.options.storageRoot ?? process.cwd(),
       homeDir: options.homeDir
+    });
+  }
+
+  doctor(options: DoctorFacadeOptions = {}) {
+    return collectDoctorInfo({
+      projectRoot: options.projectRoot ?? this.options.storageRoot ?? process.cwd(),
+      homeDir: options.homeDir,
+      env: this.options.env
     });
   }
 

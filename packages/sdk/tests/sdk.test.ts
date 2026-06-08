@@ -373,6 +373,37 @@ describe("TokenDanceCode SDK", () => {
     expect(info.sources.map((source) => source.kind)).toEqual(["defaults", "project"]);
   });
 
+  it("exposes structured doctor diagnostics through the SDK boundary for AgentHub callers", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-doctor-"));
+    const home = await mkdtemp(join(tmpdir(), "tdcode-home-doctor-"));
+    const client = new TokenDanceCode({
+      env: {
+        OPENAI_API_KEY: "openai-secret-value",
+        ANTHROPIC_API_KEY: ""
+      }
+    });
+
+    const doctor = await client.doctor({ projectRoot: root, homeDir: home });
+
+    expect(doctor.version).toBe("0.2.0-ts.0");
+    expect(doctor.cwd).toBe(root);
+    expect(doctor.node).toMatch(/^v/);
+    expect(doctor.platform).toBe(process.platform);
+    expect(doctor.apiKeys).toEqual({
+      OPENAI_API_KEY: "present",
+      ANTHROPIC_API_KEY: "missing"
+    });
+    expect(JSON.stringify(doctor)).not.toContain("openai-secret-value");
+    expect(doctor.git.available).toEqual(expect.any(Boolean));
+    expect(doctor.git.repository).toEqual(expect.any(Boolean));
+    expect(doctor.powershell.available).toEqual(expect.any(Boolean));
+    expect(doctor.config.projectConfigPath).toBe(join(root, ".tokendance", "config.json"));
+    expect(doctor.config.globalConfigPath).toBe(join(home, ".tokendance", "config.json"));
+    expect(doctor.config.sources).toEqual(["defaults"]);
+    expect(doctor.stateDir.path).toBe(join(root, ".tokendance"));
+    expect(doctor.stateDir.writable).toBe(true);
+  });
+
   it("manages tasks and todos through the SDK boundary for AgentHub callers", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-tasks-"));
     const client = new TokenDanceCode();

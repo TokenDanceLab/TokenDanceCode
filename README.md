@@ -259,6 +259,9 @@ console.log(status.ok);
 
 const config = await client.config({ projectRoot: process.cwd() });
 console.log(config.config.provider, config.config.model);
+
+const doctor = await client.doctor({ projectRoot: process.cwd() });
+console.log(doctor.git.available, doctor.stateDir.writable);
 ```
 
 AgentHub 集成可以接管审批和事件分发：

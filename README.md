@@ -20,7 +20,7 @@ tokendance
 
 - `@tokendance/code-core`：session、event、runtime、tool registry、permission engine、JSONL transcript store、MockProvider。
 - `@tokendance/code-sdk`：AgentHub 可消费的 `TokenDanceCode -> Thread -> run/runStreamed` 编程接口，支持 provider 配置、审批回调、事件下沉、AgentHub runtime event 映射和 recent transcript resume。
-- `@tokendance/code-cli`：薄 CLI 入口，支持 `--version`、`doctor`、`run <prompt>`。
+- `@tokendance/code-cli`：薄 CLI 入口，支持 `--version`、`doctor`、`run <prompt>` 和最小交互式 REPL。
 - `pnpm verify`：同时执行 TypeScript typecheck 和 Vitest 测试。
 
 旧 Python `src/tokendance` 和 `tests/` 暂时保留为功能迁移参考，不再作为 TS 重构分支新增能力的默认落点。后续迁移按 [docs/TS重构路线图.md](docs/TS重构路线图.md) 推进。
@@ -138,15 +138,18 @@ MODEL_ID=deepseek-v4-pro
 node packages/cli/dist/main.js run "完整阅读这个项目"
 ```
 
-未来交互式入口仍是：
+交互式入口：
 
 ```powershell
-tokendance
+node packages/cli/dist/main.js
 ```
 
-退出会话：
+当前已支持：
 
 ```text
+/status
+/permissions safe
+hello
 /exit
 ```
 
@@ -183,19 +186,25 @@ const client = new TokenDanceCode({
 
 详细说明见 [docs/agenthub-sdk.md](docs/agenthub-sdk.md)。
 
-## 规划中的 Slash Commands
+## Slash Commands
 
-交互式 shell 迁移完成后应支持：
+当前 TS 版已支持：
 
 ```text
 /help
 /status
-/config
-/doctor
 /permissions default
 /permissions safe
 /permissions auto
 /permissions yolo
+/exit
+```
+
+后续迁移继续补：
+
+```text
+/config
+/doctor
 /diff
 /review
 /quality pnpm verify
@@ -206,7 +215,6 @@ const client = new TokenDanceCode({
 /compact
 /resume
 /worktree
-/exit
 ```
 
 权限模式说明：
@@ -228,7 +236,7 @@ TokenDanceCode/
 ├── packages/
 │   ├── core/         # runtime、session state、events、tools、permissions、transcript
 │   ├── sdk/          # AgentHub 和脚本调用的稳定编程接口
-│   └── cli/          # tokendance 命令入口与未来交互 shell
+│   └── cli/          # tokendance 命令入口与最小交互 shell
 ├── src/tokendance/   # Python v0.1 参考实现，TS 迁移期间保留
 └── tests/            # Python v0.1 参考测试，TS 迁移期间保留
 ```
@@ -273,4 +281,4 @@ tokendance doctor
 
 TokenDanceCode TS 版目前还是早期本地 Agent 实现，适合开发、测试和自用验证。
 
-它还不是正式发布到 npm 的包。后续会继续补充正式发布流程、安装包、首次运行向导、交互式 shell、CLI resume/compact 和更完整的 AgentHub 端到端示例。
+它还不是正式发布到 npm 的包。后续会继续补充正式发布流程、安装包、首次运行向导、CLI resume/compact、更多 slash commands 和更完整的 AgentHub 端到端示例。

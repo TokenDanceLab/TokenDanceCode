@@ -74,6 +74,10 @@ export async function runCli(argv: string[], io: CliIO = defaultIO()): Promise<n
     return todoCommand(rest, io);
   }
 
+  if (command === "worktree") {
+    return worktreeCommand(rest, io);
+  }
+
   if (command === "transcript") {
     return transcriptCommand(rest, io);
   }
@@ -178,6 +182,11 @@ async function runInteractive(io: CliIO): Promise<void> {
 
     if (line === "/todo" || line.startsWith("/todo ")) {
       await todoCommand(line.split(/\s+/).slice(1), io);
+      continue;
+    }
+
+    if (line === "/worktree" || line.startsWith("/worktree ")) {
+      await worktreeCommand(line.split(/\s+/).slice(1), io);
       continue;
     }
 
@@ -398,6 +407,33 @@ async function todoCommand(args: string[], io: CliIO): Promise<number> {
   }
 }
 
+async function worktreeCommand(args: string[], io: CliIO): Promise<number> {
+  const worktrees = new TokenDanceCode().worktrees({ repositoryRoot: io.cwd() });
+  const [command, name, ...rest] = args;
+  try {
+    if (!command || command === "list") {
+      await printWorktrees(io, await worktrees.list());
+      return 0;
+    }
+    if (command === "create" && name) {
+      const worktree = await worktrees.create({ name });
+      await write(io.stdout, `Created worktree ${worktree.name}.\n`);
+      await write(io.stdout, `${worktree.path}\n`);
+      return 0;
+    }
+    if (command === "remove" && name) {
+      await worktrees.remove(name, { discard: rest.includes("--discard") });
+      await write(io.stdout, `Removed worktree ${name}.\n`);
+      return 0;
+    }
+    await write(io.stderr, "Usage: tokendance worktree [list|create|remove] [name] [--discard]\n");
+    return 1;
+  } catch (error) {
+    await write(io.stderr, `${error instanceof Error ? error.message : String(error)}\n`);
+    return 1;
+  }
+}
+
 async function transcriptCommand(args: string[], io: CliIO): Promise<number> {
   const client = new TokenDanceCode();
   const parsed = parseTranscriptArgs(args);
@@ -597,6 +633,16 @@ async function printTodos(io: CliIO, todos: Awaited<ReturnType<ReturnType<TokenD
   }
 }
 
+async function printWorktrees(io: CliIO, worktrees: Awaited<ReturnType<ReturnType<TokenDanceCode["worktrees"]>["list"]>>): Promise<void> {
+  if (worktrees.length === 0) {
+    await write(io.stdout, "No worktrees.\n");
+    return;
+  }
+  for (const worktree of worktrees) {
+    await write(io.stdout, `[${worktree.branch ?? "detached"}] ${worktree.name} ${worktree.path}\n`);
+  }
+}
+
 async function handleCompact(io: CliIO, thread: Thread): Promise<void> {
   const result = await thread.compact();
   await printCompactResult(io, result);
@@ -639,6 +685,7 @@ Usage:
   tokendance quality <command>
   tokendance tasks [create|doing|done] [value]
   tokendance todo [add|doing|done] [value]
+  tokendance worktree [list|create|remove] [name] [--discard]
   tokendance resume [session-id]
   tokendance transcript [session-id]
   tokendance transcript search <query>
@@ -665,6 +712,7 @@ async function printInteractiveHelp(io: CliIO): Promise<void> {
   /quality <command>
   /tasks [create|doing|done] [value]
   /todo [add|doing|done] [value]
+  /worktree [list|create|remove] [name] [--discard]
   /transcript [search <query>]
   /compact
   /exit

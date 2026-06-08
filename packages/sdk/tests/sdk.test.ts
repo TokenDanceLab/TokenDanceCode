@@ -284,6 +284,21 @@ describe("TokenDanceCode SDK", () => {
     expect(await todos.list()).toEqual([activeTodo]);
   });
 
+  it("manages git worktrees through the SDK boundary for AgentHub callers", async () => {
+    const root = await initRepo();
+    const client = new TokenDanceCode();
+    const worktrees = client.worktrees({ repositoryRoot: root });
+
+    const created = await worktrees.create({ name: "agenthub-wt" });
+
+    expect(created).toMatchObject({ name: "agenthub-wt", branch: "codex/agenthub-wt" });
+    expect(await worktrees.list()).toEqual([expect.objectContaining({ name: "agenthub-wt" })]);
+
+    await worktrees.remove("agenthub-wt");
+
+    expect(await worktrees.list()).toEqual([]);
+  });
+
   it("lets AgentHub approve a write tool before execution", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
     const approvals: string[] = [];

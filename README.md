@@ -19,8 +19,8 @@ tokendance
 当前分支已经建立 TypeScript 第一批可验证闭环：
 
 - `@tokendance/code-core`：session、event、runtime、tool registry、permission engine、JSONL transcript store、task/todo store、MockProvider。
-- `@tokendance/code-sdk`：AgentHub 可消费的 `TokenDanceCode -> Thread -> run/runStreamed` 编程接口，支持 provider 配置、审批回调、事件下沉、AgentHub runtime event 映射、recent transcript resume、transcript search、task/todo facade。
-- `@tokendance/code-cli`：薄 CLI 入口，支持 `--version`、`doctor`、`run <prompt>`、最小交互式 REPL、task/todo 管理和工具事件渲染。
+- `@tokendance/code-sdk`：AgentHub 可消费的 `TokenDanceCode -> Thread -> run/runStreamed` 编程接口，支持 provider 配置、审批回调、事件下沉、AgentHub runtime event 映射、recent transcript resume、transcript search、task/todo/worktree facade。
+- `@tokendance/code-cli`：薄 CLI 入口，支持 `--version`、`doctor`、`run <prompt>`、最小交互式 REPL、task/todo/worktree 管理和工具事件渲染。
 - `@tokendance/code-agenthub-example`：私有示例包，演示 AgentHub emitter 如何通过 SDK 接收 `agent.stream` payload 并桥接远程审批。
 - `pnpm verify`：同时执行 TypeScript typecheck 和 Vitest 测试。
 
@@ -153,6 +153,9 @@ node packages/cli/dist/main.js tasks done task-1
 node packages/cli/dist/main.js todo
 node packages/cli/dist/main.js todo add "Run unittest" --task task-1
 node packages/cli/dist/main.js todo doing todo-1
+node packages/cli/dist/main.js worktree
+node packages/cli/dist/main.js worktree create stage15-wt
+node packages/cli/dist/main.js worktree remove stage15-wt
 node packages/cli/dist/main.js diff
 node packages/cli/dist/main.js review
 node packages/cli/dist/main.js quality "pnpm verify"
@@ -182,6 +185,7 @@ node packages/cli/dist/main.js
 /permissions safe
 /tasks create Stage 15 E2E
 /todo add Run unittest --task task-1
+/worktree
 hello
 /exit
 ```
@@ -216,6 +220,11 @@ await tasks.updateStatus(task.id, "completed");
 const todos = client.todos({ projectRoot: process.cwd(), sessionId: "session-id" });
 const todo = await todos.add({ text: "Run unittest", taskId: task.id });
 await todos.updateStatus(todo.id, "in_progress");
+
+const worktrees = client.worktrees({ repositoryRoot: process.cwd() });
+const worktree = await worktrees.create({ name: "stage15-wt" });
+console.log(worktree.path);
+await worktrees.remove("stage15-wt");
 
 const tools = client.tools({ workingDirectory: process.cwd() });
 const status = await tools.execute("git_status");
@@ -273,6 +282,9 @@ const client = new TokenDanceCode({
 /todo add <text> [--task task-id]
 /todo doing <todo-id>
 /todo done <todo-id>
+/worktree
+/worktree create <name>
+/worktree remove <name> [--discard]
 /diff
 /review
 /quality pnpm verify
@@ -285,7 +297,7 @@ const client = new TokenDanceCode({
 后续迁移继续补：
 
 ```text
-/worktree
+/agents
 ```
 
 权限模式说明：

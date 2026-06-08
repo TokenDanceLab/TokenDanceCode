@@ -18,3 +18,4 @@ export * from "./tasks.js";
 export * from "./tools.js";
 export * from "./transcript.js";
 export * from "./types.js";
+export * from "./worktrees.js";

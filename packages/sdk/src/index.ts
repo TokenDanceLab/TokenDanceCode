@@ -9,6 +9,7 @@ import {
   ResumeService,
   TaskStore,
   TodoStore,
+  WorktreeManager,
   ToolOrchestrator,
   createDefaultToolRegistry,
   readTokenDanceConfig,
@@ -26,7 +27,8 @@ import {
   type TodoRecord,
   type TodoStatus,
   type TranscriptEnvelope,
-  type ToolResult
+  type ToolResult,
+  type WorktreeRecord
 } from "@tokendance/code-core";
 import { join } from "node:path";
 
@@ -112,6 +114,11 @@ export interface TodoOptions {
   sessionId?: string;
 }
 
+export interface WorktreeOptions {
+  repositoryRoot?: string;
+  worktreeRoot?: string;
+}
+
 export class TokenDanceCode {
   constructor(private readonly options: TokenDanceCodeOptions = {}) {}
 
@@ -194,6 +201,15 @@ export class TokenDanceCode {
       new TodoStore({
         projectRoot: options.projectRoot ?? this.options.storageRoot ?? process.cwd(),
         sessionId: options.sessionId
+      })
+    );
+  }
+
+  worktrees(options: WorktreeOptions = {}): TokenDanceWorktrees {
+    return new TokenDanceWorktrees(
+      new WorktreeManager({
+        repositoryRoot: options.repositoryRoot ?? this.options.storageRoot ?? process.cwd(),
+        worktreeRoot: options.worktreeRoot
       })
     );
   }
@@ -420,6 +436,22 @@ export class TokenDanceTodos {
 
   updateStatus(id: string, status: TodoStatus): Promise<TodoRecord> {
     return this.store.updateStatus(id, status);
+  }
+}
+
+export class TokenDanceWorktrees {
+  constructor(private readonly manager: WorktreeManager) {}
+
+  list(): Promise<WorktreeRecord[]> {
+    return this.manager.list();
+  }
+
+  create(input: { name: string; branch?: string }): Promise<WorktreeRecord> {
+    return this.manager.create(input);
+  }
+
+  remove(name: string, options: { discard?: boolean } = {}): Promise<void> {
+    return this.manager.remove(name, options);
   }
 }
 

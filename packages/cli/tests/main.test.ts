@@ -119,6 +119,30 @@ describe("TokenDanceCode CLI", () => {
     expect(topLevelTodos.stdoutText()).toContain("[in_progress] todo-1 Run unittest (task task-1)");
   });
 
+  it("manages worktrees in interactive and top-level commands", async () => {
+    const root = await initRepo();
+    const interactive = createTestIO("/worktree\n/worktree create cli-wt\n/worktree\n/worktree remove cli-wt\n/worktree\n/exit\n", root);
+    await runCli([], interactive);
+    const topLevelCreate = createTestIO("", root);
+    const topLevelList = createTestIO("", root);
+    const topLevelRemove = createTestIO("", root);
+
+    const createExitCode = await runCli(["worktree", "create", "top-wt"], topLevelCreate);
+    const listExitCode = await runCli(["worktree"], topLevelList);
+    const removeExitCode = await runCli(["worktree", "remove", "top-wt"], topLevelRemove);
+
+    expect(interactive.stdoutText()).toContain("No worktrees.");
+    expect(interactive.stdoutText()).toContain("Created worktree cli-wt.");
+    expect(interactive.stdoutText()).toContain("[codex/cli-wt] cli-wt");
+    expect(interactive.stdoutText()).toContain("Removed worktree cli-wt.");
+    expect(createExitCode).toBe(0);
+    expect(listExitCode).toBe(0);
+    expect(removeExitCode).toBe(0);
+    expect(topLevelCreate.stdoutText()).toContain("Created worktree top-wt.");
+    expect(topLevelList.stdoutText()).toContain("[codex/top-wt] top-wt");
+    expect(topLevelRemove.stdoutText()).toContain("Removed worktree top-wt.");
+  });
+
   it("renders git diff, review, and quality commands in interactive and top-level modes", async () => {
     const root = await initRepo();
     await writeFile(join(root, "notes.txt"), "old\nnew TODO\n", "utf8");

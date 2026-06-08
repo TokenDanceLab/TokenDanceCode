@@ -1,3 +1,4 @@
+export * from "./anthropic-provider.js";
 export * from "./file-tools.js";
 export * from "./git-tools.js";
 export * from "./mock-provider.js";

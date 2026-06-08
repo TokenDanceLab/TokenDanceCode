@@ -141,6 +141,8 @@ node packages/cli/dist/main.js resume
 node packages/cli/dist/main.js resume <session-id>
 node packages/cli/dist/main.js transcript
 node packages/cli/dist/main.js transcript <session-id>
+node packages/cli/dist/main.js compact
+node packages/cli/dist/main.js compact <session-id>
 ```
 
 工具调用会通过同一套 runtime 事件流渲染，例如 mock echo 工具：

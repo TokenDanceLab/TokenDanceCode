@@ -87,6 +87,26 @@ describe("TokenDanceCode CLI", () => {
     expect(latest.stdoutText()).toContain("recent transcript events.");
   });
 
+  it("supports top-level compact latest and by session id", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-"));
+    const first = createTestIO("/status\nhello for compact\n/exit\n", root);
+    await runCli([], first);
+    const sessionId = first.stdoutText().match(/sessionId: ([^\n]+)/)?.[1]?.trim();
+    const latest = createTestIO("", root);
+    const byId = createTestIO("", root);
+
+    const latestExitCode = await runCli(["compact"], latest);
+    const byIdExitCode = await runCli(["compact", sessionId ?? ""], byId);
+
+    expect(sessionId).toBeDefined();
+    expect(latestExitCode).toBe(0);
+    expect(byIdExitCode).toBe(0);
+    expect(latest.stdoutText()).toContain("Compact summary ");
+    expect(latest.stdoutText()).toContain("Events: 4");
+    expect(byId.stdoutText()).toContain(sessionId);
+    expect(byId.stdoutText()).toContain("compact-0002.md");
+  });
+
   it("renders runtime events for interactive tool calls", async () => {
     const io = createTestIO("echo: hello renderer\n/exit\n");
 

@@ -104,6 +104,11 @@ export class TokenDanceCode {
     return new CompactService(new FileTranscriptStore({ rootDir: this.storageRootFor(session) }).sessionDir(session.id)).manualCompact();
   }
 
+  async compact(options: ResumeThreadOptions = {}): Promise<CompactResult> {
+    const thread = await this.resume(options);
+    return thread.compact();
+  }
+
   async transcriptInfo(session: SessionState, recentEventCount = 0): Promise<TranscriptInfo> {
     const sessionDir = new FileTranscriptStore({ rootDir: this.storageRootFor(session) }).sessionDir(session.id);
     const transcriptPath = join(sessionDir, "transcript.jsonl");

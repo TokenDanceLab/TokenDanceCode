@@ -42,6 +42,10 @@ export async function runCli(argv: string[], io: CliIO = defaultIO()): Promise<n
     return transcriptCommand(rest, io);
   }
 
+  if (command === "compact") {
+    return compactCommand(rest, io);
+  }
+
   if (command === "run") {
     const prompt = rest.join(" ").trim();
     if (!prompt) {
@@ -150,6 +154,20 @@ async function transcriptCommand(args: string[], io: CliIO): Promise<number> {
   try {
     const thread = await client.resume({ sessionId, storageRoot: io.cwd() });
     await printTranscriptInfo(io, await thread.transcript());
+    return 0;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await write(io.stderr, `${message}\n`);
+    return 1;
+  }
+}
+
+async function compactCommand(args: string[], io: CliIO): Promise<number> {
+  const client = new TokenDanceCode();
+  const sessionId = args[0]?.trim();
+  try {
+    const result = await client.compact({ sessionId, storageRoot: io.cwd() });
+    await printCompactResult(io, result);
     return 0;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -279,6 +297,10 @@ async function printTranscriptInfo(io: CliIO, info: TranscriptInfo): Promise<voi
 
 async function handleCompact(io: CliIO, thread: Thread): Promise<void> {
   const result = await thread.compact();
+  await printCompactResult(io, result);
+}
+
+async function printCompactResult(io: CliIO, result: Awaited<ReturnType<Thread["compact"]>>): Promise<void> {
   await write(io.stdout, `Compact summary ${result.path}\n`);
   await write(io.stdout, `Range: ${result.range}\n`);
   await write(io.stdout, `Events: ${result.eventCount}\n`);
@@ -310,6 +332,7 @@ Usage:
   tokendance doctor
   tokendance resume [session-id]
   tokendance transcript [session-id]
+  tokendance compact [session-id]
   tokendance run <prompt>
 `
   );

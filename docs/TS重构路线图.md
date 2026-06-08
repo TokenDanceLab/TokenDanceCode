@@ -8,7 +8,7 @@
 - worktree：`D:\Code\TokenDance\TokenDanceCode\.worktrees\ts-refactor`
 - 目标：把 TokenDanceCode 从 Python v0.1 参考实现重构为 TypeScript monorepo，并给 AgentHub 暴露稳定 SDK。
 - 当前可验证命令：`pnpm verify`
-- 最近验证结果：typecheck 通过，Vitest 17 个测试文件 73 个测试通过。
+- 最近验证结果：typecheck 通过，Vitest 17 个测试文件 75 个测试通过。
 
 旧 `src/tokendance` 和 `tests/` 暂时保留为功能迁移参考。新增 TS 能力默认写入 `packages/*`，不要继续扩展 Python 运行时，除非明确是在补迁移对照或保护旧行为。
 
@@ -106,6 +106,7 @@ node packages/cli/dist/main.js run "hello"
 - [x] Compact：确定性 summary boundary，不引入复杂 microcompact。
 - [x] Resume：从 JSONL 恢复 session，过滤未闭合 tool call 和坏链路。
 - [x] Transcript metadata：SDK/CLI 可展示 sessionDir、transcriptPath、eventCount。
+- [x] Compact helper：SDK/CLI 可对 latest 或指定 session 生成 compact summary。
 - [x] Memory：先支持项目/全局 Markdown 读取，不做自动抽取。
 
 ### P3：AgentHub SDK 包装
@@ -125,6 +126,6 @@ node packages/cli/dist/main.js run "hello"
 
 - [x] 交互式 REPL 最小闭环。
 - [x] `/new`、`/status`、`/doctor`、`/permissions`。
-- [x] 顶层 `resume [session-id]`、`transcript [session-id]`，交互式 `/resume`、`/transcript`、`/compact`。
+- [x] 顶层 `resume [session-id]`、`transcript [session-id]`、`compact [session-id]`，交互式 `/resume`、`/transcript`、`/compact`。
 - [x] 滚动式事件 renderer 最小闭环：assistant 文本、tool started、permission decision、tool completed、tool failed reason、tool output summary。
 - [ ] 增强 renderer：未来真实 provider token delta 和更细进度显示。

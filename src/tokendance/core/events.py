@@ -12,6 +12,7 @@ EventType = Literal[
     "tool_call_failed",
     "permission_decision",
     "context_compacted",
+    "recovery_event",
     "error",
     "turn_completed",
 ]

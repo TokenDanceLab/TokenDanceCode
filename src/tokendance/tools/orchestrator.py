@@ -60,3 +60,5 @@ class ToolOrchestrator:
     def _record(self, context: ToolContext, event: RuntimeEvent) -> None:
         if context.transcript_writer is not None:
             context.transcript_writer.append(event)
+        if context.event_callback is not None:
+            context.event_callback(event)

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 MessageRole = Literal["system", "user", "assistant", "tool"]
-ContentBlockType = Literal["text", "tool_result"]
+ContentBlockType = Literal["text", "tool_use", "tool_result"]
 ModelEventType = Literal["text_delta", "tool_call", "message_done"]
 
 
@@ -13,6 +13,8 @@ class TDContentBlock:
     type: ContentBlockType
     text: str | None = None
     tool_call_id: str | None = None
+    tool_name: str | None = None
+    tool_input: dict[str, Any] | None = None
     tool_result: str | None = None
     is_error: bool = False
 

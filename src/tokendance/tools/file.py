@@ -6,6 +6,23 @@ from tokendance.storage.atomic import atomic_write_text
 from tokendance.storage.paths import normalize_path
 from tokendance.tools.spec import ToolContext, ToolResult, ToolSpec
 
+_EXCLUDED_GLOB_PARTS = frozenset(
+    {
+        ".git",
+        ".tokendance",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".venv",
+        "__pycache__",
+        "build",
+        "dist",
+        "node_modules",
+        "venv",
+    }
+)
+_EXCLUDED_GLOB_FILES = frozenset({".env"})
+
 
 def read_file(context: ToolContext, arguments: dict) -> ToolResult:
     path = _workspace_path(context, arguments.get("path", ""))
@@ -42,18 +59,71 @@ def glob_files(context: ToolContext, arguments: dict) -> ToolResult:
     matches = [
         path.relative_to(context.workspace_root).as_posix()
         for path in sorted(Path(context.workspace_root).glob(pattern))
-        if path.is_file()
+        if path.is_file() and not _is_excluded_glob_match(path, context.workspace_root)
     ]
     return ToolResult.ok(content="\n".join(matches), data={"matches": matches})
 
 
 def build_file_tool_specs() -> list[ToolSpec]:
     return [
-        ToolSpec("read_file", "Read a UTF-8 file.", {"type": "object"}, "read", read_file),
-        ToolSpec("write_file", "Write a UTF-8 file.", {"type": "object"}, "write", write_file),
-        ToolSpec("edit_file", "Replace exact text in a UTF-8 file.", {"type": "object"}, "write", edit_file),
-        ToolSpec("glob", "Find files by glob pattern.", {"type": "object"}, "read", glob_files),
+        ToolSpec("read_file", "Read a UTF-8 file by workspace-relative path.", _read_file_schema(), "read", read_file),
+        ToolSpec("write_file", "Write a UTF-8 file by workspace-relative path.", _write_file_schema(), "write", write_file),
+        ToolSpec("edit_file", "Replace exact text in a UTF-8 file.", _edit_file_schema(), "write", edit_file),
+        ToolSpec("glob", "Find files by workspace-relative glob pattern.", _glob_schema(), "read", glob_files),
     ]
+
+
+def _read_file_schema() -> dict:
+    return {
+        "type": "object",
+        "properties": {
+            "path": {"type": "string", "description": "Workspace-relative file path to read."},
+        },
+        "required": ["path"],
+    }
+
+
+def _write_file_schema() -> dict:
+    return {
+        "type": "object",
+        "properties": {
+            "path": {"type": "string", "description": "Workspace-relative file path to write."},
+            "content": {"type": "string", "description": "Complete UTF-8 file content."},
+        },
+        "required": ["path", "content"],
+    }
+
+
+def _edit_file_schema() -> dict:
+    return {
+        "type": "object",
+        "properties": {
+            "path": {"type": "string", "description": "Workspace-relative file path to edit."},
+            "old_text": {"type": "string", "description": "Exact text to replace."},
+            "new_text": {"type": "string", "description": "Replacement text."},
+        },
+        "required": ["path", "old_text", "new_text"],
+    }
+
+
+def _glob_schema() -> dict:
+    return {
+        "type": "object",
+        "properties": {
+            "pattern": {
+                "type": "string",
+                "description": "Workspace-relative glob pattern, such as **/*.py. Internal directories are excluded.",
+            },
+        },
+        "required": ["pattern"],
+    }
+
+
+def _is_excluded_glob_match(path: Path, workspace_root: Path) -> bool:
+    relative = path.relative_to(workspace_root)
+    if relative.name in _EXCLUDED_GLOB_FILES:
+        return True
+    return any(part in _EXCLUDED_GLOB_PARTS for part in relative.parts)
 
 
 def _workspace_path(context: ToolContext, raw_path: str) -> Path | None:

@@ -51,3 +51,10 @@ class ShellToolTests(unittest.TestCase):
 
         self.assertEqual(result.status, "error")
         self.assertIn("Permission denied", result.content)
+
+    def test_run_powershell_spec_documents_command_arguments(self) -> None:
+        spec = build_shell_tool_specs()[0]
+
+        self.assertEqual(spec.input_schema["required"], ["command"])
+        self.assertIn("command", spec.input_schema["properties"])
+        self.assertIn("timeout", spec.input_schema["properties"])

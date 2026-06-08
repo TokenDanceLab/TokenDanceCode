@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable, Sequence
 from typing import Any
 
@@ -49,9 +50,10 @@ class AnthropicProvider:
         if mapped_tools:
             kwargs["tools"] = mapped_tools
 
+        pending_tool_uses: dict[int, dict[str, Any]] = {}
         try:
             for raw_event in client.messages.create(**kwargs):
-                event = self.to_model_event(raw_event)
+                event = self.to_model_event(raw_event, pending_tool_uses=pending_tool_uses)
                 if event is not None:
                     yield event
         except Exception as exc:
@@ -66,15 +68,26 @@ class AnthropicProvider:
             for block in message.content:
                 if block.type == "text":
                     content.append({"type": "text", "text": block.text or ""})
-                elif block.type == "tool_result":
+                elif block.type == "tool_use":
                     content.append(
                         {
-                            "type": "tool_result",
-                            "tool_use_id": block.tool_call_id or "",
-                            "content": block.tool_result or "",
+                            "type": "tool_use",
+                            "id": block.tool_call_id or "",
+                            "name": block.tool_name or "",
+                            "input": block.tool_input or {},
                         }
                     )
-            mapped.append({"role": message.role, "content": content})
+                elif block.type == "tool_result":
+                    tool_result: dict[str, Any] = {
+                        "type": "tool_result",
+                        "tool_use_id": block.tool_call_id or "",
+                        "content": block.tool_result or "",
+                    }
+                    if block.is_error:
+                        tool_result["is_error"] = True
+                    content.append(tool_result)
+            if content:
+                mapped.append({"role": _anthropic_role(message.role), "content": content})
         return mapped
 
     def to_anthropic_system(self, messages: Sequence[TDMessage]) -> str | None:
@@ -97,15 +110,33 @@ class AnthropicProvider:
             for tool in tools
         ]
 
-    def to_model_event(self, raw_event: Any) -> ModelEvent | None:
+    def to_model_event(
+        self,
+        raw_event: Any,
+        *,
+        pending_tool_uses: dict[int, dict[str, Any]] | None = None,
+    ) -> ModelEvent | None:
         event_type = _get(raw_event, "type")
         if event_type == "content_block_delta":
             delta = _get(raw_event, "delta") or {}
+            if _get(delta, "type") == "input_json_delta" and pending_tool_uses is not None:
+                index = _event_index(raw_event)
+                if index in pending_tool_uses:
+                    pending_tool_uses[index]["partial_json"] += str(_get(delta, "partial_json") or "")
+                return None
             if _get(delta, "type") == "text_delta":
                 return ModelEvent.text_delta(str(_get(delta, "text") or ""))
         if event_type == "content_block_start":
             block = _get(raw_event, "content_block") or {}
             if _get(block, "type") == "tool_use":
+                if pending_tool_uses is not None:
+                    pending_tool_uses[_event_index(raw_event)] = {
+                        "id": str(_get(block, "id") or ""),
+                        "name": str(_get(block, "name") or ""),
+                        "input": _get(block, "input") or {},
+                        "partial_json": "",
+                    }
+                    return None
                 return ModelEvent.tool_call(
                     TDToolCall(
                         id=str(_get(block, "id") or ""),
@@ -113,12 +144,43 @@ class AnthropicProvider:
                         arguments=_get(block, "input") or {},
                     )
                 )
+        if event_type == "content_block_stop" and pending_tool_uses is not None:
+            index = _event_index(raw_event)
+            pending = pending_tool_uses.pop(index, None)
+            if pending is None:
+                return None
+            return ModelEvent.tool_call(
+                TDToolCall(
+                    id=pending["id"],
+                    name=pending["name"],
+                    arguments=_tool_arguments(pending["input"], pending["partial_json"]),
+                )
+            )
         if event_type == "message_stop":
             return ModelEvent.message_done(stop_reason="message_stop")
         return None
+
+
+def _event_index(raw_event: Any) -> int:
+    value = _get(raw_event, "index")
+    return int(value or 0)
+
+
+def _tool_arguments(initial_input: Any, partial_json: str) -> dict[str, Any]:
+    if partial_json:
+        try:
+            loaded = json.loads(partial_json)
+        except json.JSONDecodeError:
+            loaded = {}
+        return loaded if isinstance(loaded, dict) else {}
+    return initial_input if isinstance(initial_input, dict) else {}
 
 
 def _get(value: Any, key: str) -> Any:
     if isinstance(value, dict):
         return value.get(key)
     return getattr(value, key, None)
+
+
+def _anthropic_role(role: str) -> str:
+    return "user" if role == "tool" else role

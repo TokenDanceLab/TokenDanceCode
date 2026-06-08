@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
+from tokendance.core.events import RuntimeEvent
 from tokendance.core.session import SessionState
 from tokendance.core.turn import TurnResult, TurnRunner
 from tokendance.models.base import ModelProvider
@@ -33,7 +34,13 @@ class CoreRuntime:
         self.transcript_writer = TranscriptWriter(self.paths.transcript_path)
         self.registry = _default_registry()
 
-    def run_turn(self, user_message: str, *, on_text_delta: Callable[[str], None] | None = None) -> TurnResult:
+    def run_turn(
+        self,
+        user_message: str,
+        *,
+        on_text_delta: Callable[[str], None] | None = None,
+        on_runtime_event: Callable[[RuntimeEvent], None] | None = None,
+    ) -> TurnResult:
         provider = self.provider or MockProvider(
             responses=[[ModelEvent.text_delta(f"You said: {user_message}"), ModelEvent.message_done("end_turn")]]
         )
@@ -42,6 +49,7 @@ class CoreRuntime:
             state=self.state,
             transcript_writer=self.transcript_writer,
             on_text_delta=on_text_delta,
+            on_runtime_event=on_runtime_event,
         )
 
 

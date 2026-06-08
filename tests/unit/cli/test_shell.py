@@ -3,13 +3,28 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tokendance.cli.shell import InteractiveShell
+from tokendance.cli.shell import InteractiveShell, _prepare_output_stream
 from tokendance.models.mock import MockProvider
-from tokendance.models.types import ModelEvent
+from tokendance.models.types import ModelEvent, TDToolCall
 from tokendance.storage.jsonl import read_jsonl
 
 
 class InteractiveShellTests(unittest.TestCase):
+    def test_prepare_output_stream_uses_utf8_when_supported(self) -> None:
+        class ReconfigurableStream(io.StringIO):
+            def __init__(self) -> None:
+                super().__init__()
+                self.reconfigure_calls = []
+
+            def reconfigure(self, **kwargs):
+                self.reconfigure_calls.append(kwargs)
+
+        stream = ReconfigurableStream()
+
+        _prepare_output_stream(stream)
+
+        self.assertEqual(stream.reconfigure_calls, [{"encoding": "utf-8", "errors": "replace"}])
+
     def test_run_records_user_message_mock_response_and_exit_event(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             output = io.StringIO()
@@ -72,6 +87,53 @@ class InteractiveShellTests(unittest.TestCase):
 
         self.assertIn("runtime response", output.getvalue())
         self.assertNotIn("You said: hello", output.getvalue())
+
+    def test_shell_static_ui_matches_original_unicode_banner(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            output = io.StringIO()
+            shell = InteractiveShell(
+                project_root=Path(tmp),
+                input_stream=io.StringIO("/exit\n"),
+                output_stream=output,
+                session_id="session-test",
+            )
+
+            shell.run()
+
+        rendered = output.getvalue()
+        self.assertIn("\u2500" * 95, rendered)
+        self.assertIn("\u2500" * 72, rendered)
+        self.assertIn("\u2588" * 8 + "\u2557  " + "\u2588" * 6 + "\u2557", rendered)
+        self.assertIn("\u255a\u2550\u2550\u2588\u2588\u2554\u2550\u2550\u255d", rendered)
+        self.assertIn("TokenDance Code v0.1.0   Model:", rendered)
+        self.assertIn("   CWD: ", rendered)
+        self.assertIn("\u276f ", rendered)
+
+    def test_normal_input_renders_tool_events(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "notes.txt").write_text("note body", encoding="utf-8")
+            output = io.StringIO()
+            provider = MockProvider(
+                responses=[
+                    [ModelEvent.tool_call(TDToolCall("call-1", "read_file", {"path": "notes.txt"}))],
+                    [ModelEvent.text_delta("done"), ModelEvent.message_done()],
+                ]
+            )
+            shell = InteractiveShell(
+                project_root=root,
+                input_stream=io.StringIO("read notes\n/exit\n"),
+                output_stream=output,
+                session_id="session-test",
+                provider=provider,
+            )
+
+            shell.run()
+
+        rendered = output.getvalue()
+        self.assertIn("Tool:", rendered)
+        self.assertIn("read_file", rendered)
+        self.assertIn("done", rendered)
 
     def test_shell_saves_session_on_keyboard_interrupt(self) -> None:
         class InterruptingInput:

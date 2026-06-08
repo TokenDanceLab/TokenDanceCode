@@ -20,12 +20,23 @@ def build_shell_tool_specs() -> list[ToolSpec]:
     return [
         ToolSpec(
             "run_powershell",
-            "Run a PowerShell command. Placeholder until execution layer is implemented.",
-            {"type": "object"},
+            "Run a PowerShell command in the workspace.",
+            _run_powershell_schema(),
             "shell",
             run_powershell,
         )
     ]
+
+
+def _run_powershell_schema() -> dict:
+    return {
+        "type": "object",
+        "properties": {
+            "command": {"type": "string", "description": "PowerShell command to run."},
+            "timeout": {"type": "number", "description": "Timeout in seconds. Defaults to 60."},
+        },
+        "required": ["command"],
+    }
 
 
 def _format_command_result(result) -> str:

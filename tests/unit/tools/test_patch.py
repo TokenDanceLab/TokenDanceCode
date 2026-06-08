@@ -2,7 +2,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tokendance.tools.patch import apply_patch_tool
+from tokendance.tools.patch import apply_patch_tool, build_patch_tool_specs
 from tokendance.tools.spec import ToolContext
 
 
@@ -37,3 +37,9 @@ class PatchToolTests(unittest.TestCase):
         self.assertEqual(result.status, "ok")
         self.assertEqual(content, "hello\nnew\n")
         self.assertTrue(artifact_exists)
+
+    def test_apply_patch_spec_documents_patch_argument(self) -> None:
+        spec = build_patch_tool_specs()[0]
+
+        self.assertEqual(spec.input_schema["required"], ["patch"])
+        self.assertIn("patch", spec.input_schema["properties"])

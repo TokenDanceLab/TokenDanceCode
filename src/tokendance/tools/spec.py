@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from tokendance.core.events import RuntimeEvent
 from tokendance.storage.transcript import TranscriptWriter
 
 
@@ -14,6 +15,7 @@ class ToolContext:
     permission_mode: str = "default"
     session_dir: Path | None = None
     transcript_writer: TranscriptWriter | None = None
+    event_callback: Callable[[RuntimeEvent], None] | None = None
 
 
 @dataclass(frozen=True)

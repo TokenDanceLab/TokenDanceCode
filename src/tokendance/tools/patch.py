@@ -26,8 +26,18 @@ def apply_patch_tool(context: ToolContext, arguments: dict) -> ToolResult:
 
 def build_patch_tool_specs() -> list[ToolSpec]:
     return [
-        ToolSpec("apply_patch", "Apply a small text patch.", {"type": "object"}, "write", apply_patch_tool)
+        ToolSpec("apply_patch", "Apply a small text patch.", _apply_patch_schema(), "write", apply_patch_tool)
     ]
+
+
+def _apply_patch_schema() -> dict:
+    return {
+        "type": "object",
+        "properties": {
+            "patch": {"type": "string", "description": "Patch text in the supported simple update format."},
+        },
+        "required": ["patch"],
+    }
 
 
 def _parse_simple_update_patch(patch: str) -> tuple[str, str, str] | None:

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -237,6 +237,27 @@ describe("TokenDanceCode SDK", () => {
       output: { findings: [{ severity: "medium", message: "Diff adds TODO text that may need a tracked follow-up." }] }
     });
     expect(quality).toMatchObject({ ok: true, output: { passed: true } });
+  });
+
+  it("reads effective config through the SDK boundary for AgentHub callers", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-config-"));
+    const projectRoot = join(root, "repo");
+    await mkdir(join(projectRoot, ".tokendance"), { recursive: true });
+    await writeFile(
+      join(projectRoot, ".tokendance", "config.json"),
+      JSON.stringify({ provider: "anthropic-messages", model: "claude-test", permissionMode: "safe" }),
+      "utf8"
+    );
+    const client = new TokenDanceCode();
+
+    const info = await client.config({ projectRoot, homeDir: join(root, "home") });
+
+    expect(info.config).toEqual({
+      provider: "anthropic-messages",
+      model: "claude-test",
+      permissionMode: "safe"
+    });
+    expect(info.sources.map((source) => source.kind)).toEqual(["defaults", "project"]);
   });
 
   it("lets AgentHub approve a write tool before execution", async () => {

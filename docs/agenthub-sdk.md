@@ -326,7 +326,29 @@ console.log(selectedCompact.eventCount);
 
 `client.compact()` 先通过同一套 resume 入口定位 latest 或指定 session，再生成 deterministic compact summary；调用方也可以在已持有 `Thread` 时继续使用 `thread.compact()`。
 
-## 9. Memory
+## 9. Config
+
+AgentHub 可以通过 SDK 读取 TokenDanceCode 的有效配置，用于调试面板、启动前检查或把 Hub 侧配置投影给 Edge 运行：
+
+```ts
+const info = await client.config({
+  projectRoot: "D:/Code/TokenDance/AgentHub",
+  homeDir: "D:/Users/operator"
+});
+
+console.log(info.config.provider);
+console.log(info.config.model);
+console.log(info.config.permissionMode);
+```
+
+配置来源按 `defaults -> global -> project` 合并。当前支持 JSON 文件：
+
+- global：`<homeDir>/.tokendance/config.json`
+- project：`<projectRoot>/.tokendance/config.json`
+
+首版只读取 `provider`、`model`、`permissionMode` 三个白名单字段，忽略 `apiKey`、`token` 等 secret 字段，避免把密钥带入 CLI 输出、文档或 AgentHub 调试事件。
+
+## 10. Memory
 
 AgentHub 如果需要把项目约定或用户偏好写入 TokenDanceCode 的上下文来源，可以通过 SDK 管理 project/global memory，不需要直接依赖 core `MemoryStore`：
 
@@ -346,7 +368,7 @@ await memory.delete("project", 0);
 
 `project` memory 写入 `<projectRoot>/.tokendance/memory/project.md`，`global` memory 写入 `<homeDir>/.tokendance/memory/global.md`。当前只做显式增删查和 ContextBuilder 注入，不做自动抽取、自动改写或隐式上传。
 
-## 10. Tool Facade
+## 11. Tool Facade
 
 AgentHub 如果需要在 UI 或任务编排层触发 TokenDanceCode 已注册工具，可以使用 SDK 的 `client.tools()`，避免直接依赖 core `ToolOrchestrator`：
 
@@ -368,13 +390,13 @@ const quality = await tools.execute(
 
 这个 facade 返回 core `ToolResult`，用于 AgentHub 调试面板、手动质量门、Git diff/review 工作流和受控工具执行。`quality_gate` 需要显式传入可执行命令；即使用 `yolo` 让质量命令运行，PowerShell 工具层仍会拒绝已知高风险命令。
 
-## 11. 当前测试覆盖
+## 12. 当前测试覆盖
 
-- `packages/sdk/tests/sdk.test.ts` 覆盖 buffered turn、streamed events、多轮 thread、latest/by-id resume、latest/by-id compact、transcript metadata/search、memory facade、tool facade、审批允许/拒绝、provider env 配置错误、event sink。
+- `packages/sdk/tests/sdk.test.ts` 覆盖 buffered turn、streamed events、多轮 thread、latest/by-id resume、latest/by-id compact、transcript metadata/search、config facade、memory facade、tool facade、审批允许/拒绝、provider env 配置错误、event sink。
 - `packages/sdk/tests/approval-bridge.test.ts` 覆盖 AgentHub 远程审批 bridge、pending 快照、allow/deny 决策回填。
 - `packages/sdk/tests/agenthub-events.test.ts` 覆盖 `TDCodeEvent` 到 AgentHub `run.agent.*` 的映射、sink 包装和 `agent.stream` payload fixture。
 - `packages/agenthub-example/tests/agenthub-runner.test.ts` 覆盖 AgentHub runner 示例、`agent.stream` payload 序列和 emitter 形态。
-- `packages/core/tests/*` 覆盖 runtime、permission、provider adapter、file/shell/patch/git/context/resume/memory。
+- `packages/core/tests/*` 覆盖 runtime、permission、provider adapter、file/shell/patch/git/context/resume/config/memory。
 
 完整验证命令：
 

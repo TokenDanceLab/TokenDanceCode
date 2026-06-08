@@ -9,6 +9,7 @@ import {
   ResumeService,
   ToolOrchestrator,
   createDefaultToolRegistry,
+  readTokenDanceConfig,
   readTranscript,
   type ModelProvider,
   type PermissionApprovalCallback,
@@ -17,6 +18,7 @@ import {
   type TDCodeEvent,
   type TDCodeEventSink,
   type CompactResult,
+  type ConfigInfo,
   type TranscriptEnvelope,
   type ToolResult
 } from "@tokendance/code-core";
@@ -90,6 +92,11 @@ export interface ToolExecuteOptions {
   permissionMode?: PermissionMode;
 }
 
+export interface ConfigOptions {
+  projectRoot?: string;
+  homeDir?: string;
+}
+
 export class TokenDanceCode {
   constructor(private readonly options: TokenDanceCodeOptions = {}) {}
 
@@ -153,6 +160,13 @@ export class TokenDanceCode {
       cwd: options.workingDirectory ?? this.options.storageRoot ?? process.cwd(),
       permissionMode: options.permissionMode ?? "default",
       now
+    });
+  }
+
+  config(options: ConfigOptions = {}): Promise<ConfigInfo> {
+    return readTokenDanceConfig({
+      projectRoot: options.projectRoot ?? this.options.storageRoot ?? process.cwd(),
+      homeDir: options.homeDir
     });
   }
 

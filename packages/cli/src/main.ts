@@ -42,6 +42,10 @@ export async function runCli(argv: string[], io: CliIO = defaultIO()): Promise<n
     return 0;
   }
 
+  if (command === "config") {
+    return configCommand(io);
+  }
+
   if (command === "resume") {
     return resumeCommand(rest, io);
   }
@@ -116,6 +120,11 @@ async function runInteractive(io: CliIO): Promise<void> {
 
     if (line === "/doctor") {
       await printDoctor(io);
+      continue;
+    }
+
+    if (line === "/config") {
+      await configCommand(io);
       continue;
     }
 
@@ -227,6 +236,19 @@ async function memoryCommand(args: string[], io: CliIO): Promise<number> {
 
   await write(io.stderr, "Usage: tokendance memory [add|delete] [project|global] [value]\n");
   return 1;
+}
+
+async function configCommand(io: CliIO): Promise<number> {
+  const info = await new TokenDanceCode().config({ projectRoot: io.cwd() });
+  await write(io.stdout, `provider: ${info.config.provider}\n`);
+  await write(io.stdout, `model: ${info.config.model}\n`);
+  await write(io.stdout, `permissionMode: ${info.config.permissionMode}\n`);
+  await write(io.stdout, `globalConfig: ${info.globalConfigPath}\n`);
+  await write(io.stdout, `projectConfig: ${info.projectConfigPath}\n`);
+  for (const source of info.sources) {
+    await write(io.stdout, `source: ${source.kind}${source.path ? ` ${source.path}` : ""}\n`);
+  }
+  return 0;
 }
 
 async function diffCommand(paths: string[], io: CliIO): Promise<number> {
@@ -500,6 +522,7 @@ Usage:
   tokendance
   tokendance --version
   tokendance doctor
+  tokendance config
   tokendance memory [add|delete] [project|global] [value]
   tokendance diff [path ...]
   tokendance review
@@ -521,6 +544,7 @@ async function printInteractiveHelp(io: CliIO): Promise<void> {
   /new
   /status
   /doctor
+  /config
   /permissions [default|safe|auto|yolo]
   /resume
   /memory [add|delete] [project|global] [value]

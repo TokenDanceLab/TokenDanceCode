@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { Readable, Writable } from "node:stream";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -72,6 +72,29 @@ describe("TokenDanceCode CLI", () => {
     expect(topLevelDelete.stdoutText()).toContain("Deleted project memory 0.");
     expect(afterDeleteExitCode).toBe(0);
     expect(afterDelete.stdoutText()).toContain("No project memory.");
+  });
+
+  it("prints effective config in interactive and top-level commands", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-config-"));
+    await mkdir(join(root, ".tokendance"), { recursive: true });
+    await writeFile(
+      join(root, ".tokendance", "config.json"),
+      JSON.stringify({ provider: "anthropic-messages", model: "claude-test", permissionMode: "safe" }),
+      "utf8"
+    );
+    const interactive = createTestIO("/config\n/exit\n", root);
+    const topLevel = createTestIO("", root);
+
+    await runCli([], interactive);
+    const topLevelExitCode = await runCli(["config"], topLevel);
+
+    expect(interactive.stdoutText()).toContain("provider: anthropic-messages");
+    expect(interactive.stdoutText()).toContain("model: claude-test");
+    expect(interactive.stdoutText()).toContain("permissionMode: safe");
+    expect(interactive.stdoutText()).toContain("source: project ");
+    expect(topLevelExitCode).toBe(0);
+    expect(topLevel.stdoutText()).toContain("provider: anthropic-messages");
+    expect(topLevel.stdoutText()).toContain("model: claude-test");
   });
 
   it("renders git diff, review, and quality commands in interactive and top-level modes", async () => {

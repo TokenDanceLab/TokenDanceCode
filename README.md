@@ -137,6 +137,7 @@ MODEL_ID=deepseek-v4-pro
 
 ```powershell
 node packages/cli/dist/main.js run "完整阅读这个项目"
+node packages/cli/dist/main.js config
 node packages/cli/dist/main.js resume
 node packages/cli/dist/main.js resume <session-id>
 node packages/cli/dist/main.js transcript
@@ -203,6 +204,9 @@ console.log(await memory.list("project"));
 const tools = client.tools({ workingDirectory: process.cwd() });
 const status = await tools.execute("git_status");
 console.log(status.ok);
+
+const config = await client.config({ projectRoot: process.cwd() });
+console.log(config.config.provider, config.config.model);
 ```
 
 AgentHub 集成可以接管审批和事件分发：
@@ -236,6 +240,7 @@ const client = new TokenDanceCode({
 /new
 /status
 /doctor
+/config
 /permissions default
 /permissions safe
 /permissions auto
@@ -256,7 +261,6 @@ const client = new TokenDanceCode({
 后续迁移继续补：
 
 ```text
-/config
 /tasks
 /todo
 /worktree

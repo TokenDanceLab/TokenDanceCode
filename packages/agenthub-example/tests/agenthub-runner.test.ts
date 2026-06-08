@@ -51,4 +51,29 @@ describe("AgentHub TokenDanceCode runner example", () => {
       summary: 'Tool result: {"text":"agenthub"}'
     });
   });
+
+  it("exposes package metadata and doctor diagnostics for AgentHub startup checks", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-agenthub-example-"));
+    const runner = createAgentHubTokenDanceRunner({
+      storageRoot: root,
+      env: {
+        OPENAI_API_KEY: "hidden-openai-key",
+        ANTHROPIC_API_KEY: ""
+      },
+      emitAgentStream() {}
+    });
+
+    const packageInfo = runner.packageInfo();
+    const doctor = await runner.doctor({ workingDirectory: root });
+
+    expect(packageInfo.packages.sdk.name).toBe("@tokendance/code-sdk");
+    expect(packageInfo.packages.cli.bin).toBe("tokendance");
+    expect(doctor.cwd).toBe(root);
+    expect(doctor.apiKeys).toEqual({
+      OPENAI_API_KEY: "present",
+      ANTHROPIC_API_KEY: "missing"
+    });
+    expect(JSON.stringify(doctor)).not.toContain("hidden-openai-key");
+    expect(doctor.stateDir.writable).toBe(true);
+  });
 });

@@ -1,12 +1,15 @@
 import {
+  TOKEN_DANCE_CODE_PACKAGE,
   TokenDanceCode,
   createAgentHubAgentStreamSink,
   createAgentHubApprovalBridge,
   type AgentHubAgentStreamEmitter,
   type AgentHubApprovalDecision,
   type AgentHubApprovalRequest,
+  type DoctorInfo,
   type ModelProvider,
   type PermissionMode,
+  type TokenDanceCodePackageInfo,
   type TokenDanceProviderConfig,
   type TurnResult
 } from "@tokendance/code-sdk";
@@ -30,8 +33,15 @@ export interface AgentHubTokenDanceRunOptions {
   agentInstanceId: string;
 }
 
+export interface AgentHubTokenDanceDoctorOptions {
+  workingDirectory?: string;
+  homeDir?: string;
+}
+
 export interface AgentHubTokenDanceRunner {
   run(options: AgentHubTokenDanceRunOptions): Promise<TurnResult>;
+  packageInfo(): TokenDanceCodePackageInfo;
+  doctor(options?: AgentHubTokenDanceDoctorOptions): Promise<DoctorInfo>;
   decideApproval(requestId: string, decision: AgentHubApprovalDecision, reason?: string): boolean;
   pendingApprovals(): AgentHubApprovalRequest[];
 }
@@ -42,6 +52,21 @@ export function createAgentHubTokenDanceRunner(options: AgentHubTokenDanceRunner
     : undefined;
 
   return {
+    packageInfo() {
+      return TOKEN_DANCE_CODE_PACKAGE;
+    },
+
+    doctor(doctorOptions = {}) {
+      return new TokenDanceCode({
+        provider: options.provider,
+        storageRoot: options.storageRoot,
+        env: options.env
+      }).doctor({
+        projectRoot: doctorOptions.workingDirectory ?? options.storageRoot ?? process.cwd(),
+        homeDir: doctorOptions.homeDir
+      });
+    },
+
     async run(runOptions) {
       const client = new TokenDanceCode({
         provider: options.provider,

@@ -285,11 +285,19 @@ const turn = await runner.run({
 
 console.log(turn.finalResponse);
 
+const packageInfo = runner.packageInfo();
+const doctor = await runner.doctor({
+  workingDirectory: "D:/Code/TokenDance/AgentHub"
+});
+
+console.log(packageInfo.packages.sdk.name);
+console.log(doctor.stateDir.writable);
+
 // Hub / Edge 收到人工决策后：
 runner.decideApproval("tool-call-id", "allow", "approved in AgentHub");
 ```
 
-样例 runner 每次 `run()` 都会创建一个新的 `TokenDanceCode` client，并用 `createAgentHubAgentStreamSink()` 把 runtime events 投递为递增 `event_seq` 的 `agent.stream` payload。真实 AgentHub 集成可以直接复制这个组合方式，再替换为自己的 Hub client、任务状态和 session 生命周期。
+样例 runner 每次 `run()` 都会创建一个新的 `TokenDanceCode` client，并用 `createAgentHubAgentStreamSink()` 把 runtime events 投递为递增 `event_seq` 的 `agent.stream` payload。`packageInfo()` 和 `doctor()` 只是把 SDK manifest/doctor facade 暴露给 Hub/Edge 启动检查，真实 AgentHub 集成可以直接复制这个组合方式，再替换为自己的 Hub client、任务状态和 session 生命周期。
 
 ## 9. Resume
 
@@ -531,7 +539,7 @@ const quality = await tools.execute(
 - `packages/sdk/tests/package-metadata.test.ts` 覆盖 public package metadata、`pack:check` 脚本、tarball ignore 规则和 SDK 导出的 AgentHub-readable package manifest。
 - `packages/sdk/tests/approval-bridge.test.ts` 覆盖 AgentHub 远程审批 bridge、pending 快照、allow/deny 决策回填。
 - `packages/sdk/tests/agenthub-events.test.ts` 覆盖 `TDCodeEvent` 到 AgentHub `run.agent.*` 的映射、sink 包装和 `agent.stream` payload fixture。
-- `packages/agenthub-example/tests/agenthub-runner.test.ts` 覆盖 AgentHub runner 示例、`agent.stream` payload 序列和 emitter 形态。
+- `packages/agenthub-example/tests/agenthub-runner.test.ts` 覆盖 AgentHub runner 示例、`agent.stream` payload 序列、emitter 形态、runner package manifest 和 doctor 启动诊断。
 - `packages/core/tests/*` 覆盖 runtime、permission、provider adapter、file/shell/patch/git/subagent/worktree/tool metadata/context/resume/config/memory/task/todo。
 
 完整验证命令：

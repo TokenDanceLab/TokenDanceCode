@@ -78,9 +78,10 @@ pnpm pack:check
 pnpm --filter @tokendance/code-cli build
 node packages/cli/dist/main.js --version
 node packages/cli/dist/main.js doctor
+node packages/cli/dist/main.js doctor --json
 ```
 
-`doctor` 会输出 Node、cwd、platform、OpenAI/Anthropic API key 是否存在、Git/PowerShell 可用性、配置文件路径和 `.tokendance` 状态目录可写性。API key 只显示 `present`/`missing`，不会打印密钥值。
+`doctor` 会输出 Node、cwd、platform、OpenAI/Anthropic API key 是否存在、Git/PowerShell 可用性、配置文件路径和 `.tokendance` 状态目录可写性。API key 只显示 `present`/`missing`，不会打印密钥值。需要给脚本或 AgentHub 调试面板读取时使用 `doctor --json`；交互式 REPL 中对应 `/doctor json`。
 
 运行一次 mock turn：
 
@@ -295,6 +296,7 @@ const client = new TokenDanceCode({
 /new
 /status
 /doctor
+/doctor json
 /config
 /permissions default
 /permissions safe

@@ -37,12 +37,16 @@ describe("TokenDanceCode CLI", () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-cli-"));
     const first = createTestIO("hello before resume\n/exit\n", root);
     await runCli([], first);
-    const second = createTestIO("/doctor\n/resume\n/compact\n/exit\n", root);
+    const second = createTestIO("/doctor\n/doctor json\n/resume\n/compact\n/exit\n", root);
+    const topLevelJson = createTestIO("", root);
 
     const exitCode = await runCli([], second);
+    const jsonExitCode = await runCli(["doctor", "--json"], topLevelJson);
     const output = second.stdoutText();
+    const parsed = JSON.parse(topLevelJson.stdoutText());
 
     expect(exitCode).toBe(0);
+    expect(jsonExitCode).toBe(0);
     expect(output).toContain("TokenDanceCode 0.2.0-ts.0");
     expect(output).toContain(`cwd ${root}`);
     expect(output).toContain("api OPENAI_API_KEY:");
@@ -54,6 +58,10 @@ describe("TokenDanceCode CLI", () => {
     expect(output).toContain("config global:");
     expect(output).toContain("state dir:");
     expect(output).toContain("state writable:");
+    expect(output).toContain('"apiKeys"');
+    expect(parsed.cwd).toBe(root);
+    expect(parsed.apiKeys.OPENAI_API_KEY).toMatch(/present|missing/);
+    expect(parsed.stateDir.writable).toEqual(expect.any(Boolean));
     expect(output).toContain("Resumed session ");
     expect(output).toContain("recent transcript events.");
     expect(output).toContain("Compact summary ");

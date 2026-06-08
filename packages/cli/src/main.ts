@@ -41,7 +41,7 @@ export async function runCli(argv: string[], io: CliIO = defaultIO()): Promise<n
   }
 
   if (command === "doctor") {
-    await printDoctor(io);
+    await printDoctor(io, rest);
     return 0;
   }
 
@@ -141,8 +141,8 @@ async function runInteractive(io: CliIO): Promise<void> {
       continue;
     }
 
-    if (line === "/doctor") {
-      await printDoctor(io);
+    if (line === "/doctor" || line.startsWith("/doctor ")) {
+      await printDoctor(io, line.split(/\s+/).slice(1));
       continue;
     }
 
@@ -790,8 +790,17 @@ async function printStatus(io: CliIO, thread: Thread): Promise<void> {
   await write(io.stdout, `messages: ${state.messages.length}\n`);
 }
 
-async function printDoctor(io: CliIO): Promise<void> {
-  await printDoctorInfo(io, await new TokenDanceCode().doctor({ projectRoot: io.cwd() }));
+async function printDoctor(io: CliIO, args: string[] = []): Promise<void> {
+  const doctor = await new TokenDanceCode().doctor({ projectRoot: io.cwd() });
+  if (doctorFormat(args) === "json") {
+    await write(io.stdout, `${JSON.stringify(doctor, null, 2)}\n`);
+    return;
+  }
+  await printDoctorInfo(io, doctor);
+}
+
+function doctorFormat(args: string[]): "text" | "json" {
+  return args.some((arg) => arg === "--json" || arg === "json") ? "json" : "text";
 }
 
 function yesNo(value: boolean): "yes" | "no" {
@@ -823,7 +832,7 @@ async function printHelp(io: CliIO): Promise<void> {
 Usage:
   tokendance
   tokendance --version
-  tokendance doctor
+  tokendance doctor [--json]
   tokendance config
   tokendance memory [add|delete] [project|global] [value]
   tokendance agents [run investigator|reviewer <prompt>]
@@ -854,7 +863,7 @@ async function printInteractiveHelp(io: CliIO): Promise<void> {
     `Commands:
   /new
   /status
-  /doctor
+  /doctor [json]
   /config
   /permissions [default|safe|auto|yolo]
   /resume

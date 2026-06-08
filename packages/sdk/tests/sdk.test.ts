@@ -227,6 +227,9 @@ describe("TokenDanceCode SDK", () => {
     const diff = await tools.execute("git_diff");
     const review = await tools.execute("git_review");
     const quality = await tools.execute("quality_gate", { command: "Get-ChildItem -Name", timeout: 5 }, { permissionMode: "yolo" });
+    const worktreeCreate = await tools.execute("worktree_create", { name: "sdk-tool-wt" }, { permissionMode: "yolo" });
+    const worktreeList = await tools.execute("worktree_list");
+    const worktreeRemove = await tools.execute("worktree_remove", { name: "sdk-tool-wt" }, { permissionMode: "yolo" });
 
     expect(status).toMatchObject({ ok: true });
     expect(JSON.stringify(status.output)).toContain("M notes.txt");
@@ -237,6 +240,11 @@ describe("TokenDanceCode SDK", () => {
       output: { findings: [{ severity: "medium", message: "Diff adds TODO text that may need a tracked follow-up." }] }
     });
     expect(quality).toMatchObject({ ok: true, output: { passed: true } });
+    expect(worktreeCreate).toMatchObject({ ok: true });
+    expect(JSON.stringify(worktreeCreate.output)).toContain("codex/sdk-tool-wt");
+    expect(worktreeList).toMatchObject({ ok: true });
+    expect(JSON.stringify(worktreeList.output)).toContain("sdk-tool-wt");
+    expect(worktreeRemove).toMatchObject({ ok: true });
   });
 
   it("reads effective config through the SDK boundary for AgentHub callers", async () => {

@@ -3,6 +3,7 @@ import { buildFileTools } from "./file-tools.js";
 import { buildGitTools } from "./git-tools.js";
 import { createApplyPatchTool } from "./patch-tools.js";
 import { createRunPowerShellTool } from "./shell-tools.js";
+import { buildWorktreeTools } from "./worktrees.js";
 import type { PermissionDecision, SessionState, ToolCall, ToolResult, ToolSpec } from "./types.js";
 
 export class ToolRegistry {
@@ -74,6 +75,9 @@ export function createDefaultToolRegistry(): ToolRegistry {
     registry.register(tool);
   }
   for (const tool of buildGitTools()) {
+    registry.register(tool);
+  }
+  for (const tool of buildWorktreeTools()) {
     registry.register(tool);
   }
   registry.register(createApplyPatchTool());

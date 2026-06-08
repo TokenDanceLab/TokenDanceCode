@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { promisify } from "node:util";
+import type { ToolSpec } from "./types.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -106,6 +107,64 @@ export class WorktreeManager {
       throw new Error(message);
     }
   }
+}
+
+export function buildWorktreeTools(): ToolSpec[] {
+  return [createWorktreeListTool(), createWorktreeCreateTool(), createWorktreeRemoveTool()];
+}
+
+export function createWorktreeListTool(): ToolSpec<unknown, WorktreeRecord[]> {
+  return {
+    name: "worktree_list",
+    description: "List TokenDanceCode managed git worktrees under .worktrees.",
+    risk: "read",
+    concurrency: "parallel_safe",
+    parse: (input) => input,
+    execute: async (_input, context) => new WorktreeManager({ repositoryRoot: context.cwd }).list()
+  };
+}
+
+export function createWorktreeCreateTool(): ToolSpec<CreateWorktreeInput, WorktreeRecord> {
+  return {
+    name: "worktree_create",
+    description: "Create a managed git worktree under .worktrees.",
+    risk: "shell",
+    concurrency: "exclusive",
+    parse(input) {
+      if (typeof input !== "object" || input === null || typeof (input as { name?: unknown }).name !== "string") {
+        throw new Error("worktree_create input requires a string name field");
+      }
+      const branch = (input as { branch?: unknown }).branch;
+      if (branch !== undefined && typeof branch !== "string") {
+        throw new Error("worktree_create branch must be a string");
+      }
+      return { name: (input as { name: string }).name, branch };
+    },
+    execute: async (input, context) => new WorktreeManager({ repositoryRoot: context.cwd }).create(input)
+  };
+}
+
+export function createWorktreeRemoveTool(): ToolSpec<{ name: string; discard?: boolean }, { removed: string }> {
+  return {
+    name: "worktree_remove",
+    description: "Remove a managed git worktree, refusing dirty changes unless discard is true.",
+    risk: "shell",
+    concurrency: "exclusive",
+    parse(input) {
+      if (typeof input !== "object" || input === null || typeof (input as { name?: unknown }).name !== "string") {
+        throw new Error("worktree_remove input requires a string name field");
+      }
+      const discard = (input as { discard?: unknown }).discard;
+      if (discard !== undefined && typeof discard !== "boolean") {
+        throw new Error("worktree_remove discard must be a boolean");
+      }
+      return { name: (input as { name: string }).name, discard };
+    },
+    async execute(input, context) {
+      await new WorktreeManager({ repositoryRoot: context.cwd }).remove(input.name, { discard: input.discard });
+      return { removed: input.name };
+    }
+  };
 }
 
 export function validateWorktreeName(name: string): string {

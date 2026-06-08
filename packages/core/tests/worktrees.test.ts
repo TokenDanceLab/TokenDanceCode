@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { WorktreeManager } from "../src/index.js";
+import { createDefaultToolRegistry, ToolOrchestrator, WorktreeManager, type SessionState } from "../src/index.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -37,6 +37,33 @@ describe("worktree manager", () => {
 
     await expect(manager.create({ name: "../escape" })).rejects.toThrow("Worktree name must contain only letters, numbers, dot, underscore, or dash.");
   });
+
+  it("exposes worktree tools through the default registry", async () => {
+    const root = await initRepo();
+    const orchestrator = new ToolOrchestrator(createDefaultToolRegistry());
+
+    const created = await orchestrator.execute(
+      { id: "wt-create", name: "worktree_create", input: { name: "tool-wt" } },
+      { ...createSession(root), permissionMode: "yolo" }
+    );
+    const listed = await orchestrator.execute({ id: "wt-list", name: "worktree_list", input: {} }, createSession(root));
+    await writeFile(join(root, ".worktrees", "tool-wt", "dirty.txt"), "dirty\n", "utf8");
+    const dirtyRemove = await orchestrator.execute(
+      { id: "wt-remove-dirty", name: "worktree_remove", input: { name: "tool-wt" } },
+      { ...createSession(root), permissionMode: "yolo" }
+    );
+    const removed = await orchestrator.execute(
+      { id: "wt-remove", name: "worktree_remove", input: { name: "tool-wt", discard: true } },
+      { ...createSession(root), permissionMode: "yolo" }
+    );
+
+    expect(created).toMatchObject({ ok: true });
+    expect(JSON.stringify(created.output)).toContain("codex/tool-wt");
+    expect(listed).toMatchObject({ ok: true });
+    expect(JSON.stringify(listed.output)).toContain("tool-wt");
+    expect(dirtyRemove).toMatchObject({ ok: false, error: "Worktree tool-wt has uncommitted changes." });
+    expect(removed).toMatchObject({ ok: true });
+  });
 });
 
 async function initRepo(): Promise<string> {
@@ -48,4 +75,15 @@ async function initRepo(): Promise<string> {
   await execFileAsync("git", ["add", "."], { cwd: root });
   await execFileAsync("git", ["commit", "-m", "initial"], { cwd: root });
   return root;
+}
+
+function createSession(cwd: string): SessionState {
+  return {
+    id: "test-session",
+    cwd,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    permissionMode: "default",
+    messages: []
+  };
 }

@@ -190,6 +190,8 @@ const client = new TokenDanceCode({
 
 ## 6. 审批回调
 
+简单场景可以直接传 `approvalCallback`：
+
 ```ts
 const client = new TokenDanceCode({
   approvalCallback(request) {
@@ -207,6 +209,38 @@ const client = new TokenDanceCode({
 
 审批回调只处理 PermissionEngine 判定为 `requires_approval` 的工具。`safe` 模式直接 `denied` 的工具不会通过回调升级；工具执行层自己的硬拒绝规则也不会被回调绕过，例如 PowerShell 高风险命令分类。
 
+### AgentHub 远程审批 Bridge
+
+如果审批要通过 AgentHub UI、Hub API 或 `agent.control permission.decide` 异步返回，可以使用 `createAgentHubApprovalBridge()`：
+
+```ts
+import { TokenDanceCode, createAgentHubApprovalBridge } from "@tokendance/code-sdk";
+
+const approvalBridge = createAgentHubApprovalBridge({
+  async onRequest(request) {
+    await hubClient.createApproval({
+      approvalId: request.requestId,
+      sessionId: request.sessionId,
+      turnId: request.turnId,
+      toolName: request.toolName,
+      toolRisk: request.toolRisk,
+      reason: request.reason,
+      input: request.input
+    });
+  }
+});
+
+const client = new TokenDanceCode({
+  approvalCallback: approvalBridge.approvalCallback
+});
+
+// Hub / Edge 收到人工决策后：
+approvalBridge.decide("tool-call-id", "allow", "approved in AgentHub");
+approvalBridge.decide("tool-call-id", "deny", "rejected in AgentHub");
+```
+
+`approvalCallback` 会在工具执行前等待 `decide()`；等待期间 `pending()` 可读取当前待审批请求快照。`decide()` 找不到对应请求时返回 `false`，便于 AgentHub 忽略重复或过期决策。
+
 ## 7. Resume
 
 ```ts
@@ -222,6 +256,7 @@ const byId = await client.loadThread("session-id", storageRoot);
 ## 8. 当前测试覆盖
 
 - `packages/sdk/tests/sdk.test.ts` 覆盖 buffered turn、streamed events、多轮 thread、latest resume、审批允许/拒绝、provider env 配置错误、event sink。
+- `packages/sdk/tests/approval-bridge.test.ts` 覆盖 AgentHub 远程审批 bridge、pending 快照、allow/deny 决策回填。
 - `packages/sdk/tests/agenthub-events.test.ts` 覆盖 `TDCodeEvent` 到 AgentHub `run.agent.*` 的映射、sink 包装和 `agent.stream` payload fixture。
 - `packages/core/tests/*` 覆盖 runtime、permission、provider adapter、file/shell/patch/git/context/resume/memory。
 

@@ -15,6 +15,7 @@ import {
 } from "@tokendance/code-core";
 
 export * from "./agenthub-events.js";
+export * from "./approval-bridge.js";
 
 export type ThreadInput = string | Array<{ type: "text"; text: string }>;
 

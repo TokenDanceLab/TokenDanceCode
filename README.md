@@ -179,7 +179,7 @@ const client = new TokenDanceCode({
 });
 ```
 
-需要对接 AgentHub `run.agent.*` 事件时，可使用 `createAgentHubEventSink()` 或 `toAgentHubRuntimeEvents()`。
+需要对接 AgentHub `run.agent.*` 事件时，可使用 `createAgentHubEventSink()` 或 `toAgentHubRuntimeEvents()`；需要 Hub/UI 异步审批时，可使用 `createAgentHubApprovalBridge()`。
 
 详细说明见 [docs/agenthub-sdk.md](docs/agenthub-sdk.md)。
 
@@ -267,7 +267,7 @@ tokendance doctor
 - `glob` 工具默认排除 `.git`、`.tokendance`、虚拟环境、缓存目录、build/dist、`node_modules` 和 `.env`。
 - CLI 会对大工具输出做摘要，不会把完整大文件内容直接刷到终端。
 - 真实模型集成测试默认跳过，需要显式配置相关环境变量后才会运行。
-- AgentHub 集成应使用 SDK 的 `approvalCallback` 和 `eventSink`，不要直接调用 core runtime 内部类。
+- AgentHub 集成应使用 SDK 的 `approvalCallback` / `createAgentHubApprovalBridge()` 和 `eventSink`，不要直接调用 core runtime 内部类。
 
 ## 当前状态
 

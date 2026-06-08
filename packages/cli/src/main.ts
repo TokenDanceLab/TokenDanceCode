@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
-import { TokenDanceCode, type PermissionMode, type TDCodeEvent, type Thread } from "@tokendance/code-sdk";
+import { TokenDanceCode, type PermissionMode, type TDCodeEvent, type Thread, type TranscriptInfo } from "@tokendance/code-sdk";
 
 const version = "0.2.0-ts.0";
 const permissionModes = new Set<PermissionMode>(["default", "safe", "auto", "yolo"]);
@@ -36,6 +36,10 @@ export async function runCli(argv: string[], io: CliIO = defaultIO()): Promise<n
 
   if (command === "resume") {
     return resumeCommand(rest, io);
+  }
+
+  if (command === "transcript") {
+    return transcriptCommand(rest, io);
   }
 
   if (command === "run") {
@@ -102,6 +106,11 @@ async function runInteractive(io: CliIO): Promise<void> {
       continue;
     }
 
+    if (line === "/transcript") {
+      await handleTranscript(io, thread);
+      continue;
+    }
+
     if (line === "/compact") {
       await handleCompact(io, thread);
       continue;
@@ -125,8 +134,22 @@ async function resumeCommand(args: string[], io: CliIO): Promise<number> {
   const client = new TokenDanceCode();
   const sessionId = args[0]?.trim();
   try {
-    const thread = sessionId ? await client.loadThread(sessionId, io.cwd()) : await client.loadLatestThread(io.cwd());
+    const thread = await client.resume({ sessionId, storageRoot: io.cwd() });
     await printResumeResult(io, thread);
+    return 0;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await write(io.stderr, `${message}\n`);
+    return 1;
+  }
+}
+
+async function transcriptCommand(args: string[], io: CliIO): Promise<number> {
+  const client = new TokenDanceCode();
+  const sessionId = args[0]?.trim();
+  try {
+    const thread = await client.resume({ sessionId, storageRoot: io.cwd() });
+    await printTranscriptInfo(io, await thread.transcript());
     return 0;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -242,6 +265,18 @@ async function printResumeResult(io: CliIO, thread: Thread): Promise<void> {
   await write(io.stdout, `Resumed session ${thread.id} with ${thread.recentTranscript.length} recent transcript events.\n`);
 }
 
+async function handleTranscript(io: CliIO, thread: Thread): Promise<void> {
+  await printTranscriptInfo(io, await thread.transcript());
+}
+
+async function printTranscriptInfo(io: CliIO, info: TranscriptInfo): Promise<void> {
+  await write(io.stdout, `Transcript ${info.transcriptPath}\n`);
+  await write(io.stdout, `sessionId: ${info.sessionId}\n`);
+  await write(io.stdout, `sessionDir: ${info.sessionDir}\n`);
+  await write(io.stdout, `Events: ${info.eventCount}\n`);
+  await write(io.stdout, `Recent: ${info.recentEventCount}\n`);
+}
+
 async function handleCompact(io: CliIO, thread: Thread): Promise<void> {
   const result = await thread.compact();
   await write(io.stdout, `Compact summary ${result.path}\n`);
@@ -274,6 +309,7 @@ Usage:
   tokendance --version
   tokendance doctor
   tokendance resume [session-id]
+  tokendance transcript [session-id]
   tokendance run <prompt>
 `
   );
@@ -288,6 +324,7 @@ async function printInteractiveHelp(io: CliIO): Promise<void> {
   /doctor
   /permissions [default|safe|auto|yolo]
   /resume
+  /transcript
   /compact
   /exit
 `

@@ -290,9 +290,21 @@ const byId = await client.resume({ sessionId: "session-id", storageRoot });
 
 `recentTranscript` 暴露的是过滤后的 JSONL envelope，用于 AgentHub 恢复侧栏、事件列表或继续 thread。完整 transcript 仍以 `.tokendance/sessions/<session-id>/transcript.jsonl` 为事实源。
 
+需要把 transcript 路径展示给 AgentHub UI 或调试面板时，使用 `thread.transcript()`：
+
+```ts
+const info = await latest.transcript();
+
+console.log(info.sessionId);
+console.log(info.transcriptPath);
+console.log(info.eventCount);
+```
+
+`transcript()` 返回 `sessionDir`、`transcriptPath`、完整 `eventCount` 和当前 resume 入口带回的 `recentEventCount`，调用方不需要自己拼 `.tokendance/sessions/<session-id>/transcript.jsonl`。
+
 ## 9. 当前测试覆盖
 
-- `packages/sdk/tests/sdk.test.ts` 覆盖 buffered turn、streamed events、多轮 thread、latest/by-id resume、审批允许/拒绝、provider env 配置错误、event sink。
+- `packages/sdk/tests/sdk.test.ts` 覆盖 buffered turn、streamed events、多轮 thread、latest/by-id resume、transcript metadata、审批允许/拒绝、provider env 配置错误、event sink。
 - `packages/sdk/tests/approval-bridge.test.ts` 覆盖 AgentHub 远程审批 bridge、pending 快照、allow/deny 决策回填。
 - `packages/sdk/tests/agenthub-events.test.ts` 覆盖 `TDCodeEvent` 到 AgentHub `run.agent.*` 的映射、sink 包装和 `agent.stream` payload fixture。
 - `packages/agenthub-example/tests/agenthub-runner.test.ts` 覆盖 AgentHub runner 示例、`agent.stream` payload 序列和 emitter 形态。

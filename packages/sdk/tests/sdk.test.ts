@@ -142,6 +142,23 @@ describe("TokenDanceCode SDK", () => {
     await expect(readFile(compact.path, "utf8")).resolves.toContain("Events:");
   });
 
+  it("exposes transcript metadata for AgentHub callers", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
+    const client = new TokenDanceCode({ storageRoot: root });
+    const thread = client.startThread({ workingDirectory: root });
+    await thread.run("transcript me");
+
+    const transcript = await thread.transcript();
+
+    expect(transcript).toMatchObject({
+      sessionId: thread.id,
+      eventCount: 4,
+      recentEventCount: 0
+    });
+    expect(transcript.sessionDir).toBe(join(root, ".tokendance", "sessions", thread.id));
+    expect(transcript.transcriptPath).toBe(join(root, ".tokendance", "sessions", thread.id, "transcript.jsonl"));
+  });
+
   it("lets AgentHub approve a write tool before execution", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
     const approvals: string[] = [];

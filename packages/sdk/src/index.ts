@@ -6,6 +6,7 @@ import {
   MockProvider,
   OpenAIResponsesProvider,
   ResumeService,
+  readTranscript,
   type ModelProvider,
   type PermissionApprovalCallback,
   type PermissionMode,
@@ -15,6 +16,7 @@ import {
   type CompactResult,
   type TranscriptEnvelope
 } from "@tokendance/code-core";
+import { join } from "node:path";
 
 export * from "./agenthub-events.js";
 export * from "./approval-bridge.js";
@@ -49,6 +51,14 @@ export interface TurnResult {
   threadId: string;
   finalResponse: string;
   events: TDCodeEvent[];
+}
+
+export interface TranscriptInfo {
+  sessionId: string;
+  sessionDir: string;
+  transcriptPath: string;
+  eventCount: number;
+  recentEventCount: number;
 }
 
 export class TokenDanceCode {
@@ -92,6 +102,19 @@ export class TokenDanceCode {
 
   compactSession(session: SessionState): Promise<CompactResult> {
     return new CompactService(new FileTranscriptStore({ rootDir: this.storageRootFor(session) }).sessionDir(session.id)).manualCompact();
+  }
+
+  async transcriptInfo(session: SessionState, recentEventCount = 0): Promise<TranscriptInfo> {
+    const sessionDir = new FileTranscriptStore({ rootDir: this.storageRootFor(session) }).sessionDir(session.id);
+    const transcriptPath = join(sessionDir, "transcript.jsonl");
+    const envelopes = await readTranscript(transcriptPath);
+    return {
+      sessionId: session.id,
+      sessionDir,
+      transcriptPath,
+      eventCount: envelopes.length,
+      recentEventCount
+    };
   }
 
   createRuntime(session: SessionState): AgentRuntime {
@@ -185,6 +208,10 @@ export class Thread {
 
   compact(): Promise<CompactResult> {
     return this.options.client.compactSession(this.options.session);
+  }
+
+  transcript(): Promise<TranscriptInfo> {
+    return this.options.client.transcriptInfo(this.options.session, this.recentTranscript.length);
   }
 }
 

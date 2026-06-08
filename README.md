@@ -139,6 +139,8 @@ MODEL_ID=deepseek-v4-pro
 node packages/cli/dist/main.js run "完整阅读这个项目"
 node packages/cli/dist/main.js resume
 node packages/cli/dist/main.js resume <session-id>
+node packages/cli/dist/main.js transcript
+node packages/cli/dist/main.js transcript <session-id>
 ```
 
 工具调用会通过同一套 runtime 事件流渲染，例如 mock echo 工具：
@@ -177,6 +179,9 @@ console.log(turn.finalResponse);
 
 const resumed = await client.resume({ storageRoot: process.cwd() });
 console.log(resumed.recentTranscript.length);
+
+const transcript = await resumed.transcript();
+console.log(transcript.transcriptPath);
 ```
 
 AgentHub 集成可以接管审批和事件分发：
@@ -215,6 +220,7 @@ const client = new TokenDanceCode({
 /permissions auto
 /permissions yolo
 /resume
+/transcript
 /compact
 /exit
 ```

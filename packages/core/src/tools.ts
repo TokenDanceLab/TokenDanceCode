@@ -4,7 +4,14 @@ import { buildGitTools } from "./git-tools.js";
 import { createApplyPatchTool } from "./patch-tools.js";
 import { createRunPowerShellTool } from "./shell-tools.js";
 import { buildWorktreeTools } from "./worktrees.js";
-import type { PermissionDecision, SessionState, ToolCall, ToolResult, ToolSpec } from "./types.js";
+import type { PermissionDecision, SessionState, ToolCall, ToolResult, ToolSpec, ToolRisk } from "./types.js";
+
+export interface ToolMetadata {
+  name: string;
+  description: string;
+  risk: ToolRisk;
+  concurrency: ToolSpec["concurrency"];
+}
 
 export class ToolRegistry {
   private readonly tools = new Map<string, ToolSpec>();
@@ -23,6 +30,15 @@ export class ToolRegistry {
 
   list(): ToolSpec[] {
     return [...this.tools.values()];
+  }
+
+  metadata(): ToolMetadata[] {
+    return this.list().map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      risk: tool.risk,
+      concurrency: tool.concurrency
+    }));
   }
 }
 

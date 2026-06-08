@@ -247,6 +247,20 @@ describe("TokenDanceCode SDK", () => {
     expect(worktreeRemove).toMatchObject({ ok: true });
   });
 
+  it("lists registered tool capabilities through the SDK boundary for AgentHub callers", () => {
+    const client = new TokenDanceCode();
+    const tools = client.tools();
+
+    expect(tools.list()).toContainEqual(
+      expect.objectContaining({
+        name: "worktree_create",
+        risk: "shell",
+        concurrency: "exclusive"
+      })
+    );
+    expect(tools.list().map((tool) => tool.name)).toContain("quality_gate");
+  });
+
   it("reads effective config through the SDK boundary for AgentHub callers", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-config-"));
     const projectRoot = join(root, "repo");

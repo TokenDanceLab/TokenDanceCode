@@ -158,6 +158,7 @@ node packages/cli/dist/main.js worktree create stage15-wt
 node packages/cli/dist/main.js worktree remove stage15-wt
 node packages/cli/dist/main.js diff
 node packages/cli/dist/main.js review
+node packages/cli/dist/main.js tools
 node packages/cli/dist/main.js quality "pnpm verify"
 node packages/cli/dist/main.js compact
 node packages/cli/dist/main.js compact <session-id>
@@ -227,6 +228,7 @@ console.log(worktree.path);
 await worktrees.remove("stage15-wt");
 
 const tools = client.tools({ workingDirectory: process.cwd() });
+console.log(tools.list().map((tool) => `${tool.name}:${tool.risk}`));
 const status = await tools.execute("git_status");
 console.log(status.ok);
 
@@ -287,6 +289,7 @@ const client = new TokenDanceCode({
 /worktree remove <name> [--discard]
 /diff
 /review
+/tools
 /quality pnpm verify
 /transcript
 /transcript search <query>

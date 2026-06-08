@@ -167,6 +167,21 @@ describe("TokenDanceCode CLI", () => {
     expect(topLevelQuality.stdoutText()).toContain("Quality passed.");
   });
 
+  it("lists tool capabilities in interactive and top-level commands", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-tools-"));
+    const interactive = createTestIO("/tools\n/exit\n", root);
+    await runCli([], interactive);
+    const topLevel = createTestIO("", root);
+
+    const exitCode = await runCli(["tools"], topLevel);
+
+    expect(interactive.stdoutText()).toContain("[read/parallel_safe] read_file - Read a UTF-8 file by workspace-relative path.");
+    expect(interactive.stdoutText()).toContain("[shell/exclusive] worktree_create - Create a managed git worktree under .worktrees.");
+    expect(exitCode).toBe(0);
+    expect(topLevel.stdoutText()).toContain("[shell/exclusive] quality_gate");
+    expect(topLevel.stdoutText()).toContain("[shell/exclusive] worktree_remove");
+  });
+
   it("shows transcript metadata in interactive and top-level commands", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-cli-"));
     const interactive = createTestIO("hello transcript\n/transcript\n/exit\n", root);

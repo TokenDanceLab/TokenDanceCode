@@ -28,6 +28,7 @@ import {
   type TodoStatus,
   type TranscriptEnvelope,
   type ToolResult,
+  type ToolMetadata,
   type WorktreeRecord
 } from "@tokendance/code-core";
 import { join } from "node:path";
@@ -370,6 +371,10 @@ export class TokenDanceMemory {
 
 export class TokenDanceTools {
   constructor(private readonly options: { cwd: string; permissionMode: PermissionMode; now: string }) {}
+
+  list(): ToolMetadata[] {
+    return createDefaultToolRegistry().metadata();
+  }
 
   execute(name: string, input: unknown = {}, options: ToolExecuteOptions = {}): Promise<ToolResult> {
     const session: SessionState = {

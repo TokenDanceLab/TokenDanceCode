@@ -9,6 +9,7 @@ import {
   type PermissionMode,
   type TDCodeEvent,
   type Thread,
+  type TokenDanceTools,
   type TranscriptInfo,
   type TranscriptSearchResult
 } from "@tokendance/code-sdk";
@@ -60,6 +61,10 @@ export async function runCli(argv: string[], io: CliIO = defaultIO()): Promise<n
 
   if (command === "review") {
     return reviewCommand(io);
+  }
+
+  if (command === "tools") {
+    return toolsCommand(io);
   }
 
   if (command === "quality") {
@@ -167,6 +172,11 @@ async function runInteractive(io: CliIO): Promise<void> {
 
     if (line === "/review") {
       await reviewCommand(io);
+      continue;
+    }
+
+    if (line === "/tools") {
+      await toolsCommand(io);
       continue;
     }
 
@@ -306,6 +316,11 @@ async function reviewCommand(io: CliIO): Promise<number> {
   for (const finding of findings) {
     await write(io.stdout, `[${finding.severity}] ${finding.message}\n`);
   }
+  return 0;
+}
+
+async function toolsCommand(io: CliIO): Promise<number> {
+  await printToolMetadata(io, new TokenDanceCode().tools({ workingDirectory: io.cwd() }));
   return 0;
 }
 
@@ -633,6 +648,12 @@ async function printTodos(io: CliIO, todos: Awaited<ReturnType<ReturnType<TokenD
   }
 }
 
+async function printToolMetadata(io: CliIO, tools: TokenDanceTools): Promise<void> {
+  for (const tool of tools.list()) {
+    await write(io.stdout, `[${tool.risk}/${tool.concurrency}] ${tool.name} - ${tool.description}\n`);
+  }
+}
+
 async function printWorktrees(io: CliIO, worktrees: Awaited<ReturnType<ReturnType<TokenDanceCode["worktrees"]>["list"]>>): Promise<void> {
   if (worktrees.length === 0) {
     await write(io.stdout, "No worktrees.\n");
@@ -682,6 +703,7 @@ Usage:
   tokendance memory [add|delete] [project|global] [value]
   tokendance diff [path ...]
   tokendance review
+  tokendance tools
   tokendance quality <command>
   tokendance tasks [create|doing|done] [value]
   tokendance todo [add|doing|done] [value]
@@ -709,6 +731,7 @@ async function printInteractiveHelp(io: CliIO): Promise<void> {
   /memory [add|delete] [project|global] [value]
   /diff [path ...]
   /review
+  /tools
   /quality <command>
   /tasks [create|doing|done] [value]
   /todo [add|doing|done] [value]

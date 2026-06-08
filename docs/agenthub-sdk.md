@@ -112,7 +112,7 @@ AgentHub 前端建议以 `event.type` 做 discriminated union 分发，不要解
 
 ## 5. AgentHub Runtime Event 映射
 
-TokenDanceCode SDK 提供轻量 mapper，把 `TDCodeEvent` 投影为 AgentHub Edge adapter 已使用的 `run.agent.*` 事件名。SDK 不创建 AgentHub envelope，也不依赖 AgentHub 包；Hub/Edge 仍负责包成 `agent.stream` 或 `EventEnvelope`。
+TokenDanceCode SDK 提供轻量 mapper，把 `TDCodeEvent` 投影为 AgentHub Edge adapter 已使用的 `run.agent.*` 事件名。SDK 不依赖 AgentHub 包；Hub/Edge 仍负责真正的 WebSocket、REST 或 event bus 投递。
 
 ```ts
 import { createAgentHubEventSink } from "@tokendance/code-sdk";
@@ -148,6 +148,46 @@ import { toAgentHubRuntimeEvents } from "@tokendance/code-sdk";
 const mapped = toAgentHubRuntimeEvents(tdEvent);
 ```
 
+### AgentHub `agent.stream` payload
+
+如果 AgentHub 需要直接复用 Hub 文档中的 `agent.stream` payload 形态，可以用 `createAgentHubAgentStreamSink()`：
+
+```ts
+import { createAgentHubAgentStreamSink } from "@tokendance/code-sdk";
+
+const client = new TokenDanceCode({
+  eventSink: createAgentHubAgentStreamSink(
+    {
+      taskId: "task_01HX...",
+      edgeRunId: "edge_run_01HX...",
+      sessionId: "sess_01HX...",
+      agentInstanceId: "agent_01HX..."
+    },
+    async (payload) => {
+      await hubClient.postAgentStream(payload);
+    }
+  )
+});
+```
+
+输出 payload 字段对齐 AgentHub `api/events.md`：
+
+```ts
+{
+  id: string;
+  task_id: string;
+  edge_run_id: string;
+  session_id: string;
+  agent_instance_id: string;
+  event_seq: number;
+  event_type: "run.agent.text_delta" | "...";
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+```
+
+`event_seq` 只对这个 sink 实例递增；如果 AgentHub 有自己的全局 event sequence 或 ID 生成器，可以通过 `idFactory` 和外层 emitter 继续覆盖。
+
 ## 6. 审批回调
 
 ```ts
@@ -182,7 +222,7 @@ const byId = await client.loadThread("session-id", storageRoot);
 ## 8. 当前测试覆盖
 
 - `packages/sdk/tests/sdk.test.ts` 覆盖 buffered turn、streamed events、多轮 thread、latest resume、审批允许/拒绝、provider env 配置错误、event sink。
-- `packages/sdk/tests/agenthub-events.test.ts` 覆盖 `TDCodeEvent` 到 AgentHub `run.agent.*` 的映射和 sink 包装。
+- `packages/sdk/tests/agenthub-events.test.ts` 覆盖 `TDCodeEvent` 到 AgentHub `run.agent.*` 的映射、sink 包装和 `agent.stream` payload fixture。
 - `packages/core/tests/*` 覆盖 runtime、permission、provider adapter、file/shell/patch/git/context/resume/memory。
 
 完整验证命令：

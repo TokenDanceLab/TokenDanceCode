@@ -19,6 +19,29 @@ export interface AgentHubRuntimeEvent {
 
 export type AgentHubRuntimeEventEmitter = (event: AgentHubRuntimeEvent) => void | Promise<void>;
 
+export interface AgentHubAgentStreamPayload {
+  id: string;
+  task_id: string;
+  edge_run_id: string;
+  session_id: string;
+  agent_instance_id: string;
+  event_seq: number;
+  event_type: AgentHubRuntimeEventType;
+  payload: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AgentHubAgentStreamOptions {
+  taskId: string;
+  edgeRunId: string;
+  sessionId: string;
+  agentInstanceId: string;
+  idFactory?: (eventSeq: number, event: AgentHubRuntimeEvent) => string;
+  clock?: () => string;
+}
+
+export type AgentHubAgentStreamEmitter = (payload: AgentHubAgentStreamPayload) => void | Promise<void>;
+
 export function toAgentHubRuntimeEvents(event: TDCodeEvent): AgentHubRuntimeEvent[] {
   if (!("sessionId" in event) || !("turnId" in event)) {
     return [];
@@ -120,6 +143,26 @@ export function createAgentHubEventSink(emit: AgentHubRuntimeEventEmitter): TDCo
       await emit(mapped);
     }
   };
+}
+
+export function createAgentHubAgentStreamSink(options: AgentHubAgentStreamOptions, emit: AgentHubAgentStreamEmitter): TDCodeEventSink {
+  let eventSeq = 0;
+  const clock = options.clock ?? (() => new Date().toISOString());
+
+  return createAgentHubEventSink(async (event) => {
+    eventSeq += 1;
+    await emit({
+      id: options.idFactory?.(eventSeq, event) ?? `tdcode_evt_${eventSeq}`,
+      task_id: options.taskId,
+      edge_run_id: options.edgeRunId,
+      session_id: options.sessionId,
+      agent_instance_id: options.agentInstanceId,
+      event_seq: eventSeq,
+      event_type: event.eventType,
+      payload: event.payload,
+      created_at: clock()
+    });
+  });
 }
 
 function toAgentHubDecision(status: "allowed" | "denied" | "requires_approval"): "allow" | "deny" | "pending" {

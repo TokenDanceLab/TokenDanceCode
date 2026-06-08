@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createAgentHubEventSink, toAgentHubRuntimeEvents } from "../src/index.js";
+import { createAgentHubAgentStreamSink, createAgentHubEventSink, toAgentHubRuntimeEvents } from "../src/index.js";
 import type { TDCodeEvent } from "../src/index.js";
 
 describe("AgentHub event mapping", () => {
@@ -77,5 +77,56 @@ describe("AgentHub event mapping", () => {
     await sink({ type: "user.message", sessionId: "session-1", turnId: "turn-1", message: { role: "user", content: "ignored" } });
 
     expect(received).toEqual(["run.agent.text_delta"]);
+  });
+
+  it("wraps mapped runtime events as AgentHub agent.stream payloads", async () => {
+    const frames: unknown[] = [];
+    const sink = createAgentHubAgentStreamSink(
+      {
+        taskId: "task-1",
+        edgeRunId: "edge-run-1",
+        sessionId: "hub-session-1",
+        agentInstanceId: "agent-1",
+        idFactory: (seq) => `evt-${seq}`,
+        clock: () => "2026-06-09T00:00:00.000Z"
+      },
+      (payload) => {
+        frames.push(payload);
+      }
+    );
+
+    await sink({ type: "assistant.delta", sessionId: "td-session-1", turnId: "turn-1", text: "hello" });
+    await sink({ type: "user.message", sessionId: "td-session-1", turnId: "turn-1", message: { role: "user", content: "ignored" } });
+    await sink({
+      type: "tool.completed",
+      sessionId: "td-session-1",
+      turnId: "turn-1",
+      result: { callId: "call-1", toolName: "read_file", ok: true, output: { path: "README.md" } }
+    });
+
+    expect(frames).toEqual([
+      {
+        id: "evt-1",
+        task_id: "task-1",
+        edge_run_id: "edge-run-1",
+        session_id: "hub-session-1",
+        agent_instance_id: "agent-1",
+        event_seq: 1,
+        event_type: "run.agent.text_delta",
+        payload: expect.objectContaining({ text: "hello", sessionId: "td-session-1", turnId: "turn-1" }),
+        created_at: "2026-06-09T00:00:00.000Z"
+      },
+      {
+        id: "evt-2",
+        task_id: "task-1",
+        edge_run_id: "edge-run-1",
+        session_id: "hub-session-1",
+        agent_instance_id: "agent-1",
+        event_seq: 2,
+        event_type: "run.agent.tool_result",
+        payload: expect.objectContaining({ callId: "call-1", toolName: "read_file", ok: true }),
+        created_at: "2026-06-09T00:00:00.000Z"
+      }
+    ]);
   });
 });

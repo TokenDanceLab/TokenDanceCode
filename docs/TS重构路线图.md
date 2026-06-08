@@ -8,7 +8,7 @@
 - worktree：`D:\Code\TokenDance\TokenDanceCode\.worktrees\ts-refactor`
 - 目标：把 TokenDanceCode 从 Python v0.1 参考实现重构为 TypeScript monorepo，并给 AgentHub 暴露稳定 SDK。
 - 当前可验证命令：`pnpm verify`
-- 最近验证结果：typecheck 通过，Vitest 14 个测试文件 55 个测试通过。
+- 最近验证结果：typecheck 通过，Vitest 14 个测试文件 56 个测试通过。
 
 旧 `src/tokendance` 和 `tests/` 暂时保留为功能迁移参考。新增 TS 能力默认写入 `packages/*`，不要继续扩展 Python 运行时，除非明确是在补迁移对照或保护旧行为。
 
@@ -113,9 +113,10 @@ node packages/cli/dist/main.js run "hello"
 - [x] SDK 审批回调与 event sink 集成测试。
 - [x] 编写 AgentHub 接入示例：启动 thread、流式事件、审批回调、读取 transcript。
 - [x] 提供 `TDCodeEvent` -> AgentHub `run.agent.*` runtime event mapper。
+- [x] 提供 AgentHub `agent.stream` payload sink fixture。
 - [x] 暴露 `thread.state` session snapshot，供 AgentHub 读取当前 thread 状态。
 - [ ] 增加 `Thread.resume()` 便捷 API 或明确维持 `client.loadThread()` 为唯一 resume 入口。
-- [ ] 增加 AgentHub 侧最小集成样例包或 fixture，覆盖 SDK 事件映射。
+- [ ] 增加 AgentHub 侧最小集成样例包，覆盖 SDK 事件映射与真实 Hub/Edge emitter。
 
 ### P4：CLI 体验
 

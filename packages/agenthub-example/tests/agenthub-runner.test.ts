@@ -1,4 +1,4 @@
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -28,6 +28,7 @@ describe("AgentHub TokenDanceCode runner example", () => {
     });
 
     expect(turn.threadId).toBe("hub-session-1");
+    await expect(readFile(join(root, ".tokendance", "sessions", "hub-session-1", "transcript.jsonl"), "utf8")).resolves.toContain("hub-session-1");
     expect(turn.finalResponse).toBe('Tool result: {"text":"agenthub"}');
     expect(frames.map((frame) => frame.event_type)).toEqual([
       "run.agent.tool_call",

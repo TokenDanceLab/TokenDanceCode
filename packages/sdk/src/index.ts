@@ -14,6 +14,8 @@ import {
   type TranscriptEnvelope
 } from "@tokendance/code-core";
 
+export * from "./agenthub-events.js";
+
 export type ThreadInput = string | Array<{ type: "text"; text: string }>;
 
 export type TokenDanceProviderConfig =

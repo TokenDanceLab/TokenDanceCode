@@ -107,7 +107,45 @@ import type { TDCodeEvent } from "@tokendance/code-sdk";
 
 AgentHub 前端建议以 `event.type` 做 discriminated union 分发，不要解析 provider 原始响应。
 
-## 5. 审批回调
+## 5. AgentHub Runtime Event 映射
+
+TokenDanceCode SDK 提供轻量 mapper，把 `TDCodeEvent` 投影为 AgentHub Edge adapter 已使用的 `run.agent.*` 事件名。SDK 不创建 AgentHub envelope，也不依赖 AgentHub 包；Hub/Edge 仍负责包成 `agent.stream` 或 `EventEnvelope`。
+
+```ts
+import { createAgentHubEventSink } from "@tokendance/code-sdk";
+
+const client = new TokenDanceCode({
+  eventSink: createAgentHubEventSink((event) => {
+    edgeEmitter.emit(event.eventType, {
+      sessionId: event.sessionId,
+      turnId: event.turnId,
+      ...event.payload
+    });
+  })
+});
+```
+
+当前映射：
+
+| TokenDanceCode event | AgentHub runtime event |
+|---|---|
+| `assistant.delta` | `run.agent.text_delta` |
+| `assistant.completed` | `run.agent.text_block` |
+| `tool.started` | `run.agent.tool_call` |
+| `tool.permission` + `requires_approval` | `run.agent.permission_requested` |
+| `tool.permission` + `allowed/denied` | `run.agent.permission_decided` |
+| `tool.completed` | `run.agent.tool_result` |
+| `turn.completed` | `run.agent.result` |
+
+也可以直接使用纯函数：
+
+```ts
+import { toAgentHubRuntimeEvents } from "@tokendance/code-sdk";
+
+const mapped = toAgentHubRuntimeEvents(tdEvent);
+```
+
+## 6. 审批回调
 
 ```ts
 const client = new TokenDanceCode({
@@ -126,7 +164,7 @@ const client = new TokenDanceCode({
 
 审批回调只处理 PermissionEngine 判定为 `requires_approval` 的工具。`safe` 模式直接 `denied` 的工具不会通过回调升级；工具执行层自己的硬拒绝规则也不会被回调绕过，例如 PowerShell 高风险命令分类。
 
-## 6. Resume
+## 7. Resume
 
 ```ts
 const latest = await client.loadLatestThread(storageRoot);
@@ -138,9 +176,10 @@ const byId = await client.loadThread("session-id", storageRoot);
 
 `recentTranscript` 暴露的是过滤后的 JSONL envelope，用于 AgentHub 恢复侧栏、事件列表或继续 thread。完整 transcript 仍以 `.tokendance/sessions/<session-id>/transcript.jsonl` 为事实源。
 
-## 7. 当前测试覆盖
+## 8. 当前测试覆盖
 
 - `packages/sdk/tests/sdk.test.ts` 覆盖 buffered turn、streamed events、多轮 thread、latest resume、审批允许/拒绝、provider env 配置错误、event sink。
+- `packages/sdk/tests/agenthub-events.test.ts` 覆盖 `TDCodeEvent` 到 AgentHub `run.agent.*` 的映射和 sink 包装。
 - `packages/core/tests/*` 覆盖 runtime、permission、provider adapter、file/shell/patch/git/context/resume/memory。
 
 完整验证命令：

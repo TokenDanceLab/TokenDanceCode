@@ -59,6 +59,20 @@ describe("TokenDanceCode CLI", () => {
     expect(output).toContain("tool echo completed");
     expect(output).toContain('Tool result: {"text":"hello renderer"}');
   });
+
+  it("starts a fresh interactive session with /new", async () => {
+    const io = createTestIO("hello old session\n/status\n/new\n/status\n/exit\n");
+
+    const exitCode = await runCli([], io);
+    const output = io.stdoutText();
+    const newSessionOutput = output.slice(output.indexOf("Started new session "));
+
+    expect(exitCode).toBe(0);
+    expect(output).toContain("Mock response: hello old session");
+    expect(output).toContain("messages: 2");
+    expect(newSessionOutput).toContain("Started new session ");
+    expect(newSessionOutput).toContain("messages: 0");
+  });
 });
 
 function createTestIO(input = "", cwd = "D:/workspace"): CliIO & { stdoutText(): string; stderrText(): string } {

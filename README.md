@@ -156,6 +156,7 @@ node packages/cli/dist/main.js
 当前已支持：
 
 ```text
+/new
 /status
 /permissions safe
 hello
@@ -201,6 +202,7 @@ const client = new TokenDanceCode({
 
 ```text
 /help
+/new
 /status
 /doctor
 /permissions default

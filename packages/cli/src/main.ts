@@ -87,6 +87,11 @@ async function runInteractive(io: CliIO): Promise<void> {
       continue;
     }
 
+    if (line === "/new") {
+      thread = await handleNewThread(io, client, thread);
+      continue;
+    }
+
     if (line === "/resume") {
       thread = await handleResume(io, client);
       continue;
@@ -109,6 +114,15 @@ async function runInteractive(io: CliIO): Promise<void> {
 
     await runPrompt(io, thread, line);
   }
+}
+
+async function handleNewThread(io: CliIO, client: TokenDanceCode, previous: Thread): Promise<Thread> {
+  const thread = client.startThread({
+    workingDirectory: previous.state.cwd,
+    permissionMode: previous.state.permissionMode
+  });
+  await write(io.stdout, `Started new session ${thread.id}\n`);
+  return thread;
 }
 
 async function runPrompt(io: CliIO, thread: Thread, prompt: string): Promise<void> {
@@ -215,6 +229,7 @@ async function printInteractiveHelp(io: CliIO): Promise<void> {
   await write(
     io.stdout,
     `Commands:
+  /new
   /status
   /doctor
   /permissions [default|safe|auto|yolo]

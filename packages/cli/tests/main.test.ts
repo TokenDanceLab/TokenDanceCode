@@ -79,6 +79,17 @@ describe("TokenDanceCode CLI", () => {
     expect(output).toContain('Tool result: {"text":"hello renderer"}');
   });
 
+  it("renders tool failure reasons", async () => {
+    const io = createTestIO("missingtool: renderer\n/exit\n");
+
+    const exitCode = await runCli([], io);
+    const output = io.stdoutText();
+
+    expect(exitCode).toBe(0);
+    expect(output).toContain("tool missing_tool started");
+    expect(output).toContain("tool missing_tool failed: Unknown tool: missing_tool");
+  });
+
   it("starts a fresh interactive session with /new", async () => {
     const io = createTestIO("hello old session\n/status\n/new\n/status\n/exit\n");
 

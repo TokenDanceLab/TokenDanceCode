@@ -167,7 +167,11 @@ async function renderEvent(io: CliIO, event: TDCodeEvent, renderedAssistantText:
       await write(io.stdout, `permission ${event.decision.status}: ${event.decision.reason}\n`);
       return;
     case "tool.completed":
-      await write(io.stdout, `tool ${event.result.toolName} ${event.result.ok ? "completed" : "failed"}\n`);
+      if (event.result.ok) {
+        await write(io.stdout, `tool ${event.result.toolName} completed\n`);
+        return;
+      }
+      await write(io.stdout, `tool ${event.result.toolName} failed: ${event.result.error ?? "unknown error"}\n`);
       return;
     case "turn.completed":
       if (!renderedAssistantText && event.finalResponse) {

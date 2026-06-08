@@ -47,6 +47,29 @@ describe("AgentRuntime", () => {
     expect(types.at(-1)).toBe("turn.completed");
   });
 
+  it("emits a failed result for unknown tool calls", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-core-"));
+    const runtime = new AgentRuntime({
+      cwd: root,
+      provider: new MockProvider(),
+      store: new FileTranscriptStore({ rootDir: root })
+    });
+
+    await runtime.initialize();
+    const events = [];
+    for await (const event of runtime.runTurn("missingtool: from test")) {
+      events.push(event);
+    }
+
+    expect(events).toContainEqual(expect.objectContaining({ type: "tool.started", call: expect.objectContaining({ name: "missing_tool" }) }));
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "tool.completed",
+        result: expect.objectContaining({ toolName: "missing_tool", ok: false, error: "Unknown tool: missing_tool" })
+      })
+    );
+  });
+
   it("writes transcript envelopes with stable resume metadata", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-core-"));
     const runtime = new AgentRuntime({

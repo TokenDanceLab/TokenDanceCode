@@ -25,6 +25,18 @@ export class MockProvider implements ModelProvider {
       };
     }
 
+    if (text.startsWith("missingtool:")) {
+      return {
+        toolCalls: [
+          {
+            id: "mock-missing-tool-1",
+            name: "missing_tool",
+            input: { text: text.slice("missingtool:".length).trim() }
+          }
+        ]
+      };
+    }
+
     return {
       assistantMessage: `Mock response: ${text}`,
       toolCalls: [],

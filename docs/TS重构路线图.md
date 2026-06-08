@@ -101,7 +101,7 @@ node packages/cli/dist/main.js run "hello"
 - [x] Git tool：status/diff/review quality gate 的最小集合。
 - [x] Tool metadata：默认 registry 和 SDK/CLI 可列出工具名称、说明、风险等级和并发属性。
 - [x] Worktree manager/tool：受控 `.worktrees` list/create/remove，dirty 删除需显式 `--discard`，并暴露 `worktree_list/create/remove` 默认 registry tools。
-- [x] Subagent manager/tool：readonly investigator/reviewer、coding worktree delegation、agent transcript/index、get/discard 生命周期管理、dirty worktree 丢弃保护、`subagent_run/list` 默认 registry tools。
+- [x] Subagent manager/tool：readonly investigator/reviewer、coding worktree delegation、agent transcript/index、get/discard 生命周期管理、dirty worktree 丢弃保护、`subagent_run/list/get/discard` 默认 registry tools。
 - [x] Config loader：合并 defaults/global/project JSON 配置，只暴露 provider、model、permissionMode 白名单字段。
 
 ### P2：上下文与恢复

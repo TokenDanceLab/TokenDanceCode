@@ -180,6 +180,7 @@ describe("TokenDanceCode CLI", () => {
     expect(exitCode).toBe(0);
     expect(topLevel.stdoutText()).toContain("[shell/exclusive] quality_gate");
     expect(topLevel.stdoutText()).toContain("[shell/exclusive] worktree_remove");
+    expect(topLevel.stdoutText()).toContain("[shell/exclusive] subagent_discard");
   });
 
   it("runs and lists readonly subagents in interactive and top-level commands", async () => {

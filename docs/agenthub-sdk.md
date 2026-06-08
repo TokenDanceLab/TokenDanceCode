@@ -431,7 +431,7 @@ console.log(await subagents.list());
 await subagents.discard(coding.id, { discard: true });
 ```
 
-Subagent 索引写入 `<projectRoot>/.tokendance/agents/agents.json`，单个 subagent transcript 写入 `<projectRoot>/.tokendance/agents/<agent-id>/transcript.jsonl`。`subagents.get(id)` 读取单条记录；`subagents.discard(id)` 会移除 coding subagent 的 managed worktree 并把 run 标记为 `discarded`，dirty worktree 默认拒绝删除，只有显式 `discard(id, { discard: true })` 才会强制丢弃未提交改动。默认 registry 同时暴露 `subagent_run` 和 `subagent_list`；`subagent_run` 是 shell 风险工具，因为 coding 模式会创建 worktree。
+Subagent 索引写入 `<projectRoot>/.tokendance/agents/agents.json`，单个 subagent transcript 写入 `<projectRoot>/.tokendance/agents/<agent-id>/transcript.jsonl`。`subagents.get(id)` 读取单条记录；`subagents.discard(id)` 会移除 coding subagent 的 managed worktree 并把 run 标记为 `discarded`，dirty worktree 默认拒绝删除，只有显式 `discard(id, { discard: true })` 才会强制丢弃未提交改动。默认 registry 同时暴露 `subagent_run`、`subagent_list`、`subagent_get` 和 `subagent_discard`；`subagent_run` 和 `subagent_discard` 是 shell 风险工具，因为它们会创建或移除 worktree。
 
 ## 13. Memory
 

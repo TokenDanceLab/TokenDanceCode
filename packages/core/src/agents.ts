@@ -191,7 +191,7 @@ export class AgentManager {
 }
 
 export function buildSubagentTools(): ToolSpec[] {
-  return [createSubagentRunTool(), createSubagentListTool()];
+  return [createSubagentRunTool(), createSubagentListTool(), createSubagentGetTool(), createSubagentDiscardTool()];
 }
 
 export function createSubagentRunTool(): ToolSpec<{ prompt: string; agentType: AgentType; worktree?: string; taskId?: string }, AgentRunRecord> {
@@ -233,6 +233,42 @@ export function createSubagentListTool(): ToolSpec<unknown, AgentRunRecord[]> {
     concurrency: "parallel_safe",
     parse: (input) => input,
     execute: async (_input, context) => new AgentManager({ projectRoot: context.cwd }).list()
+  };
+}
+
+export function createSubagentGetTool(): ToolSpec<{ id: string }, AgentRunRecord | undefined> {
+  return {
+    name: "subagent_get",
+    description: "Get one delegated subagent run result by id.",
+    risk: "read",
+    concurrency: "parallel_safe",
+    parse(input) {
+      if (typeof input !== "object" || input === null || typeof (input as { id?: unknown }).id !== "string") {
+        throw new Error("subagent_get input requires a string id field");
+      }
+      return { id: (input as { id: string }).id };
+    },
+    execute: async (input, context) => new AgentManager({ projectRoot: context.cwd }).get(input.id)
+  };
+}
+
+export function createSubagentDiscardTool(): ToolSpec<{ id: string; discard?: boolean }, AgentRunRecord> {
+  return {
+    name: "subagent_discard",
+    description: "Discard a coding subagent worktree, refusing dirty changes unless discard is true.",
+    risk: "shell",
+    concurrency: "exclusive",
+    parse(input) {
+      if (typeof input !== "object" || input === null || typeof (input as { id?: unknown }).id !== "string") {
+        throw new Error("subagent_discard input requires a string id field");
+      }
+      const discard = (input as { discard?: unknown }).discard;
+      if (discard !== undefined && typeof discard !== "boolean") {
+        throw new Error("subagent_discard discard must be a boolean");
+      }
+      return { id: (input as { id: string }).id, discard };
+    },
+    execute: async (input, context) => new AgentManager({ projectRoot: context.cwd }).discard(input.id, { discard: input.discard })
   };
 }
 

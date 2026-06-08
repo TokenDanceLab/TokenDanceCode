@@ -230,6 +230,15 @@ describe("TokenDanceCode SDK", () => {
     const worktreeCreate = await tools.execute("worktree_create", { name: "sdk-tool-wt" }, { permissionMode: "yolo" });
     const worktreeList = await tools.execute("worktree_list");
     const worktreeRemove = await tools.execute("worktree_remove", { name: "sdk-tool-wt" }, { permissionMode: "yolo" });
+    const subagentRun = await tools.execute(
+      "subagent_run",
+      { prompt: "Prepare SDK tool worktree", agentType: "coding", worktree: "sdk-agent-tool" },
+      { permissionMode: "yolo" }
+    );
+    const subagentGet = await tools.execute("subagent_get", { id: "agent-0001" });
+    await writeFile(join(root, ".worktrees", "sdk-agent-tool", "agent.txt"), "dirty sdk tool worktree\n", "utf8");
+    const subagentDiscardDirty = await tools.execute("subagent_discard", { id: "agent-0001" }, { permissionMode: "yolo" });
+    const subagentDiscard = await tools.execute("subagent_discard", { id: "agent-0001", discard: true }, { permissionMode: "yolo" });
 
     expect(status).toMatchObject({ ok: true });
     expect(JSON.stringify(status.output)).toContain("M notes.txt");
@@ -245,6 +254,13 @@ describe("TokenDanceCode SDK", () => {
     expect(worktreeList).toMatchObject({ ok: true });
     expect(JSON.stringify(worktreeList.output)).toContain("sdk-tool-wt");
     expect(worktreeRemove).toMatchObject({ ok: true });
+    expect(subagentRun).toMatchObject({ ok: true });
+    expect(subagentGet).toMatchObject({ ok: true });
+    expect(JSON.stringify(subagentGet.output)).toContain("sdk-agent-tool");
+    expect(subagentDiscardDirty).toMatchObject({ ok: false });
+    expect(subagentDiscardDirty.error).toContain("uncommitted changes");
+    expect(subagentDiscard).toMatchObject({ ok: true });
+    expect(JSON.stringify(subagentDiscard.output)).toContain("\"status\":\"discarded\"");
   });
 
   it("lists registered tool capabilities through the SDK boundary for AgentHub callers", () => {
@@ -259,6 +275,7 @@ describe("TokenDanceCode SDK", () => {
       })
     );
     expect(tools.list().map((tool) => tool.name)).toContain("quality_gate");
+    expect(tools.list().map((tool) => tool.name)).toContain("subagent_discard");
   });
 
   it("runs and lists subagents through the SDK boundary for AgentHub callers", async () => {

@@ -92,7 +92,7 @@ describe("agent manager", () => {
   });
 
   it("exposes subagent tools through the default registry", async () => {
-    const root = await mkdtemp(join(tmpdir(), "tdcode-agent-tools-"));
+    const root = await initRepo();
     const orchestrator = new ToolOrchestrator(createDefaultToolRegistry());
 
     const run = await orchestrator.execute(
@@ -100,11 +100,34 @@ describe("agent manager", () => {
       { ...createSession(root), permissionMode: "yolo" }
     );
     const list = await orchestrator.execute({ id: "subagent-list", name: "subagent_list", input: {} }, createSession(root));
+    const coding = await orchestrator.execute(
+      { id: "subagent-coding", name: "subagent_run", input: { prompt: "Prepare tool worktree", agentType: "coding", worktree: "tool-agent" } },
+      { ...createSession(root), permissionMode: "yolo" }
+    );
+    const get = await orchestrator.execute({ id: "subagent-get", name: "subagent_get", input: { id: "agent-0002" } }, createSession(root));
+    await writeFile(join(root, ".worktrees", "tool-agent", "agent.txt"), "dirty tool worktree\n", "utf8");
+    const dirtyDiscard = await orchestrator.execute(
+      { id: "subagent-discard-dirty", name: "subagent_discard", input: { id: "agent-0002" } },
+      { ...createSession(root), permissionMode: "yolo" }
+    );
+    const discard = await orchestrator.execute(
+      { id: "subagent-discard", name: "subagent_discard", input: { id: "agent-0002", discard: true } },
+      { ...createSession(root), permissionMode: "yolo" }
+    );
+    const discardedGet = await orchestrator.execute({ id: "subagent-get-discarded", name: "subagent_get", input: { id: "agent-0002" } }, createSession(root));
 
     expect(run).toMatchObject({ ok: true });
     expect(JSON.stringify(run.output)).toContain("reviewer subagent completed: Inspect registry");
     expect(list).toMatchObject({ ok: true });
     expect(JSON.stringify(list.output)).toContain("agent-0001");
+    expect(coding).toMatchObject({ ok: true });
+    expect(get).toMatchObject({ ok: true });
+    expect(JSON.stringify(get.output)).toContain("tool-agent");
+    expect(dirtyDiscard).toMatchObject({ ok: false });
+    expect(dirtyDiscard.error).toContain("uncommitted changes");
+    expect(discard).toMatchObject({ ok: true });
+    expect(JSON.stringify(discard.output)).toContain("\"status\":\"discarded\"");
+    expect(JSON.stringify(discardedGet.output)).toContain("\"status\":\"discarded\"");
   });
 });
 

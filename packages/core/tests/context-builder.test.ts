@@ -8,6 +8,7 @@ describe("ContextBuilder", () => {
   it("builds system context from defaults, AGENTS.md, README.md, compact summary, and recent messages", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-context-"));
     await writeFile(join(root, "AGENTS.md"), "Use PowerShell.\n", "utf8");
+    await writeFile(join(root, "CLAUDE.md"), "Prefer concise tool plans.\n", "utf8");
     await writeFile(join(root, "README.md"), "Project overview.\n", "utf8");
     const session = createSession(root);
     session.compactSummary = "Prior work summary.";
@@ -22,10 +23,11 @@ describe("ContextBuilder", () => {
       userMessage: "next task"
     });
 
-    expect(context.includedFiles).toEqual(["AGENTS.md", "README.md"]);
+    expect(context.includedFiles).toEqual(["AGENTS.md", "CLAUDE.md", "README.md"]);
     expect(context.messages[0]).toMatchObject({ role: "system" });
     expect(context.messages[0]?.content).toContain("TokenDanceCode is a local command-line coding agent");
     expect(context.messages[0]?.content).toContain("Use PowerShell.");
+    expect(context.messages[0]?.content).toContain("Prefer concise tool plans.");
     expect(context.messages[0]?.content).toContain("Project overview.");
     expect(context.messages[0]?.content).toContain("Prior work summary.");
     expect(context.messages.slice(1)).toEqual([

@@ -100,7 +100,7 @@ console.log(thread.state.messages.length);
 }
 ```
 
-`thread.state` 返回当前 session 的只读快照副本，方便 AgentHub 做侧栏、调试面板或持久化索引。不要修改这个快照后再期待影响 SDK 内部状态；后续运行仍应通过 `thread.run()` 或 `thread.runStreamed()`。Runtime 会在每轮 provider 调用前构造 transient context，把 system prompt、AGENTS/README、compact summary、memory 和 recent messages 送给模型；`thread.state.messages` 仍只保存真实会话消息，不包含 system context。
+`thread.state` 返回当前 session 的只读快照副本，方便 AgentHub 做侧栏、调试面板或持久化索引。不要修改这个快照后再期待影响 SDK 内部状态；后续运行仍应通过 `thread.run()` 或 `thread.runStreamed()`。Runtime 会在每轮 provider 调用前构造 transient context，把 system prompt、AGENTS/CLAUDE/README、compact summary、memory 和 recent messages 送给模型；`thread.state.messages` 仍只保存真实会话消息，不包含 system context。
 
 ## 5. 流式事件
 

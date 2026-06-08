@@ -29,7 +29,7 @@ export class ContextBuilder {
     const systemParts = [this.options.systemPrompt ?? defaultSystemPrompt];
     const workspaceRoot = input.workspaceRoot ?? input.session.cwd;
 
-    for (const filename of ["AGENTS.md", "README.md"]) {
+    for (const filename of ["AGENTS.md", "CLAUDE.md", "README.md"]) {
       const content = await readOptionalText(join(workspaceRoot, filename));
       if (content) {
         includedFiles.push(filename);

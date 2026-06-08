@@ -66,6 +66,14 @@ export async function runCli(argv: string[], io: CliIO = defaultIO()): Promise<n
     return qualityCommand(rest, io);
   }
 
+  if (command === "tasks") {
+    return tasksCommand(rest, io);
+  }
+
+  if (command === "todo") {
+    return todoCommand(rest, io);
+  }
+
   if (command === "transcript") {
     return transcriptCommand(rest, io);
   }
@@ -160,6 +168,16 @@ async function runInteractive(io: CliIO): Promise<void> {
 
     if (line.startsWith("/quality")) {
       await qualityCommand(line.split(/\s+/).slice(1), io);
+      continue;
+    }
+
+    if (line === "/tasks" || line.startsWith("/tasks ")) {
+      await tasksCommand(line.split(/\s+/).slice(1), io);
+      continue;
+    }
+
+    if (line === "/todo" || line.startsWith("/todo ")) {
+      await todoCommand(line.split(/\s+/).slice(1), io);
       continue;
     }
 
@@ -306,6 +324,78 @@ async function qualityCommand(args: string[], io: CliIO): Promise<number> {
     await write(io.stderr, quality.result.stderr);
   }
   return quality.passed ? 0 : 1;
+}
+
+async function tasksCommand(args: string[], io: CliIO): Promise<number> {
+  const tasks = new TokenDanceCode().tasks({ projectRoot: io.cwd() });
+  const [command, id, ...rest] = args;
+  try {
+    if (!command) {
+      await printTasks(io, await tasks.list());
+      return 0;
+    }
+    if (command === "create") {
+      const title = [id, ...rest].filter(Boolean).join(" ").trim();
+      if (!title) {
+        await write(io.stderr, "Usage: tokendance tasks create <title>\n");
+        return 1;
+      }
+      const task = await tasks.create({ title });
+      await write(io.stdout, `Created task ${task.id}.\n`);
+      return 0;
+    }
+    if (command === "done" && id) {
+      const task = await tasks.updateStatus(id, "completed");
+      await write(io.stdout, `Updated task ${task.id} to ${task.status}.\n`);
+      return 0;
+    }
+    if (command === "doing" && id) {
+      const task = await tasks.updateStatus(id, "in_progress");
+      await write(io.stdout, `Updated task ${task.id} to ${task.status}.\n`);
+      return 0;
+    }
+    await write(io.stderr, "Usage: tokendance tasks [create|doing|done] [value]\n");
+    return 1;
+  } catch (error) {
+    await write(io.stderr, `${error instanceof Error ? error.message : String(error)}\n`);
+    return 1;
+  }
+}
+
+async function todoCommand(args: string[], io: CliIO): Promise<number> {
+  const todos = new TokenDanceCode().todos({ projectRoot: io.cwd() });
+  const [command, id, ...rest] = args;
+  try {
+    if (!command) {
+      await printTodos(io, await todos.list());
+      return 0;
+    }
+    if (command === "add") {
+      const { text, taskId } = parseTodoAddArgs(id ? [id, ...rest] : rest);
+      if (!text) {
+        await write(io.stderr, "Usage: tokendance todo add <text> [--task task-id]\n");
+        return 1;
+      }
+      const todo = await todos.add({ text, taskId });
+      await write(io.stdout, `Created todo ${todo.id}.\n`);
+      return 0;
+    }
+    if (command === "done" && id) {
+      const todo = await todos.updateStatus(id, "completed");
+      await write(io.stdout, `Updated todo ${todo.id} to ${todo.status}.\n`);
+      return 0;
+    }
+    if (command === "doing" && id) {
+      const todo = await todos.updateStatus(id, "in_progress");
+      await write(io.stdout, `Updated todo ${todo.id} to ${todo.status}.\n`);
+      return 0;
+    }
+    await write(io.stderr, "Usage: tokendance todo [add|doing|done] [value]\n");
+    return 1;
+  } catch (error) {
+    await write(io.stderr, `${error instanceof Error ? error.message : String(error)}\n`);
+    return 1;
+  }
 }
 
 async function transcriptCommand(args: string[], io: CliIO): Promise<number> {
@@ -487,6 +577,26 @@ async function printMemoryEntries(io: CliIO, memory: ReturnType<TokenDanceCode["
   }
 }
 
+async function printTasks(io: CliIO, tasks: Awaited<ReturnType<ReturnType<TokenDanceCode["tasks"]>["list"]>>): Promise<void> {
+  if (tasks.length === 0) {
+    await write(io.stdout, "No tasks.\n");
+    return;
+  }
+  for (const task of tasks) {
+    await write(io.stdout, `[${task.status}] ${task.id} ${task.title}\n`);
+  }
+}
+
+async function printTodos(io: CliIO, todos: Awaited<ReturnType<ReturnType<TokenDanceCode["todos"]>["list"]>>): Promise<void> {
+  if (todos.length === 0) {
+    await write(io.stdout, "No todos.\n");
+    return;
+  }
+  for (const todo of todos) {
+    await write(io.stdout, `[${todo.status}] ${todo.id} ${todo.text}${todo.taskId ? ` (task ${todo.taskId})` : ""}\n`);
+  }
+}
+
 async function handleCompact(io: CliIO, thread: Thread): Promise<void> {
   const result = await thread.compact();
   await printCompactResult(io, result);
@@ -527,6 +637,8 @@ Usage:
   tokendance diff [path ...]
   tokendance review
   tokendance quality <command>
+  tokendance tasks [create|doing|done] [value]
+  tokendance todo [add|doing|done] [value]
   tokendance resume [session-id]
   tokendance transcript [session-id]
   tokendance transcript search <query>
@@ -551,6 +663,8 @@ async function printInteractiveHelp(io: CliIO): Promise<void> {
   /diff [path ...]
   /review
   /quality <command>
+  /tasks [create|doing|done] [value]
+  /todo [add|doing|done] [value]
   /transcript [search <query>]
   /compact
   /exit
@@ -612,6 +726,17 @@ function qualityOutput(output: unknown): { passed: boolean; result: { stdout: st
     };
   }
   return { passed: false, result: { stdout: "", stderr: "", exitCode: null } };
+}
+
+function parseTodoAddArgs(args: string[]): { text: string; taskId?: string } {
+  const taskFlagIndex = args.indexOf("--task");
+  if (taskFlagIndex < 0) {
+    return { text: args.join(" ").trim() };
+  }
+  return {
+    text: args.slice(0, taskFlagIndex).join(" ").trim(),
+    taskId: args[taskFlagIndex + 1]
+  };
 }
 
 function defaultIO(): CliIO {

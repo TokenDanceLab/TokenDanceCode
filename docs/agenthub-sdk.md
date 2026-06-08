@@ -348,7 +348,43 @@ console.log(info.config.permissionMode);
 
 首版只读取 `provider`、`model`、`permissionMode` 三个白名单字段，忽略 `apiKey`、`token` 等 secret 字段，避免把密钥带入 CLI 输出、文档或 AgentHub 调试事件。
 
-## 10. Memory
+## 10. Task / Todo
+
+AgentHub 可以通过 SDK 管理持久任务和 session 级 todo，而不需要直接依赖 core store。Task 是跨 session 的长期任务图，Todo 是当前 session 或当前任务内的短期执行计划。
+
+```ts
+const tasks = client.tasks({
+  projectRoot: "D:/Code/TokenDance/AgentHub"
+});
+
+const task = await tasks.create({
+  title: "Stage 15 E2E",
+  description: "Close SDK/CLI acceptance"
+});
+
+await tasks.addDependency(task.id, "task-parent");
+await tasks.linkSession(task.id, "sess_01HX...");
+await tasks.linkWorktree(task.id, "D:/Code/TokenDance/TokenDanceCode/.worktrees/ts-refactor");
+await tasks.updateStatus(task.id, "completed");
+
+const todos = client.todos({
+  projectRoot: "D:/Code/TokenDance/AgentHub",
+  sessionId: "sess_01HX..."
+});
+
+const todo = await todos.add({
+  text: "Run pnpm verify",
+  taskId: task.id
+});
+
+await todos.updateStatus(todo.id, "in_progress");
+```
+
+Task 写入 `<projectRoot>/.tokendance/tasks/tasks.jsonl` 和可重建的 `<projectRoot>/.tokendance/tasks/task-index.json`。带 `sessionId` 的 Todo 写入 `<projectRoot>/.tokendance/sessions/<sessionId>/todos.json`；未传 `sessionId` 时写入项目级 `<projectRoot>/.tokendance/todos.json`，供 CLI 的 `/todo` 和 `tokendance todo` 使用。
+
+当前 SDK facade 覆盖 `create/list/get/updateStatus/addDependency/linkSession/linkWorktree` 和 `add/list/updateStatus`。CLI 只暴露自用高频操作：list、create/add、doing、done；复杂关联由 SDK 或后续 AgentHub UI 驱动。
+
+## 11. Memory
 
 AgentHub 如果需要把项目约定或用户偏好写入 TokenDanceCode 的上下文来源，可以通过 SDK 管理 project/global memory，不需要直接依赖 core `MemoryStore`：
 
@@ -368,7 +404,7 @@ await memory.delete("project", 0);
 
 `project` memory 写入 `<projectRoot>/.tokendance/memory/project.md`，`global` memory 写入 `<homeDir>/.tokendance/memory/global.md`。当前只做显式增删查和 ContextBuilder 注入，不做自动抽取、自动改写或隐式上传。
 
-## 11. Tool Facade
+## 12. Tool Facade
 
 AgentHub 如果需要在 UI 或任务编排层触发 TokenDanceCode 已注册工具，可以使用 SDK 的 `client.tools()`，避免直接依赖 core `ToolOrchestrator`：
 
@@ -390,13 +426,13 @@ const quality = await tools.execute(
 
 这个 facade 返回 core `ToolResult`，用于 AgentHub 调试面板、手动质量门、Git diff/review 工作流和受控工具执行。`quality_gate` 需要显式传入可执行命令；即使用 `yolo` 让质量命令运行，PowerShell 工具层仍会拒绝已知高风险命令。
 
-## 12. 当前测试覆盖
+## 13. 当前测试覆盖
 
-- `packages/sdk/tests/sdk.test.ts` 覆盖 buffered turn、streamed events、多轮 thread、latest/by-id resume、latest/by-id compact、transcript metadata/search、config facade、memory facade、tool facade、审批允许/拒绝、provider env 配置错误、event sink。
+- `packages/sdk/tests/sdk.test.ts` 覆盖 buffered turn、streamed events、多轮 thread、latest/by-id resume、latest/by-id compact、transcript metadata/search、config facade、memory facade、task/todo facade、tool facade、审批允许/拒绝、provider env 配置错误、event sink。
 - `packages/sdk/tests/approval-bridge.test.ts` 覆盖 AgentHub 远程审批 bridge、pending 快照、allow/deny 决策回填。
 - `packages/sdk/tests/agenthub-events.test.ts` 覆盖 `TDCodeEvent` 到 AgentHub `run.agent.*` 的映射、sink 包装和 `agent.stream` payload fixture。
 - `packages/agenthub-example/tests/agenthub-runner.test.ts` 覆盖 AgentHub runner 示例、`agent.stream` payload 序列和 emitter 形态。
-- `packages/core/tests/*` 覆盖 runtime、permission、provider adapter、file/shell/patch/git/context/resume/config/memory。
+- `packages/core/tests/*` 覆盖 runtime、permission、provider adapter、file/shell/patch/git/context/resume/config/memory/task/todo。
 
 完整验证命令：
 

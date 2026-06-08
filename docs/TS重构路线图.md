@@ -8,7 +8,7 @@
 - worktree：`D:\Code\TokenDance\TokenDanceCode\.worktrees\ts-refactor`
 - 目标：把 TokenDanceCode 从 Python v0.1 参考实现重构为 TypeScript monorepo，并给 AgentHub 暴露稳定 SDK。
 - 当前可验证命令：`pnpm verify`
-- 最近验证结果：typecheck 通过，Vitest 18 个测试文件 84 个测试通过。
+- 最近验证结果：typecheck 通过，Vitest 19 个测试文件 89 个测试通过。
 
 旧 `src/tokendance` 和 `tests/` 暂时保留为功能迁移参考。新增 TS 能力默认写入 `packages/*`，不要继续扩展 Python 运行时，除非明确是在补迁移对照或保护旧行为。
 
@@ -43,9 +43,9 @@
 
 | 包 | 职责 | 状态 |
 |---|---|---|
-| `@tokendance/code-core` | session、runtime、event、tool registry、permission engine、transcript、MockProvider | 已建骨架和测试 |
-| `@tokendance/code-sdk` | AgentHub/本地脚本可消费的 `Thread` API | 已建骨架和测试 |
-| `@tokendance/code-cli` | `tokendance` 命令入口、最小交互 shell、工具事件渲染 | 已建薄入口和 REPL |
+| `@tokendance/code-core` | session、runtime、event、tool registry、permission engine、transcript、task/todo、MockProvider | 已建骨架和测试 |
+| `@tokendance/code-sdk` | AgentHub/本地脚本可消费的 `Thread` API 和 facade | 已建骨架和测试 |
+| `@tokendance/code-cli` | `tokendance` 命令入口、最小交互 shell、task/todo 管理、工具事件渲染 | 已建薄入口和 REPL |
 | `@tokendance/code-agenthub-example` | AgentHub emitter/审批桥接样例 | 已建私有示例包和测试 |
 
 后续视复杂度拆分；在首版功能还小的时候，不急于拆成过多包。优先保持 core 内部边界清楚。
@@ -109,6 +109,7 @@ node packages/cli/dist/main.js run "hello"
 - [x] Transcript metadata/search：SDK/CLI 可展示 sessionDir、transcriptPath、eventCount，并搜索源事件匹配。
 - [x] Compact helper：SDK/CLI 可对 latest 或指定 session 生成 compact summary。
 - [x] Memory：支持项目/全局 Markdown 读写删除、SDK facade 和 CLI 管理入口，不做自动抽取。
+- [x] Task/Todo store：持久 task 事件流 + 可重建索引，session/project todo JSON，区分长期任务和短期计划。
 
 ### P3：AgentHub SDK 包装
 
@@ -123,6 +124,7 @@ node packages/cli/dist/main.js run "hello"
 - [x] 增加 SDK `client.resume({ sessionId?, storageRoot? })` 便捷入口，兼容 latest/by-id resume。
 - [x] 增加 SDK `thread.searchTranscript(query, { limit? })`，供 AgentHub 调试面板或轻量索引读取匹配事件。
 - [x] 增加 SDK `client.memory({ projectRoot?, homeDir? })`，供 AgentHub 管理 project/global memory。
+- [x] 增加 SDK `client.tasks({ projectRoot? })` 和 `client.todos({ projectRoot?, sessionId? })`，供 AgentHub 管理任务图和 session todo。
 - [x] 增加 SDK `client.tools({ workingDirectory?, permissionMode? })`，供 AgentHub 触发受控工具执行、Git diff/review 和质量门。
 - [x] 增加 SDK `client.config({ projectRoot?, homeDir? })`，供 AgentHub 读取有效配置和来源。
 - [x] 增加 AgentHub 侧最小集成样例包，覆盖 SDK 事件映射与 Hub/Edge emitter 形态。
@@ -131,6 +133,6 @@ node packages/cli/dist/main.js run "hello"
 
 - [x] 交互式 REPL 最小闭环。
 - [x] `/new`、`/status`、`/doctor`、`/config`、`/permissions`。
-- [x] 顶层 `config`、`resume [session-id]`、`memory [add|delete] [project|global] [value]`、`diff [path ...]`、`review`、`quality <command>`、`transcript [session-id]`、`transcript [session-id] search <query>`、`compact [session-id]`，交互式 `/config`、`/resume`、`/memory`、`/diff`、`/review`、`/quality`、`/transcript`、`/transcript search <query>`、`/compact`。
+- [x] 顶层 `config`、`resume [session-id]`、`memory [add|delete] [project|global] [value]`、`tasks [create|doing|done] [value]`、`todo [add|doing|done] [value]`、`diff [path ...]`、`review`、`quality <command>`、`transcript [session-id]`、`transcript [session-id] search <query>`、`compact [session-id]`，交互式 `/config`、`/resume`、`/memory`、`/tasks`、`/todo`、`/diff`、`/review`、`/quality`、`/transcript`、`/transcript search <query>`、`/compact`。
 - [x] 滚动式事件 renderer 最小闭环：assistant 文本、tool started、permission decision、tool completed、tool failed reason、tool output summary。
 - [ ] 增强 renderer：未来真实 provider token delta 和更细进度显示。

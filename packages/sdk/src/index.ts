@@ -7,6 +7,8 @@ import {
   MockProvider,
   OpenAIResponsesProvider,
   ResumeService,
+  TaskStore,
+  TodoStore,
   ToolOrchestrator,
   createDefaultToolRegistry,
   readTokenDanceConfig,
@@ -19,6 +21,10 @@ import {
   type TDCodeEventSink,
   type CompactResult,
   type ConfigInfo,
+  type TaskRecord,
+  type TaskStatus,
+  type TodoRecord,
+  type TodoStatus,
   type TranscriptEnvelope,
   type ToolResult
 } from "@tokendance/code-core";
@@ -97,6 +103,15 @@ export interface ConfigOptions {
   homeDir?: string;
 }
 
+export interface TaskOptions {
+  projectRoot?: string;
+}
+
+export interface TodoOptions {
+  projectRoot?: string;
+  sessionId?: string;
+}
+
 export class TokenDanceCode {
   constructor(private readonly options: TokenDanceCodeOptions = {}) {}
 
@@ -168,6 +183,19 @@ export class TokenDanceCode {
       projectRoot: options.projectRoot ?? this.options.storageRoot ?? process.cwd(),
       homeDir: options.homeDir
     });
+  }
+
+  tasks(options: TaskOptions = {}): TokenDanceTasks {
+    return new TokenDanceTasks(new TaskStore({ projectRoot: options.projectRoot ?? this.options.storageRoot ?? process.cwd() }));
+  }
+
+  todos(options: TodoOptions = {}): TokenDanceTodos {
+    return new TokenDanceTodos(
+      new TodoStore({
+        projectRoot: options.projectRoot ?? this.options.storageRoot ?? process.cwd(),
+        sessionId: options.sessionId
+      })
+    );
   }
 
   async transcriptInfo(session: SessionState, recentEventCount = 0): Promise<TranscriptInfo> {
@@ -344,6 +372,54 @@ export class TokenDanceTools {
       },
       session
     );
+  }
+}
+
+export class TokenDanceTasks {
+  constructor(private readonly store: TaskStore) {}
+
+  create(input: { title: string; description?: string }): Promise<TaskRecord> {
+    return this.store.create(input);
+  }
+
+  list(): Promise<TaskRecord[]> {
+    return this.store.list();
+  }
+
+  get(id: string): Promise<TaskRecord | undefined> {
+    return this.store.get(id);
+  }
+
+  updateStatus(id: string, status: TaskStatus): Promise<TaskRecord> {
+    return this.store.updateStatus(id, status);
+  }
+
+  addDependency(id: string, dependencyId: string): Promise<TaskRecord> {
+    return this.store.addDependency(id, dependencyId);
+  }
+
+  linkSession(id: string, sessionId: string): Promise<TaskRecord> {
+    return this.store.linkSession(id, sessionId);
+  }
+
+  linkWorktree(id: string, worktree: string): Promise<TaskRecord> {
+    return this.store.linkWorktree(id, worktree);
+  }
+}
+
+export class TokenDanceTodos {
+  constructor(private readonly store: TodoStore) {}
+
+  add(input: { text: string; taskId?: string }): Promise<TodoRecord> {
+    return this.store.add(input);
+  }
+
+  list(): Promise<TodoRecord[]> {
+    return this.store.list();
+  }
+
+  updateStatus(id: string, status: TodoStatus): Promise<TodoRecord> {
+    return this.store.updateStatus(id, status);
   }
 }
 

@@ -97,6 +97,28 @@ describe("TokenDanceCode CLI", () => {
     expect(topLevel.stdoutText()).toContain("model: claude-test");
   });
 
+  it("manages tasks and todos in interactive and top-level commands", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-tasks-"));
+    const interactive = createTestIO("/tasks create Stage 15 E2E\n/todo add Run unittest --task task-1\n/tasks done task-1\n/todo doing todo-1\n/tasks\n/todo\n/exit\n", root);
+    await runCli([], interactive);
+    const topLevelTasks = createTestIO("", root);
+    const topLevelTodos = createTestIO("", root);
+
+    const tasksExitCode = await runCli(["tasks"], topLevelTasks);
+    const todosExitCode = await runCli(["todo"], topLevelTodos);
+
+    expect(interactive.stdoutText()).toContain("Created task task-1.");
+    expect(interactive.stdoutText()).toContain("Created todo todo-1.");
+    expect(interactive.stdoutText()).toContain("Updated task task-1 to completed.");
+    expect(interactive.stdoutText()).toContain("Updated todo todo-1 to in_progress.");
+    expect(interactive.stdoutText()).toContain("[completed] task-1 Stage 15 E2E");
+    expect(interactive.stdoutText()).toContain("[in_progress] todo-1 Run unittest (task task-1)");
+    expect(tasksExitCode).toBe(0);
+    expect(todosExitCode).toBe(0);
+    expect(topLevelTasks.stdoutText()).toContain("[completed] task-1 Stage 15 E2E");
+    expect(topLevelTodos.stdoutText()).toContain("[in_progress] todo-1 Run unittest (task task-1)");
+  });
+
   it("renders git diff, review, and quality commands in interactive and top-level modes", async () => {
     const root = await initRepo();
     await writeFile(join(root, "notes.txt"), "old\nnew TODO\n", "utf8");

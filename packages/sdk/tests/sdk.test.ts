@@ -260,6 +260,30 @@ describe("TokenDanceCode SDK", () => {
     expect(info.sources.map((source) => source.kind)).toEqual(["defaults", "project"]);
   });
 
+  it("manages tasks and todos through the SDK boundary for AgentHub callers", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-tasks-"));
+    const client = new TokenDanceCode();
+    const tasks = client.tasks({ projectRoot: root });
+    const todos = client.todos({ projectRoot: root, sessionId: "session-sdk" });
+
+    const task = await tasks.create({ title: "SDK integration", description: "AgentHub task" });
+    await tasks.addDependency(task.id, "task-parent");
+    await tasks.linkSession(task.id, "session-sdk");
+    const done = await tasks.updateStatus(task.id, "completed");
+    const todo = await todos.add({ text: "Run SDK test", taskId: task.id });
+    const activeTodo = await todos.updateStatus(todo.id, "in_progress");
+
+    expect(done).toMatchObject({
+      id: task.id,
+      status: "completed",
+      dependencies: ["task-parent"],
+      linkedSessionId: "session-sdk"
+    });
+    expect(await tasks.list()).toEqual([done]);
+    expect(activeTodo).toMatchObject({ status: "in_progress", taskId: task.id });
+    expect(await todos.list()).toEqual([activeTodo]);
+  });
+
   it("lets AgentHub approve a write tool before execution", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
     const approvals: string[] = [];

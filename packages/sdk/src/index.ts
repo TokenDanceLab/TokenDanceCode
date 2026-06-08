@@ -2,10 +2,12 @@ import {
   AgentRuntime,
   FileTranscriptStore,
   MockProvider,
+  ResumeService,
   type ModelProvider,
   type PermissionMode,
   type SessionState,
-  type TDCodeEvent
+  type TDCodeEvent,
+  type TranscriptEnvelope
 } from "@tokendance/code-core";
 
 export type ThreadInput = string | Array<{ type: "text"; text: string }>;
@@ -50,8 +52,13 @@ export class TokenDanceCode {
   }
 
   async loadThread(sessionId: string, storageRoot = process.cwd()): Promise<Thread> {
-    const store = new FileTranscriptStore({ rootDir: storageRoot });
-    return this.resumeThread(await store.loadSession(sessionId));
+    const result = await new ResumeService(storageRoot).byId(sessionId);
+    return new Thread({ client: this, session: result.session, recentTranscript: result.recent });
+  }
+
+  async loadLatestThread(storageRoot = process.cwd()): Promise<Thread> {
+    const result = await new ResumeService(storageRoot).latest();
+    return new Thread({ client: this, session: result.session, recentTranscript: result.recent });
   }
 
   createRuntime(session: SessionState): AgentRuntime {
@@ -65,9 +72,11 @@ export class TokenDanceCode {
 
 export class Thread {
   readonly id: string;
+  readonly recentTranscript: TranscriptEnvelope[];
 
-  constructor(private readonly options: { client: TokenDanceCode; session: SessionState }) {
+  constructor(private readonly options: { client: TokenDanceCode; session: SessionState; recentTranscript?: TranscriptEnvelope[] }) {
     this.id = options.session.id;
+    this.recentTranscript = options.recentTranscript ?? [];
   }
 
   async run(input: ThreadInput): Promise<TurnResult> {
@@ -113,4 +122,4 @@ function normalizeInput(input: ThreadInput): string {
     .join("\n");
 }
 
-export type { ModelProvider, PermissionMode, SessionState, TDCodeEvent };
+export type { ModelProvider, PermissionMode, SessionState, TDCodeEvent, TranscriptEnvelope };

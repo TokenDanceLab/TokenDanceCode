@@ -1,4 +1,6 @@
 export * from "./anthropic-provider.js";
+export * from "./compact.js";
+export * from "./context-builder.js";
 export * from "./file-tools.js";
 export * from "./git-tools.js";
 export * from "./mock-provider.js";
@@ -7,6 +9,7 @@ export * from "./patch-tools.js";
 export * from "./permissions.js";
 export * from "./powershell.js";
 export * from "./runtime.js";
+export * from "./resume.js";
 export * from "./session.js";
 export * from "./shell-tools.js";
 export * from "./tools.js";

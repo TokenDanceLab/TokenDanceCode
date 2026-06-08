@@ -2,6 +2,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { FileTranscriptStore, type SessionState } from "@tokendance/code-core";
 import { TokenDanceCode } from "../src/index.js";
 
 describe("TokenDanceCode SDK", () => {
@@ -41,5 +42,27 @@ describe("TokenDanceCode SDK", () => {
 
     expect(second.finalResponse).toBe("Mock response: second");
     expect(second.events.find((event) => event.type === "turn.completed")).toBeDefined();
+  });
+
+  it("loads latest thread with recent transcript for AgentHub callers", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
+    const client = new TokenDanceCode({ storageRoot: root });
+    const session: SessionState = {
+      id: "session-load",
+      cwd: root,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      permissionMode: "default",
+      messages: []
+    };
+    const store = new FileTranscriptStore({ rootDir: root });
+    await store.initialize(session);
+    await store.append({ type: "user.message", sessionId: session.id, turnId: "turn-1", message: { role: "user", content: "hi" } });
+
+    const thread = await client.loadLatestThread(root);
+
+    expect(thread.id).toBe("session-load");
+    expect(thread.recentTranscript).toHaveLength(1);
+    expect(thread.recentTranscript[0]?.event.type).toBe("user.message");
   });
 });

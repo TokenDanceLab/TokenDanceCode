@@ -56,7 +56,7 @@ const client = new TokenDanceCode({
 真实 provider 的 key 名：
 
 - OpenAI Responses：`OPENAI_API_KEY`
-- OpenAI Chat Completions：`OPENAI_API_KEY`
+- OpenAI Chat Completions / TokenDance Gateway：优先 `TOKENDANCE_GATEWAY_API_KEY`，缺省回退 `OPENAI_API_KEY`
 - Anthropic-compatible Messages：`ANTHROPIC_API_KEY`
 
 不要把 API key 写入项目文档或 transcript 示例。
@@ -71,7 +71,7 @@ const client = new TokenDanceCode({
     baseUrl: "https://api.vectorcontrol.tech/v1"
   },
   env: {
-    OPENAI_API_KEY: process.env.TOKENDANCE_GATEWAY_API_KEY
+    TOKENDANCE_GATEWAY_API_KEY: process.env.TOKENDANCE_GATEWAY_API_KEY
   }
 });
 ```
@@ -616,13 +616,15 @@ console.log(doctor.apiKeys.OPENAI_API_KEY);
 console.log(doctor.git.available);
 console.log(doctor.powershell.available);
 console.log(doctor.config.sources);
+console.log(doctor.config.provider);
+console.log(doctor.config.validation.ready);
 console.log(doctor.stateDir.writable);
 console.log(doctor.packageInfo.agentHub.sdkContractVersion);
 console.log(doctor.startup.hub.ok);
 console.log(doctor.startup.edge.ok);
 ```
 
-`doctor.apiKeys` 只返回 `present`/`missing`，不会返回实际 API key。诊断结果还包括版本、Node、cwd、platform、Git 仓库状态、PowerShell 可用性、config 路径/source、`.tokendance` 状态目录可写性、只读 `packageInfo` manifest，以及 `startup.hub` / `startup.edge` 检查组。Hub 侧当前检查 package manifest、config 可读性和状态目录可写性；Edge 侧当前检查 `agent.stream` envelope 契约、Git 可用性和 PowerShell 可用性。`warn` 级检查不会让 `ok` 变成 `false`；`fail` 代表启动前必须处理的阻断项。
+`doctor.apiKeys` 只返回 `present`/`missing`，不会返回实际 API key。诊断结果还包括版本、Node、cwd、platform、Git 仓库状态、PowerShell 可用性、config 路径/source、有效 provider/model、provider readiness、`.tokendance` 状态目录可写性、只读 `packageInfo` manifest，以及 `startup.hub` / `startup.edge` 检查组。Hub 侧当前检查 package manifest、config 可读性、状态目录可写性和 `provider-ready`；真实 provider 缺少 key/model 时 `provider-ready` 为 `warn`，`startup.hub.ok` 仍保持 `true`，方便 AgentHub 启动后在设置页引导补齐配置。Edge 侧当前检查 `agent.stream` envelope 契约、Git 可用性和 PowerShell 可用性。`warn` 级检查不会让 `ok` 变成 `false`；`fail` 代表启动前必须处理的阻断项。
 
 ## 13. Task / Todo
 

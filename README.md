@@ -101,7 +101,7 @@ node packages/cli/dist/main.js doctor --json
 
 `quickstart` 是只读首次上手提示，会串起安装验证、provider 选择、TokenDance Gateway preset、TokenDanceID 登录 URL helper，以及 `doctor`/`config` 检查。它不会写入 env 文件、打印密钥、打开浏览器、发布 npm 包或触碰生产环境。交互式 REPL 中对应 `/quickstart`。
 
-`doctor` 会按 Runtime、API Keys、Tools、Config、State 分组输出 Node、cwd、platform、OpenAI/Anthropic API key 是否存在、Git/PowerShell 可用性、配置文件路径和 `.tokendance` 状态目录可写性。API key 只显示 `present`/`missing`，不会打印密钥值。需要给脚本或 AgentHub 调试面板读取时使用 `doctor --json`；交互式 REPL 中对应 `/doctor json`。
+`doctor` 会按 Runtime、API Keys、Tools、Config、State 分组输出 Node、cwd、platform、OpenAI/Anthropic API key 是否存在、Git/PowerShell 可用性、配置文件路径/source、有效 provider/model、provider readiness 和 `.tokendance` 状态目录可写性。API key 只显示 `present`/`missing`，不会打印密钥值；真实 provider 缺少 key/model 会在 readiness 和 AgentHub Hub startup check 中显示为 `warn`，不会阻断本地 mock 或 Hub 启动自检。需要给脚本或 AgentHub 调试面板读取时使用 `doctor --json`；交互式 REPL 中对应 `/doctor json`。
 
 运行一次 mock turn：
 
@@ -355,6 +355,7 @@ console.log(savedConfig.projectConfigPath);
 
 const doctor = await client.doctor({ projectRoot: process.cwd() });
 console.log(doctor.git.available, doctor.stateDir.writable);
+console.log(doctor.config.validation.ready, doctor.startup.hub.ok);
 ```
 
 SDK 也提供 TokenDanceID OIDC 登录 URL helper。它只生成 Authorization Code + PKCE 登录参数并校验 callback `state`；真正 code exchange、JWKS 验证、`tokendance_sub` 映射和 Hub-local session 仍由 AgentHub Hub Server 负责。
@@ -551,7 +552,7 @@ tokendance doctor
 - CLI 帮助按 Core、Session、Work、Diagnostics、Gateway 分组；交互式 `/status`、`/config`、`/doctor` 使用小节输出，便于扫描但仍保持薄 CLI。
 - 真实模型集成测试默认跳过，需要显式配置相关环境变量后才会运行。
 - AgentHub 集成应使用 SDK 的 `approvalCallback` / `createAgentHubApprovalBridge()` 和 `eventSink`，不要直接调用 core runtime 内部类。
-- `doctor` 只输出 API key 是否存在，不输出 secret 值；配置输出也只展示白名单字段和路径。
+- `doctor` 只输出 API key 是否存在，不输出 secret 值；配置输出也只展示白名单字段、路径和 provider readiness。真实 provider 未 ready 会作为 startup warning 暴露给 AgentHub，不会让 Hub `ok` 变成 `false`。
 
 ## 当前状态
 

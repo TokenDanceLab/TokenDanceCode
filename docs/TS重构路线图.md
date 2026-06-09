@@ -8,7 +8,7 @@
 - worktree：`D:\Code\TokenDance\TokenDanceCode\.worktrees\ts-refactor`
 - 目标：把 TokenDanceCode 从 Python v0.1 参考实现重构为 TypeScript monorepo，并给 AgentHub 暴露稳定 SDK。
 - 当前可验证命令：`pnpm verify`、`pnpm pack:check`、`pnpm release:next:check`
-- 最近验证结果：typecheck 通过，Vitest 23 个测试文件 115 个测试通过。
+- 最近验证结果：`pnpm release:next:check` 通过，覆盖 typecheck、Vitest 26 个测试文件 179 个测试、core/sdk/cli dry-run pack 和 tarball install smoke。
 
 旧 `src/tokendance` 和 `tests/` 暂时保留为功能迁移参考。新增 TS 能力默认写入 `packages/*`，不要继续扩展 Python 运行时，除非明确是在补迁移对照或保护旧行为。
 
@@ -141,7 +141,7 @@ node packages/cli/dist/main.js run "hello"
 - [x] 增加 SDK `client.config({ projectRoot?, homeDir? })`，供 AgentHub 读取有效配置和来源。
 - [x] 增加 SDK `client.setConfig(config, { projectRoot?, homeDir?, scope? })`，供 AgentHub 写入 project/global 安全配置白名单字段；不接受 API key/token/secret 作为 JSON 配置。
 - [x] 增加 SDK `client.validateConfig({ projectRoot?, homeDir? })`，供 AgentHub 启动检查或设置页验证 provider readiness；只返回 env 名和 present/missing，不泄露 secret。
-- [x] 增加 SDK `client.doctor({ projectRoot?, homeDir? })`，供 AgentHub 读取结构化诊断；只返回 API key present/missing，不泄露 secret。
+- [x] 增加 SDK `client.doctor({ projectRoot?, homeDir? })`，供 AgentHub 读取结构化诊断；包含有效 provider/model、provider readiness 和 `provider-ready` startup check，只返回 API key present/missing，不泄露 secret。
 - [x] AgentHub 样例 runner 按 Hub `sessionId` resume-or-start，连续 run 会恢复 provider 可见消息历史，并保持 transcript `seq` 连续递增。
 - [x] AgentHub 样例 runner 暴露 `context()`，供 Hub 调试面板按 Hub `sessionId` 预览下一轮 provider context，且不发 `agent.stream`、不写 transcript。
 - [x] 增加 TokenDanceID OIDC login helper：生成 Authorization Code + PKCE S256 登录 URL、`state/nonce/codeVerifier`，校验 callback state；不交换 token、不保存 TokenDanceID access/refresh token，供 AgentHub Hub/Desktop/Web 启动登录流。
@@ -155,7 +155,7 @@ node packages/cli/dist/main.js run "hello"
 
 - [x] 交互式 REPL 最小闭环。
 - [x] `/new`、`/status`、`/doctor`、`/config`、`/permissions`。
-- [x] Doctor 诊断：Node/cwd/platform、API key present/missing、Git/PowerShell 可用性、config 路径/source、`.tokendance` 状态目录可写性；不输出 secret 值；顶层 `doctor --json` 和交互式 `/doctor json` 可输出同源结构化诊断。
+- [x] Doctor 诊断：Node/cwd/platform、API key present/missing、Git/PowerShell 可用性、config 路径/source、有效 provider/model、provider readiness、`.tokendance` 状态目录可写性；不输出 secret 值；顶层 `doctor --json` 和交互式 `/doctor json` 可输出同源结构化诊断。真实 provider 缺 key/model 时作为 `warn` 暴露给 AgentHub Hub startup check，不阻断本地 mock 或启动自检。
 - [x] CLI 新 session 启动会消费有效配置：`provider`/`model` 映射到 SDK provider，`permissionMode` 作为 `tokendance` REPL 和 `tokendance run` 的初始权限模式。
 - [x] CLI provider key 来源对齐安全边界：读取进程环境和全局 `~/.tokendance/.env`，不默认读取项目 `.env`。
 - [x] CLI `config`、REPL 和 `run` 共用同一套有效配置；env-derived provider/model 能直接进入真实 provider 启动路径。

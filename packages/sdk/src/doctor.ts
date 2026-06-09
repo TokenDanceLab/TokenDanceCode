@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { readTokenDanceConfig } from "@tokendance/code-core";
+import { readTokenDanceConfig, validateProviderConfig, type ProviderConfigValidation } from "@tokendance/code-core";
 import { TOKEN_DANCE_CODE_PACKAGE } from "./package-info.js";
 
 const execFileAsync = promisify(execFile);
@@ -36,6 +36,9 @@ export interface DoctorInfo {
     projectConfigPath: string;
     globalConfigPath: string;
     sources: Array<"defaults" | "global" | "project" | "env">;
+    provider: string;
+    model: string;
+    validation: ProviderConfigValidation;
   };
   stateDir: {
     path: string;
@@ -63,6 +66,7 @@ export interface StartupCheckGroup {
 export async function collectDoctorInfo(options: DoctorOptions): Promise<DoctorInfo> {
   const env = options.env ?? process.env;
   const config = await readTokenDanceConfig({ projectRoot: options.projectRoot, homeDir: options.homeDir, env });
+  const validation = validateProviderConfig(config.config, env);
   const stateDir = join(options.projectRoot, ".tokendance");
   const gitAvailable = await commandAvailable("git", ["--version"], options.projectRoot);
   const gitRepository = gitAvailable && await commandAvailable("git", ["rev-parse", "--is-inside-work-tree"], options.projectRoot);
@@ -72,7 +76,8 @@ export async function collectDoctorInfo(options: DoctorOptions): Promise<DoctorI
   const startup = startupChecks({
     stateWritable,
     gitAvailable,
-    powershellAvailable
+    powershellAvailable,
+    validation
   });
 
   return {
@@ -95,7 +100,10 @@ export async function collectDoctorInfo(options: DoctorOptions): Promise<DoctorI
     config: {
       projectConfigPath: config.projectConfigPath,
       globalConfigPath: config.globalConfigPath,
-      sources: config.sources.map((source) => source.kind)
+      sources: config.sources.map((source) => source.kind),
+      provider: config.config.provider,
+      model: config.config.model,
+      validation
     },
     stateDir: {
       path: stateDir,
@@ -130,7 +138,12 @@ async function stateDirWritable(stateDir: string): Promise<boolean> {
   }
 }
 
-function startupChecks(input: { stateWritable: boolean; gitAvailable: boolean; powershellAvailable: boolean }): DoctorInfo["startup"] {
+function startupChecks(input: {
+  stateWritable: boolean;
+  gitAvailable: boolean;
+  powershellAvailable: boolean;
+  validation: ProviderConfigValidation;
+}): DoctorInfo["startup"] {
   const hubChecks: StartupCheck[] = [
     {
       name: "package-info",
@@ -146,6 +159,11 @@ function startupChecks(input: { stateWritable: boolean; gitAvailable: boolean; p
       name: "state-dir-writable",
       status: input.stateWritable ? "pass" : "fail",
       message: input.stateWritable ? ".tokendance state directory is writable" : ".tokendance state directory is not writable"
+    },
+    {
+      name: "provider-ready",
+      status: input.validation.ready ? "pass" : "warn",
+      message: providerReadyMessage(input.validation)
     }
   ];
   const edgeChecks: StartupCheck[] = [
@@ -176,4 +194,11 @@ function startupChecks(input: { stateWritable: boolean; gitAvailable: boolean; p
       checks: edgeChecks
     }
   };
+}
+
+function providerReadyMessage(validation: ProviderConfigValidation): string {
+  if (validation.ready) {
+    return `provider ${validation.provider} is ready`;
+  }
+  return `provider ${validation.provider} missing ${validation.missing.join(", ")}`;
 }

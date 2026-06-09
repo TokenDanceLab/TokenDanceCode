@@ -1068,6 +1068,14 @@ async function printDoctorInfo(io: CliIO, doctor: DoctorInfo): Promise<void> {
   await writeField(io, "project", doctor.config.projectConfigPath);
   await writeField(io, "global", doctor.config.globalConfigPath);
   await writeField(io, "sources", doctor.config.sources.join(","));
+  await writeField(io, "provider", doctor.config.provider);
+  await writeField(io, "model", doctor.config.model);
+  await writeField(io, "provider ready", yesNo(doctor.config.validation.ready));
+  await writeField(
+    io,
+    "provider missing",
+    doctor.config.validation.missing.length > 0 ? doctor.config.validation.missing.join(", ") : "none"
+  );
   await writeSection(io, "State", style);
   await writeField(io, "dir", doctor.stateDir.path);
   await writeField(io, "writable", yesNo(doctor.stateDir.writable));

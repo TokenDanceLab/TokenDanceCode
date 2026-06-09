@@ -81,11 +81,21 @@ describe("TokenDanceCode CLI", () => {
     expect(output).toContain("Config");
     expect(output).toContain("project: ");
     expect(output).toContain("global: ");
+    expect(output).toContain("provider: mock");
+    expect(output).toContain("model: mock");
+    expect(output).toContain("provider ready: yes");
+    expect(output).toContain("provider missing: none");
     expect(output).toContain("State");
     expect(output).toContain("dir: ");
     expect(output).toContain("writable: ");
     expect(output).toContain('"apiKeys"');
+    expect(output).toContain('"validation"');
     expect(parsed.cwd).toBe(root);
+    expect(parsed.config.validation).toMatchObject({
+      ready: true,
+      provider: "mock",
+      missing: []
+    });
     expect(parsed.apiKeys.OPENAI_API_KEY).toMatch(/present|missing/);
     expect(parsed.stateDir.writable).toEqual(expect.any(Boolean));
     expect(output).toContain("Resumed session ");
@@ -283,6 +293,42 @@ describe("TokenDanceCode CLI", () => {
     expect(ready.stdoutText()).not.toContain("gateway-secret");
     expect(interactiveExitCode).toBe(0);
     expect(interactiveJson.validation.ready).toBe(true);
+  });
+
+  it("surfaces real provider readiness in doctor diagnostics", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-doctor-provider-"));
+    const home = await mkdtemp(join(tmpdir(), "tdcode-cli-home-"));
+    await mkdir(join(root, ".tokendance"), { recursive: true });
+    await writeFile(
+      join(root, ".tokendance", "config.json"),
+      JSON.stringify({ provider: "openai-chat-completions", model: "deepseek-v4-pro", permissionMode: "safe" }),
+      "utf8"
+    );
+    const missing = createTestIO("", root, home, {});
+    const ready = createTestIO("", root, home, {
+      TOKENDANCE_GATEWAY_API_KEY: "gateway-secret"
+    });
+
+    const missingExitCode = await runCli(["doctor"], missing);
+    const readyExitCode = await runCli(["doctor", "--json"], ready);
+    const readyJson = JSON.parse(ready.stdoutText());
+
+    expect(missingExitCode).toBe(0);
+    expect(missing.stdoutText()).toContain("provider: openai-chat-completions");
+    expect(missing.stdoutText()).toContain("model: deepseek-v4-pro");
+    expect(missing.stdoutText()).toContain("provider ready: no");
+    expect(missing.stdoutText()).toContain("provider missing: TOKENDANCE_GATEWAY_API_KEY or OPENAI_API_KEY");
+    expect(readyExitCode).toBe(0);
+    expect(readyJson.config.validation).toMatchObject({
+      ready: true,
+      provider: "openai-chat-completions",
+      missing: [],
+      credentials: {
+        apiKey: "present",
+        apiKeyEnv: "TOKENDANCE_GATEWAY_API_KEY"
+      }
+    });
+    expect(ready.stdoutText()).not.toContain("gateway-secret");
   });
 
   it("uses global env files for provider keys without reading project env by default", async () => {

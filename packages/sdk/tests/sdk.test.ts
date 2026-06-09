@@ -542,8 +542,63 @@ describe("TokenDanceCode SDK", () => {
     expect(doctor.config.projectConfigPath).toBe(join(root, ".tokendance", "config.json"));
     expect(doctor.config.globalConfigPath).toBe(join(home, ".tokendance", "config.json"));
     expect(doctor.config.sources).toEqual(["defaults"]);
+    expect(doctor.config.provider).toBe("mock");
+    expect(doctor.config.model).toBe("mock");
+    expect(doctor.config.validation).toMatchObject({
+      ready: true,
+      provider: "mock",
+      model: "mock",
+      missing: []
+    });
     expect(doctor.stateDir.path).toBe(join(root, ".tokendance"));
     expect(doctor.stateDir.writable).toBe(true);
+  });
+
+  it("surfaces provider readiness in doctor without blocking Hub startup", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-doctor-provider-"));
+    await mkdir(join(root, ".tokendance"), { recursive: true });
+    await writeFile(
+      join(root, ".tokendance", "config.json"),
+      JSON.stringify({ provider: "openai-chat-completions", model: "deepseek-v4-pro", permissionMode: "safe" }),
+      "utf8"
+    );
+
+    const missing = await new TokenDanceCode().doctor({ projectRoot: root });
+    const ready = await new TokenDanceCode({
+      env: {
+        TOKENDANCE_GATEWAY_API_KEY: "gateway-secret",
+        TOKENDANCE_GATEWAY_BASE_URL: "https://api.vectorcontrol.tech/v1"
+      }
+    }).doctor({ projectRoot: root });
+
+    const missingProviderCheck = missing.startup.hub.checks.find((check) => check.name === "provider-ready");
+    const readyProviderCheck = ready.startup.hub.checks.find((check) => check.name === "provider-ready");
+
+    expect(missing.config.validation).toMatchObject({
+      ready: false,
+      provider: "openai-chat-completions",
+      model: "deepseek-v4-pro",
+      missing: ["TOKENDANCE_GATEWAY_API_KEY or OPENAI_API_KEY"]
+    });
+    expect(missing.startup.hub.ok).toBe(true);
+    expect(missingProviderCheck).toMatchObject({
+      status: "warn",
+      message: "provider openai-chat-completions missing TOKENDANCE_GATEWAY_API_KEY or OPENAI_API_KEY"
+    });
+    expect(ready.config.validation).toMatchObject({
+      ready: true,
+      provider: "openai-chat-completions",
+      missing: [],
+      credentials: {
+        apiKey: "present",
+        apiKeyEnv: "TOKENDANCE_GATEWAY_API_KEY"
+      }
+    });
+    expect(readyProviderCheck).toMatchObject({
+      status: "pass",
+      message: "provider openai-chat-completions is ready"
+    });
+    expect(JSON.stringify(ready)).not.toContain("gateway-secret");
   });
 
   it("exposes AgentHub contract metadata and startup checks without secrets", async () => {
@@ -584,7 +639,7 @@ describe("TokenDanceCode SDK", () => {
     });
     expect(doctor.startup.hub).toMatchObject({ ok: true });
     expect(doctor.startup.hub.checks.map((check) => check.name)).toEqual(
-      expect.arrayContaining(["package-info", "config-readable", "state-dir-writable"])
+      expect.arrayContaining(["package-info", "config-readable", "state-dir-writable", "provider-ready"])
     );
     expect(doctor.startup.edge).toMatchObject({ ok: true });
     expect(doctor.startup.edge.checks.map((check) => check.name)).toEqual(

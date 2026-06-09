@@ -93,9 +93,9 @@ node packages/cli/dist/main.js run "hello"
 
 ## 配置模型
 
-TokenDanceCode TS 版当前已提供 OpenAI Responses API 与 Anthropic-compatible Messages API provider adapter。CLI 默认仍使用 MockProvider；AgentHub 或本地脚本可通过 SDK 显式选择 provider。
+TokenDanceCode TS 版当前已提供 OpenAI Responses API、OpenAI Chat Completions API 与 Anthropic-compatible Messages API provider adapter。CLI 默认仍使用 MockProvider；AgentHub 或本地脚本可通过 SDK 显式选择 provider。
 
-CLI 会读取有效配置来启动 `tokendance` 交互式 session 和 `tokendance run`：`provider`/`model` 决定 SDK provider，`permissionMode` 决定新 session 的初始权限模式。未配置时默认是 `mock` provider、`mock` model 和 `default` permission mode。设置 `MODEL_ID` 加对应 provider key 时，CLI 会从 env 推断 provider；例如 `ANTHROPIC_API_KEY + MODEL_ID` 使用 `anthropic-messages`，`OPENAI_API_KEY + MODEL_ID` 使用 `openai-responses`。
+CLI 会读取有效配置来启动 `tokendance` 交互式 session 和 `tokendance run`：`provider`/`model` 决定 SDK provider，`permissionMode` 决定新 session 的初始权限模式。未配置时默认是 `mock` provider、`mock` model 和 `default` permission mode。设置 `MODEL_ID` 加对应 provider key 时，CLI 会从 env 推断 provider；例如 `ANTHROPIC_API_KEY + MODEL_ID` 使用 `anthropic-messages`，`OPENAI_API_KEY + MODEL_ID` 使用 `openai-responses`。需要 OpenAI-compatible `/v1/chat/completions` 时显式设置 `TOKENDANCE_PROVIDER=openai-chat-completions`。
 
 配置可以放在以下位置：
 
@@ -135,6 +135,17 @@ ANTHROPIC_API_KEY=your-api-key
 ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic
 MODEL_ID=deepseek-v4-pro
 ```
+
+OpenAI-compatible Gateway 示例：
+
+```env
+OPENAI_API_KEY=your-tokenDance-api-key
+OPENAI_BASE_URL=https://api.vectorcontrol.tech/v1
+MODEL_ID=deepseek-v4-pro
+TOKENDANCE_PROVIDER=openai-chat-completions
+```
+
+TokenDance Gateway 的模型调用使用 TokenDance API key；TokenDanceID/OIDC 登录属于 AgentHub/Hub 或管理界面的身份会话平面，不应当作为 Gateway 模型 API key 使用。
 
 TokenDanceCode 默认不读取项目根目录 `.env` 作为自身 provider key 来源。项目 `.env` 通常属于业务配置，可能包含应用密钥；需要给 AgentHub 或脚本注入 provider key 时，优先通过 SDK `env` 显式传入受控环境。
 
@@ -276,7 +287,7 @@ AgentHub 集成可以接管审批和事件分发：
 import { TokenDanceCode } from "@tokendance/code-sdk";
 
 const client = new TokenDanceCode({
-  provider: { type: "anthropic-messages", model: "claude-sonnet-4-6" },
+  provider: { type: "openai-chat-completions", model: "deepseek-v4-pro", baseUrl: "https://api.vectorcontrol.tech/v1" },
   storageRoot: "D:/Code/TokenDance/AgentHub/.tokendance-code",
   env: process.env,
   approvalCallback(request) {

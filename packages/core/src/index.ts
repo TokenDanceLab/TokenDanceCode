@@ -7,6 +7,7 @@ export * from "./file-tools.js";
 export * from "./git-tools.js";
 export * from "./memory.js";
 export * from "./mock-provider.js";
+export * from "./openai-chat-provider.js";
 export * from "./openai-provider.js";
 export * from "./patch-tools.js";
 export * from "./permissions.js";

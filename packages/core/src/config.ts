@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { PermissionMode } from "./types.js";
 
-export type ConfigProvider = "mock" | "openai-responses" | "anthropic-messages";
+export type ConfigProvider = "mock" | "openai-responses" | "openai-chat-completions" | "anthropic-messages";
 
 export interface TokenDanceConfig {
   provider: ConfigProvider;
@@ -110,7 +110,7 @@ function sanitizeConfig(value: unknown): Partial<TokenDanceConfig> {
 
   const raw = value as Record<string, unknown>;
   const config: Partial<TokenDanceConfig> = {};
-  if (raw.provider === "mock" || raw.provider === "openai-responses" || raw.provider === "anthropic-messages") {
+  if (isConfigProvider(raw.provider)) {
     config.provider = raw.provider;
   }
   if (typeof raw.model === "string" && raw.model.trim()) {
@@ -123,7 +123,11 @@ function sanitizeConfig(value: unknown): Partial<TokenDanceConfig> {
 }
 
 function parseProvider(value: string | undefined): ConfigProvider | undefined {
-  return value === "mock" || value === "openai-responses" || value === "anthropic-messages" ? value : undefined;
+  return isConfigProvider(value) ? value : undefined;
+}
+
+function isConfigProvider(value: unknown): value is ConfigProvider {
+  return value === "mock" || value === "openai-responses" || value === "openai-chat-completions" || value === "anthropic-messages";
 }
 
 function parsePermissionMode(value: string | undefined): PermissionMode | undefined {

@@ -1012,9 +1012,9 @@ function providerFromConfig(
   if (config.provider === "mock") {
     return { type: "mock" };
   }
-  if (config.provider === "openai-responses") {
+  if (config.provider === "openai-responses" || config.provider === "openai-chat-completions") {
     return {
-      type: "openai-responses",
+      type: config.provider,
       model: config.model,
       baseUrl: env.OPENAI_BASE_URL
     };

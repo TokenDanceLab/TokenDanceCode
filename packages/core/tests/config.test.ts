@@ -60,4 +60,23 @@ describe("TokenDance config", () => {
     expect(info.sources.map((source) => source.kind)).toEqual(["defaults", "env"]);
     expect(JSON.stringify(info)).not.toContain("secret-key");
   });
+
+  it("accepts explicit OpenAI Chat Completions provider config", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-config-"));
+    const projectRoot = join(root, "repo");
+    await mkdir(join(projectRoot, ".tokendance"), { recursive: true });
+    await writeFile(
+      join(projectRoot, ".tokendance", "config.json"),
+      JSON.stringify({ provider: "openai-chat-completions", model: "gpt-chat-test", permissionMode: "safe" }),
+      "utf8"
+    );
+
+    const info = await readTokenDanceConfig({ projectRoot, homeDir: join(root, "home") });
+
+    expect(info.config).toEqual({
+      provider: "openai-chat-completions",
+      model: "gpt-chat-test",
+      permissionMode: "safe"
+    });
+  });
 });

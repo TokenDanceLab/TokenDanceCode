@@ -543,6 +543,18 @@ describe("TokenDanceCode SDK", () => {
     await expect(thread.run("hello")).rejects.toThrow("OPENAI_API_KEY is not configured");
   });
 
+  it("constructs OpenAI Chat Completions providers from SDK config", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
+    const client = new TokenDanceCode({
+      storageRoot: root,
+      provider: { type: "openai-chat-completions", model: "gpt-test" },
+      env: {}
+    });
+    const thread = client.startThread({ workingDirectory: root });
+
+    await expect(thread.run("hello")).rejects.toThrow("OPENAI_API_KEY is not configured");
+  });
+
   it("forwards runtime events to an AgentHub event sink", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
     const received: string[] = [];

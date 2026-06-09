@@ -159,6 +159,26 @@ describe("TokenDanceCode CLI", () => {
     expect(config.stdoutText()).not.toContain("global-anthropic");
   });
 
+  it("accepts OpenAI Chat Completions as an explicit CLI provider", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-chat-provider-"));
+    const home = await mkdtemp(join(tmpdir(), "tdcode-cli-home-"));
+    await mkdir(join(home, ".tokendance"), { recursive: true });
+    await writeFile(
+      join(home, ".tokendance", ".env"),
+      "OPENAI_API_KEY=global-openai\nOPENAI_BASE_URL=https://api.vectorcontrol.tech/v1\nMODEL_ID=deepseek-v4-pro\nTOKENDANCE_PROVIDER=openai-chat-completions\n",
+      "utf8"
+    );
+    const config = createTestIO("", root, home, {});
+
+    const exitCode = await runCli(["config"], config);
+
+    expect(exitCode).toBe(0);
+    expect(config.stdoutText()).toContain("provider: openai-chat-completions");
+    expect(config.stdoutText()).toContain("model: deepseek-v4-pro");
+    expect(config.stdoutText()).toContain("source: env");
+    expect(config.stdoutText()).not.toContain("global-openai");
+  });
+
   it("starts interactive sessions with the configured permission mode", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-cli-config-"));
     await mkdir(join(root, ".tokendance"), { recursive: true });

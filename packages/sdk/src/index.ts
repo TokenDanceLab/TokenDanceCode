@@ -7,6 +7,7 @@ import {
   FileTranscriptStore,
   MemoryStore,
   MockProvider,
+  OpenAIChatCompletionsProvider,
   OpenAIResponsesProvider,
   ResumeService,
   TaskStore,
@@ -49,6 +50,7 @@ export type ThreadInput = string | Array<{ type: "text"; text: string }>;
 export type TokenDanceProviderConfig =
   | { type: "mock" }
   | { type: "openai-responses"; apiKey?: string; model: string; baseUrl?: string }
+  | { type: "openai-chat-completions"; apiKey?: string; model: string; baseUrl?: string }
   | { type: "anthropic-messages"; apiKey?: string; model: string; baseUrl?: string; maxTokens?: number; anthropicVersion?: string };
 
 export interface TokenDanceCodeOptions {
@@ -312,6 +314,13 @@ export class TokenDanceCode {
     }
     if (provider.type === "openai-responses") {
       return new OpenAIResponsesProvider({
+        apiKey: provider.apiKey ?? env.OPENAI_API_KEY ?? "",
+        model: provider.model,
+        baseUrl: provider.baseUrl
+      });
+    }
+    if (provider.type === "openai-chat-completions") {
+      return new OpenAIChatCompletionsProvider({
         apiKey: provider.apiKey ?? env.OPENAI_API_KEY ?? "",
         model: provider.model,
         baseUrl: provider.baseUrl

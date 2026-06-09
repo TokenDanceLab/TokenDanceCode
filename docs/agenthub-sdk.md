@@ -47,7 +47,7 @@ const client = new TokenDanceCode({
 
 | Option | 用途 |
 |---|---|
-| `provider` | 可传入已有 `ModelProvider`，或 `{ type: "mock" }`、`{ type: "openai-responses", model }`、`{ type: "anthropic-messages", model }`。 |
+| `provider` | 可传入已有 `ModelProvider`，或 `{ type: "mock" }`、`{ type: "openai-responses", model }`、`{ type: "openai-chat-completions", model }`、`{ type: "anthropic-messages", model }`。 |
 | `storageRoot` | transcript/session 写入根目录。未传时使用 thread 的 working directory。 |
 | `env` | SDK 内部构造 provider 时读取 API key；用于 AgentHub 注入进程环境或受控配置。 |
 | `approvalCallback` | 当权限决策为 `requires_approval` 时调用。返回 `true` 允许，`false` 拒绝，也可返回完整 `PermissionDecision`。 |
@@ -56,9 +56,27 @@ const client = new TokenDanceCode({
 真实 provider 的 key 名：
 
 - OpenAI Responses：`OPENAI_API_KEY`
+- OpenAI Chat Completions：`OPENAI_API_KEY`
 - Anthropic-compatible Messages：`ANTHROPIC_API_KEY`
 
 不要把 API key 写入项目文档或 transcript 示例。
+
+TokenDance Gateway 可作为 OpenAI-compatible provider 接入：
+
+```ts
+const client = new TokenDanceCode({
+  provider: {
+    type: "openai-chat-completions",
+    model: "deepseek-v4-pro",
+    baseUrl: "https://api.vectorcontrol.tech/v1"
+  },
+  env: {
+    OPENAI_API_KEY: process.env.TOKENDANCE_GATEWAY_API_KEY
+  }
+});
+```
+
+这里的 key 是 TokenDance API key，用于模型 API 调用。TokenDanceID/OIDC 登录应由 AgentHub Hub Server 或产品登录层交换为 Hub-local session；不要把 TokenDanceID access token 传给 Gateway 作为模型 API key。
 
 ## 3. 包入口与验证元信息
 
@@ -388,7 +406,7 @@ console.log(info.config.permissionMode);
 - global：`<homeDir>/.tokendance/config.json`
 - project：`<projectRoot>/.tokendance/config.json`
 
-首版只读取 `provider`、`model`、`permissionMode` 三个白名单字段，忽略 `apiKey`、`token` 等 secret 字段，避免把密钥带入 CLI 输出、文档或 AgentHub 调试事件。调用方通过 SDK `env` 显式注入环境时，`MODEL_ID` / `TOKENDANCE_MODEL` 可设置模型，`TOKENDANCE_PROVIDER` 可显式设置 provider；未显式设置 provider 但存在 `MODEL_ID` 和对应 API key 时，SDK config facade 会把 `ANTHROPIC_API_KEY` 推断为 `anthropic-messages`、把 `OPENAI_API_KEY` 推断为 `openai-responses`。密钥只参与 present/missing 和 provider 推断，不会进入 `config()` 输出。
+首版只读取 `provider`、`model`、`permissionMode` 三个白名单字段，忽略 `apiKey`、`token` 等 secret 字段，避免把密钥带入 CLI 输出、文档或 AgentHub 调试事件。调用方通过 SDK `env` 显式注入环境时，`MODEL_ID` / `TOKENDANCE_MODEL` 可设置模型，`TOKENDANCE_PROVIDER` 可显式设置 provider；未显式设置 provider 但存在 `MODEL_ID` 和对应 API key 时，SDK config facade 会把 `ANTHROPIC_API_KEY` 推断为 `anthropic-messages`、把 `OPENAI_API_KEY` 推断为 `openai-responses`。需要 OpenAI-compatible `/v1/chat/completions` 时显式设置 `TOKENDANCE_PROVIDER=openai-chat-completions`。密钥只参与 present/missing 和 provider 推断，不会进入 `config()` 输出。
 
 ## 11. Doctor
 

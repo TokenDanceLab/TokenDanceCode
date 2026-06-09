@@ -2,13 +2,28 @@
   "name": "@tokendance/code-cli",
   "version": "0.2.0-ts.0",
   "description": "TokenDanceCode command line interface.",
+  "license": "MIT",
+  "keywords": ["tokendance", "agenthub", "coding-agent", "cli"],
+  "homepage": "https://github.com/TokenDanceLab/TokenDanceCode#readme",
+  "bugs": {
+    "url": "https://github.com/TokenDanceLab/TokenDanceCode/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TokenDanceLab/TokenDanceCode.git",
+    "directory": "packages/cli"
+  },
   "type": "module",
   "bin": {
     "tokendance": "./dist/main.js"
   },
   "main": "./dist/main.js",
   "types": "./dist/main.d.ts",
-  "files": ["dist"],
+  "files": ["dist", "README.md"],
+  "publishConfig": {
+    "access": "public",
+    "tag": "next"
+  },
   "dependencies": {
     "@tokendance/code-sdk": "workspace:*"
   },

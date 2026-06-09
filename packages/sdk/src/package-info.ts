@@ -19,6 +19,8 @@ export interface TokenDanceCodePackageInfo {
   verification: {
     test: "pnpm verify";
     package: "pnpm pack:check";
+    tarballSmoke: "pnpm pack:smoke";
+    prerelease: "pnpm release:next:check";
   };
 }
 
@@ -42,6 +44,8 @@ export const TOKEN_DANCE_CODE_PACKAGE: TokenDanceCodePackageInfo = {
   },
   verification: {
     test: "pnpm verify",
-    package: "pnpm pack:check"
+    package: "pnpm pack:check",
+    tarballSmoke: "pnpm pack:smoke",
+    prerelease: "pnpm release:next:check"
   }
 } as const;

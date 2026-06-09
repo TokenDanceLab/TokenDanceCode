@@ -8,25 +8,61 @@ describe("package metadata", () => {
   it("keeps public packages ready for AgentHub consumption", async () => {
     const rootPackage = await readJson("package.json");
     const ignore = await readText(".gitignore");
+    const license = await readText("LICENSE");
 
-    expect(rootPackage.scripts?.["pack:check"]).toBe([
-      "pnpm build",
+    expect(rootPackage.private).toBe(true);
+    expect(rootPackage.license).toBe("MIT");
+    expect(rootPackage.scripts?.["pack:dry-run"]).toBe([
       "pnpm --filter @tokendance/code-core pack --dry-run",
       "pnpm --filter @tokendance/code-sdk pack --dry-run",
       "pnpm --filter @tokendance/code-cli pack --dry-run"
     ].join(" && "));
+    expect(rootPackage.scripts?.["pack:smoke"]).toBe("node scripts/smoke-tarball-install.mjs");
+    expect(rootPackage.scripts?.["pack:check"]).toBe([
+      "pnpm build",
+      "pnpm pack:dry-run",
+      "pnpm pack:smoke"
+    ].join(" && "));
+    expect(rootPackage.scripts?.["release:next:check"]).toBe([
+      "pnpm verify",
+      "pnpm pack:check"
+    ].join(" && "));
+    expect(license).toContain("MIT License");
     expect(ignore).toContain("*.tgz");
 
-    const corePackage = await readJson("packages/core/package.json");
-    const sdkPackage = await readJson("packages/sdk/package.json");
-    const cliPackage = await readJson("packages/cli/package.json");
+    const smokeScript = await readText("scripts/smoke-tarball-install.mjs");
+    expect(smokeScript).toContain("@tokendance/code-core");
+    expect(smokeScript).toContain("@tokendance/code-sdk");
+    expect(smokeScript).toContain("@tokendance/code-cli");
 
-    for (const packageJson of [corePackage, sdkPackage, cliPackage]) {
+    const publicPackages = [
+      { directory: "packages/core", packageJson: await readJson("packages/core/package.json") },
+      { directory: "packages/sdk", packageJson: await readJson("packages/sdk/package.json") },
+      { directory: "packages/cli", packageJson: await readJson("packages/cli/package.json") }
+    ];
+
+    for (const { directory, packageJson } of publicPackages) {
+      expect(packageJson.version).toBe(rootPackage.version);
+      expect(packageJson.license).toBe("MIT");
+      expect(packageJson.repository).toEqual({
+        type: "git",
+        url: "https://github.com/TokenDanceLab/TokenDanceCode.git",
+        directory
+      });
+      expect(packageJson.homepage).toBe("https://github.com/TokenDanceLab/TokenDanceCode#readme");
+      expect(packageJson.bugs).toEqual({ url: "https://github.com/TokenDanceLab/TokenDanceCode/issues" });
+      expect(packageJson.publishConfig).toEqual({ access: "public", tag: "next" });
+      expect(packageJson.keywords).toEqual(expect.arrayContaining(["tokendance", "agenthub", "coding-agent"]));
+      expect(packageJson.files).toEqual(["dist", "README.md"]);
       expect(packageJson.type).toBe("module");
       expect(packageJson.main).toMatch(/^\.\/dist\/.+\.js$/);
       expect(packageJson.types).toMatch(/^\.\/dist\/.+\.d\.ts$/);
-      expect(packageJson.files).toEqual(["dist"]);
+      expect(await readText(`${directory}/README.md`)).toContain(packageJson.name);
     }
+
+    const corePackage = publicPackages[0]!.packageJson;
+    const sdkPackage = publicPackages[1]!.packageJson;
+    const cliPackage = publicPackages[2]!.packageJson;
 
     expect(corePackage.exports?.["."]).toEqual({ import: "./dist/index.js", types: "./dist/index.d.ts" });
     expect(sdkPackage.exports?.["."]).toEqual({ import: "./dist/index.js", types: "./dist/index.d.ts" });
@@ -56,9 +92,24 @@ describe("package metadata", () => {
       },
       verification: {
         test: "pnpm verify",
-        package: "pnpm pack:check"
+        package: "pnpm pack:check",
+        tarballSmoke: "pnpm pack:smoke",
+        prerelease: "pnpm release:next:check"
       }
     });
+  });
+
+  it("documents the next prerelease and tarball install gates", async () => {
+    const readme = await readText("README.md");
+    const roadmap = await readText("docs/TS重构路线图.md");
+    const acceptance = await readText("docs/端到端验收清单.md");
+
+    for (const text of [readme, roadmap, acceptance]) {
+      expect(text).toContain("pnpm release:next:check");
+      expect(text).toContain("pnpm pack:smoke");
+      expect(text).toContain("npm publish --tag next");
+      expect(text).toContain("不要在检查脚本中执行 npm publish");
+    }
   });
 });
 

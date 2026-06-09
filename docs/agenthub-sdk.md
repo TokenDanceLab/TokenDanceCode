@@ -91,9 +91,11 @@ console.log(TOKEN_DANCE_CODE_PACKAGE.version);
 console.log(TOKEN_DANCE_CODE_PACKAGE.packages.sdk.import);
 console.log(TOKEN_DANCE_CODE_PACKAGE.packages.cli.bin);
 console.log(TOKEN_DANCE_CODE_PACKAGE.verification.package);
+console.log(TOKEN_DANCE_CODE_PACKAGE.verification.tarballSmoke);
+console.log(TOKEN_DANCE_CODE_PACKAGE.verification.prerelease);
 ```
 
-当前 manifest 覆盖 core/sdk/cli 包名、SDK/Core import specifier、CLI bin 名和推荐验证命令：`pnpm verify`、`pnpm pack:check`。它不包含本机路径、密钥或 workspace 私有路径，适合进入 AgentHub UI 或日志。
+当前 manifest 覆盖 core/sdk/cli 包名、SDK/Core import specifier、CLI bin 名和推荐验证命令：`pnpm verify`、`pnpm pack:check`、`pnpm pack:smoke`、`pnpm release:next:check`。它不包含本机路径、密钥或 workspace 私有路径，适合进入 AgentHub UI 或日志。
 
 ## 4. 启动 Thread
 

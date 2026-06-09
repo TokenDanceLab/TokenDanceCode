@@ -68,9 +68,10 @@ pnpm install
 ```powershell
 pnpm verify
 pnpm pack:check
+pnpm release:next:check
 ```
 
-`pnpm pack:check` 会先构建全部 TS 包，再对 `@tokendance/code-core`、`@tokendance/code-sdk`、`@tokendance/code-cli` 执行 dry-run 打包检查，确认 AgentHub 可消费包只包含发布所需内容。
+`pnpm pack:check` 会先构建全部 TS 包，再对 `@tokendance/code-core`、`@tokendance/code-sdk`、`@tokendance/code-cli` 执行 dry-run 打包检查，随后运行 `pnpm pack:smoke`。`pnpm pack:smoke` 会把三个真实 tarball 安装到临时项目中，验证 SDK import、mock turn 和 CLI bin 启动，确认 AgentHub 可消费包只包含发布所需内容。
 
 确认命令可用：
 
@@ -405,6 +406,26 @@ pnpm typecheck
 pnpm test
 ```
 
+## npm next 预发布基线
+
+TokenDanceCode 的 public npm 包当前是 `@tokendance/code-core`、`@tokendance/code-sdk`、`@tokendance/code-cli`。`@tokendance/code-agenthub-example` 仍是私有 workspace 示例包，不进入 npm 发布队列。
+
+预发布前检查：
+
+```powershell
+pnpm release:next:check
+pnpm pack:smoke
+```
+
+`pnpm release:next:check` 等价于 `pnpm verify && pnpm pack:check`。它覆盖 typecheck、Vitest、构建、dry-run pack 和本地 tarball install smoke。不要在检查脚本中执行 npm publish；`npm publish --tag next` 只作为人工审核后的单包发布动作，由 release owner 在确认版本、dist-tag、包内容和 npm 登录状态后执行。
+
+包 README 策略：
+
+- 根 `README.md` 说明源码安装、开发、AgentHub SDK 集成和发布前验证。
+- `packages/core/README.md` 面向 runtime 包消费者，强调多数应用应优先使用 SDK。
+- `packages/sdk/README.md` 面向 AgentHub 和本地脚本集成，展示 SDK 入口和 manifest。
+- `packages/cli/README.md` 面向全局命令安装和 CLI 启动检查。
+
 检查 CLI：
 
 ```powershell
@@ -425,4 +446,4 @@ tokendance doctor
 
 TokenDanceCode TS 版目前还是早期本地 Agent 实现，适合开发、测试和自用验证。
 
-它还不是正式发布到 npm 的包。当前已有发布前 `pack:check` dry-run 检查；后续会继续补充正式发布流程、安装包、首次运行向导、更多 slash commands、更细的事件 renderer 和更完整的 AgentHub 端到端示例。
+它还不是正式发布到 npm 的包。当前已有发布前 `release:next:check`、`pack:check` 和 `pack:smoke` 检查；后续会继续补充正式发布流程、首次运行向导、更多 slash commands、更细的事件 renderer 和更完整的 AgentHub 端到端示例。

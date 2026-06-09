@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdtemp, mkdir, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -40,6 +40,15 @@ const forbiddenPackagePatterns = [
   { label: "bearer token assignment", pattern: /\b(?:TOKEN|AUTH_TOKEN|BEARER_TOKEN|API_TOKEN|NPM_TOKEN|GITHUB_TOKEN)\s*=\s*(?!<[^>\r\n]+>|your-|""|'')\S+/i },
   { label: "private key material", pattern: /BEGIN (?:RSA|OPENSSH|EC|PRIVATE) KEY/ }
 ];
+const forbiddenTarballEntryPatterns = [
+  { label: "npm auth config file", pattern: /(^|\/)\.npmrc$/i },
+  { label: "private key file", pattern: /(^|\/)(?:id_rsa|id_ed25519|[^/]+\.(?:pem|key|p12|pfx))$/i },
+  { label: "environment file", pattern: /(^|\/)\.env(?:\.|$)/i },
+  { label: "Windows user path in entry", pattern: /C:[\\/]+Users[\\/]+/i },
+  { label: "local workspace path in entry", pattern: /D:[\\/]+Code[\\/]+/i },
+  { label: "POSIX user path in entry", pattern: /\/(?:home|Users)\/[A-Za-z0-9._-]+\// }
+];
+const maxTarballTextScanBytes = 1024 * 1024;
 
 try {
   await mkdir(tarballDir, { recursive: true });
@@ -49,6 +58,7 @@ try {
   }
 
   const packed = await findPackedTarballs();
+  await assertNoForbiddenTarballContent(packed);
   const dependencies = Object.fromEntries(packages.map((pkg) => [pkg.name, `file:${packed.get(pkg.name).replaceAll("\\", "/")}`]));
 
   await writeFile(
@@ -134,13 +144,65 @@ async function assertNpmInstallSmoke(cwd) {
   run("npm", ["install", "--ignore-scripts", "--package-lock-only=false"], cwd);
 }
 
+async function assertNoForbiddenTarballContent(packed) {
+  const scanRoot = join(tempRoot, "tarball-scan");
+  await mkdir(scanRoot, { recursive: true });
+
+  for (const [packageName, tarball] of packed.entries()) {
+    const entries = runCapture("tar", ["-tzf", tarball], workspaceRoot, { label: `${packageName} tarball entries` })
+      .split(/\r?\n/)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+    if (entries.length === 0) {
+      throw new Error(`Packed tarball privacy scan failed: ${packageName} has no tarball entries`);
+    }
+    for (const entry of entries) {
+      assertNoForbiddenTarballEntry(packageName, entry);
+    }
+
+    const extractRoot = join(scanRoot, packageName.replace(/[^A-Za-z0-9._-]+/g, "_"));
+    await mkdir(extractRoot, { recursive: true });
+    run("tar", ["-xzf", tarball, "-C", extractRoot], workspaceRoot);
+    await assertNoForbiddenExtractedTarballContent(packageName, extractRoot);
+  }
+}
+
+function assertNoForbiddenTarballEntry(packageName, entry) {
+  for (const forbidden of forbiddenTarballEntryPatterns) {
+    if (forbidden.pattern.test(entry)) {
+      throw new Error(`Packed tarball privacy scan failed: ${forbidden.label} in ${packageName}:${entry}`);
+    }
+  }
+}
+
+async function assertNoForbiddenExtractedTarballContent(packageName, root) {
+  let scannedFiles = 0;
+  for (const file of await listFiles(root)) {
+    const fileStat = await stat(file);
+    if (fileStat.size > maxTarballTextScanBytes) {
+      continue;
+    }
+    scannedFiles += 1;
+    const content = await readFile(file, "utf8");
+    const packageRelativePath = relative(root, file);
+    for (const forbidden of forbiddenPackagePatterns) {
+      if (forbidden.pattern.test(content)) {
+        throw new Error(`Packed tarball privacy scan failed: ${forbidden.label} in ${packageName}:${packageRelativePath}`);
+      }
+    }
+  }
+  if (scannedFiles === 0) {
+    throw new Error(`Packed tarball privacy scan failed: no small package files found in ${packageName}`);
+  }
+}
+
 function runCapture(command, args, cwd, options = {}) {
   const result = runCommand(command, args, cwd, { ...options, stdio: "pipe" });
   return result.stdout;
 }
 
 function runCommand(command, args, cwd, options = {}) {
-  const result = process.platform === "win32" && (command === "pnpm" || command === "npm")
+  const result = process.platform === "win32" && (command === "pnpm" || command === "npm" || command === "tar")
     ? spawnSync(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", [command, ...args].map(quoteCmdArg).join(" ")], {
       cwd,
       env: options.env ?? process.env,

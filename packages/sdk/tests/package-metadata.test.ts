@@ -54,6 +54,9 @@ describe("package metadata", () => {
     expect(smokeScript).toContain("agentHub.ready");
     expect(smokeScript).toContain("provider-ready");
     expect(smokeScript).toContain("assertNoForbiddenPackageContent");
+    expect(smokeScript).toContain("assertNoForbiddenTarballContent");
+    expect(smokeScript).toContain("assertNoForbiddenTarballEntry");
+    expect(smokeScript).toContain("maxTarballTextScanBytes");
     expect(smokeScript).toContain("assertPackedManifest");
     expect(smokeScript).toContain("TOKENDANCE_PACK_TARBALL_DIR");
     expect(smokeScript).toContain("workspace:");
@@ -68,7 +71,13 @@ describe("package metadata", () => {
     expect(smokeScript).toContain("POSIX home path");
     expect(smokeScript).toContain("UNC path");
     expect(smokeScript).toContain("bearer token assignment");
+    expect(smokeScript).toContain("npm auth config file");
+    expect(smokeScript).toContain("private key file");
+    expect(smokeScript).toContain("environment file");
     expect(smokeScript).toContain("TOKENDANCE_GATEWAY_API_KEY");
+    expect(smokeScript).toContain("tar");
+    expect(smokeScript).toContain("-tzf");
+    expect(smokeScript).toContain("-xzf");
     expect(smokeScript).toContain("isSymbolicLink");
     expect(smokeScript).toContain("no scannable package files found");
     expect(smokeScript).not.toContain("overrides");
@@ -257,6 +266,25 @@ describe("package metadata", () => {
     expect(new Set(AGENTHUB_FEATURE_FLAGS).size).toBe(AGENTHUB_FEATURE_FLAGS.length);
     expect(supportsAgentHubFeature("agenthub-event-envelope-schema")).toBe(true);
     expect(supportsAgentHubFeature("missing-feature")).toBe(false);
+  });
+
+  it("keeps GitHub Actions CI aligned with the npm-first non-publishing gate", async () => {
+    const ciWorkflow = await readText(".github/workflows/ci.yml");
+
+    expect(ciWorkflow).toContain("windows-latest");
+    expect(ciWorkflow).toContain("node-version: 22");
+    expect(ciWorkflow).toContain("pnpm/action-setup@v4");
+    expect(ciWorkflow).toContain("version: 10.32.1");
+    expect(ciWorkflow).toContain("pnpm install --frozen-lockfile");
+    expect(ciWorkflow).toContain("pnpm contract:check");
+    expect(ciWorkflow).toContain("pnpm verify");
+    expect(ciWorkflow).toContain("pnpm pack:smoke");
+    expect(ciWorkflow).toContain("pnpm registry:next:check");
+    expect(ciWorkflow).toContain("contents: read");
+    expect(ciWorkflow).not.toContain("NPM_TOKEN");
+    expect(ciWorkflow).not.toContain("NODE_AUTH_TOKEN");
+    expect(ciWorkflow).not.toContain("npm publish");
+    expect(ciWorkflow).not.toContain("pnpm publish");
   });
 
   it("keeps SDK facade contract types importable from the public barrel", async () => {

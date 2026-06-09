@@ -114,6 +114,22 @@ describe("TokenDanceCode CLI", () => {
     expect(topLevel.stdoutText()).toContain("model: claude-test");
   });
 
+  it("starts interactive sessions with the configured permission mode", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-config-"));
+    await mkdir(join(root, ".tokendance"), { recursive: true });
+    await writeFile(
+      join(root, ".tokendance", "config.json"),
+      JSON.stringify({ provider: "mock", model: "mock", permissionMode: "safe" }),
+      "utf8"
+    );
+    const interactive = createTestIO("/status\n/exit\n", root);
+
+    const exitCode = await runCli([], interactive);
+
+    expect(exitCode).toBe(0);
+    expect(interactive.stdoutText()).toContain("permissionMode: safe");
+  });
+
   it("manages tasks and todos in interactive and top-level commands", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-cli-tasks-"));
     const interactive = createTestIO("/tasks create Stage 15 E2E\n/todo add Run unittest --task task-1\n/tasks done task-1\n/todo doing todo-1\n/tasks\n/todo\n/exit\n", root);

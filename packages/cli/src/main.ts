@@ -12,6 +12,7 @@ import {
   type Thread,
   type ThreadContext,
   type TokenDanceTools,
+  type TokenDanceProviderConfig,
   type TranscriptInfo,
   type TranscriptSearchResult
 } from "@tokendance/code-sdk";
@@ -107,8 +108,8 @@ export async function runCli(argv: string[], io: CliIO = defaultIO()): Promise<n
       await write(io.stderr, "tokendance run requires a prompt\n");
       return 1;
     }
-    const client = new TokenDanceCode();
-    const thread = client.startThread({ workingDirectory: io.cwd() });
+    const configured = await createConfiguredClient(io);
+    const thread = configured.client.startThread({ workingDirectory: io.cwd(), permissionMode: configured.permissionMode });
     await runPrompt(io, thread, prompt);
     return 0;
   }
@@ -123,8 +124,9 @@ export async function runCli(argv: string[], io: CliIO = defaultIO()): Promise<n
 }
 
 async function runInteractive(io: CliIO): Promise<void> {
-  const client = new TokenDanceCode();
-  let thread = client.startThread({ workingDirectory: io.cwd(), permissionMode: "default" });
+  const configured = await createConfiguredClient(io);
+  const client = configured.client;
+  let thread = client.startThread({ workingDirectory: io.cwd(), permissionMode: configured.permissionMode });
   await write(io.stdout, `TokenDanceCode ${version}\n`);
   await write(io.stdout, "Type /help for commands, /exit to quit.\n");
 
@@ -980,6 +982,28 @@ function parseTodoAddArgs(args: string[]): { text: string; taskId?: string } {
   return {
     text: args.slice(0, taskFlagIndex).join(" ").trim(),
     taskId: args[taskFlagIndex + 1]
+  };
+}
+
+async function createConfiguredClient(io: CliIO): Promise<{ client: TokenDanceCode; permissionMode: PermissionMode }> {
+  const baseClient = new TokenDanceCode({ storageRoot: io.cwd() });
+  const info = await baseClient.config({ projectRoot: io.cwd() });
+  return {
+    client: new TokenDanceCode({
+      storageRoot: io.cwd(),
+      provider: providerFromConfig(info.config)
+    }),
+    permissionMode: info.config.permissionMode
+  };
+}
+
+function providerFromConfig(config: Awaited<ReturnType<TokenDanceCode["config"]>>["config"]): TokenDanceProviderConfig {
+  if (config.provider === "mock") {
+    return { type: "mock" };
+  }
+  return {
+    type: config.provider,
+    model: config.model
   };
 }
 

@@ -580,6 +580,15 @@ console.log(saved.projectConfigPath);
 
 Config facade 只读写 `provider`、`model`、`permissionMode` 三个白名单字段，忽略并清理 `apiKey`、`token` 等 secret 字段，避免把密钥带入 CLI 输出、文档或 AgentHub 调试事件。调用方通过 SDK `env` 显式注入环境时，`MODEL_ID` / `TOKENDANCE_MODEL` 可设置模型，`TOKENDANCE_PROVIDER` 可显式设置 provider；未显式设置 provider 但存在 `MODEL_ID` 和对应 API key 时，SDK config facade 会把 `ANTHROPIC_API_KEY` 推断为 `anthropic-messages`、把 `OPENAI_API_KEY` 推断为 `openai-responses`。存在 `TOKENDANCE_GATEWAY_API_KEY` 和模型时会推断为 `openai-chat-completions`。需要 OpenAI-compatible `/v1/chat/completions` 时显式设置 `TOKENDANCE_PROVIDER=openai-chat-completions`。密钥只参与 present/missing 和 provider 推断，不会进入 `config()` / `setConfig()` 输出，也不应写入 JSON 配置。
 
+如果 AgentHub shell 或本地脚本只能调用 CLI，可以使用同源 JSON 输出，避免解析人类可读文本：
+
+```powershell
+tokendance config --json
+tokendance config set --json provider openai-chat-completions model deepseek-v4-pro permission-mode safe
+```
+
+`config set --json` 在 config payload 之外返回 `scope` 和 `savedPath`，便于启动向导确认写入位置。CLI JSON 输出同样不包含 provider key、TokenDanceID token 或其他 secret 值。
+
 ## 12. Doctor
 
 AgentHub 可以通过 SDK 读取和 CLI `doctor` 同源的结构化诊断，用于启动前检查、调试面板或 Edge 环境报告：

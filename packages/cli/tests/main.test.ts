@@ -174,11 +174,14 @@ describe("TokenDanceCode CLI", () => {
     const topLevel = createTestIO("", root);
     const interactive = createTestIO("/config set provider anthropic-messages model claude-test permission-mode auto\n/config\n/exit\n", root);
     const secret = createTestIO("", root);
+    const jsonModelRoot = await mkdtemp(join(tmpdir(), "tdcode-cli-config-json-model-"));
+    const jsonModel = createTestIO("", jsonModelRoot);
 
     const topLevelExitCode = await runCli(["config", "set", "provider", "openai-chat-completions", "model", "deepseek-v4-pro", "permission-mode", "safe"], topLevel);
     const interactiveExitCode = await runCli([], interactive);
     const secretExitCode = await runCli(["config", "set", "apiKey", "secret"], secret);
     const written = await readFile(join(root, ".tokendance", "config.json"), "utf8");
+    const jsonModelExitCode = await runCli(["config", "set", "provider", "mock", "model", "json", "permission-mode", "safe"], jsonModel);
 
     expect(topLevelExitCode).toBe(0);
     expect(topLevel.stdoutText()).toContain("Saved project config");
@@ -198,6 +201,46 @@ describe("TokenDanceCode CLI", () => {
     expect(secretExitCode).toBe(1);
     expect(secret.stderrText()).toContain("Refusing to write unsafe config field: apiKey");
     expect(written).not.toContain("secret");
+    expect(jsonModelExitCode).toBe(0);
+    expect(jsonModel.stdoutText()).toContain("model: json");
+    expect(() => JSON.parse(jsonModel.stdoutText())).toThrow();
+  });
+
+  it("prints config as JSON for scripts and AgentHub shells", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-config-json-"));
+    const home = await mkdtemp(join(tmpdir(), "tdcode-cli-home-"));
+    await mkdir(join(root, ".tokendance"), { recursive: true });
+    await writeFile(join(root, ".tokendance", "config.json"), JSON.stringify({ provider: "mock", model: "mock", permissionMode: "safe" }), "utf8");
+    await mkdir(join(home, ".tokendance"), { recursive: true });
+    await writeFile(join(home, ".tokendance", ".env"), "OPENAI_API_KEY=global-openai\nMODEL_ID=gpt-test\n", "utf8");
+    const topLevel = createTestIO("", root, home, {});
+    const interactive = createTestIO("/config json\n/exit\n", root, home, {});
+    const setJson = createTestIO("", root, home, {});
+
+    const topLevelExitCode = await runCli(["config", "--json"], topLevel);
+    const interactiveExitCode = await runCli([], interactive);
+    const setJsonExitCode = await runCli(
+      ["config", "set", "--json", "provider", "openai-chat-completions", "model", "deepseek-v4-pro", "permission-mode", "auto"],
+      setJson
+    );
+
+    const topLevelJson = JSON.parse(topLevel.stdoutText());
+    const interactiveJsonMatch = interactive.stdoutText().match(/\{\n[\s\S]*\n\}/);
+    const interactiveJson = JSON.parse(interactiveJsonMatch?.[0] ?? "{}");
+    const setJsonPayload = JSON.parse(setJson.stdoutText());
+
+    expect(topLevelExitCode).toBe(0);
+    expect(topLevelJson.config).toEqual({ provider: "openai-responses", model: "gpt-test", permissionMode: "safe" });
+    expect(topLevelJson.sources.map((source: { kind: string }) => source.kind)).toEqual(["defaults", "project", "env"]);
+    expect(topLevelJson.projectConfigPath).toBe(join(root, ".tokendance", "config.json"));
+    expect(topLevel.stdoutText()).not.toContain("global-openai");
+    expect(interactiveExitCode).toBe(0);
+    expect(interactiveJson.config).toEqual(topLevelJson.config);
+    expect(setJsonExitCode).toBe(0);
+    expect(setJsonPayload.scope).toBe("project");
+    expect(setJsonPayload.savedPath).toBe(join(root, ".tokendance", "config.json"));
+    expect(setJsonPayload.config).toEqual({ provider: "openai-responses", model: "gpt-test", permissionMode: "auto" });
+    expect(setJson.stdoutText()).not.toContain("global-openai");
   });
 
   it("uses global env files for provider keys without reading project env by default", async () => {

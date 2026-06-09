@@ -359,7 +359,8 @@ async function configCommand(args: string[], io: CliIO): Promise<number> {
   const style = styleFromEnv(env);
   const client = new TokenDanceCode({ env });
   if (args[0] === "set") {
-    const parsed = parseConfigSetArgs(args.slice(1));
+    const format = configFormat(args.slice(1));
+    const parsed = parseConfigSetArgs(stripConfigFormatArgs(args.slice(1)));
     if ("error" in parsed) {
       await write(io.stderr, `${parsed.error}\n`);
       await write(io.stderr, configSetUsage());
@@ -368,6 +369,10 @@ async function configCommand(args: string[], io: CliIO): Promise<number> {
 
     const info = await client.setConfig(parsed.config, { projectRoot: io.cwd(), homeDir: homeDirFor(io), scope: parsed.scope });
     const savedPath = parsed.scope === "global" ? info.globalConfigPath : info.projectConfigPath;
+    if (format === "json") {
+      await write(io.stdout, `${JSON.stringify({ ...info, scope: parsed.scope, savedPath }, null, 2)}\n`);
+      return 0;
+    }
     await write(io.stdout, `Saved ${parsed.scope} config in ${savedPath}\n`);
     await writeField(io, "provider", info.config.provider);
     await writeField(io, "model", info.config.model);
@@ -375,12 +380,17 @@ async function configCommand(args: string[], io: CliIO): Promise<number> {
     return 0;
   }
 
-  if (args.length > 0) {
-    await write(io.stderr, "Usage: tokendance config [set [--project|--global] provider <provider> model <model> permission-mode <mode>]\n");
+  const format = configFormat(args);
+  if (stripConfigFormatArgs(args).length > 0) {
+    await write(io.stderr, "Usage: tokendance config [--json] [set [--json] [--project|--global] provider <provider> model <model> permission-mode <mode>]\n");
     return 1;
   }
 
   const info = await client.config({ projectRoot: io.cwd(), homeDir: homeDirFor(io) });
+  if (format === "json") {
+    await write(io.stdout, `${JSON.stringify(info, null, 2)}\n`);
+    return 0;
+  }
   await writeSection(io, "Configuration", style);
   await writeField(io, "provider", info.config.provider);
   await writeField(io, "model", info.config.model);
@@ -1068,7 +1078,8 @@ ${heading("Work:", style)}
 
 ${heading("Diagnostics:", style)}
   tokendance doctor [--json]
-  tokendance config
+  tokendance config [--json]
+  tokendance config set [--json] [--project|--global] provider <provider> model <model> permission-mode <mode>
 
 ${heading("Gateway:", style)}
   tokendance gateway init [--model model] [--base-url url]
@@ -1110,8 +1121,8 @@ ${heading("Work:", style)}
 
 ${heading("Diagnostics:", style)}
   /doctor [json]
-  /config
-  /config set [--project|--global] provider <provider> model <model> permission-mode <mode>
+  /config [json]
+  /config set [json] [--project|--global] provider <provider> model <model> permission-mode <mode>
 
 ${heading("Gateway:", style)}
   tokendance gateway init [--model model] [--base-url url]
@@ -1318,6 +1329,18 @@ function parseGatewayInitArgs(args: string[]): { model: string; baseUrl: string 
     return undefined;
   }
   return { model, baseUrl };
+}
+
+function configFormat(args: string[]): "text" | "json" {
+  return args.some((arg, index) => isConfigJsonArg(arg, index)) ? "json" : "text";
+}
+
+function stripConfigFormatArgs(args: string[]): string[] {
+  return args.filter((arg, index) => !isConfigJsonArg(arg, index));
+}
+
+function isConfigJsonArg(arg: string, index: number): boolean {
+  return arg === "--json" || (arg === "json" && index === 0);
 }
 
 function parseConfigSetArgs(args: string[]): { scope: ConfigWriteScope; config: ConfigPatch } | { error: string } {

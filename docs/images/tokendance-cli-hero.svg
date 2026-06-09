@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" role="img" aria-labelledby="title desc">
   <title id="title">TokenDanceCode CLI hero</title>
-  <desc id="desc">A dark blue terminal-style TokenDanceCode CLI hero using AgentHub design colors and a stable TOKENDANCE wordmark.</desc>
+  <desc id="desc">A transparent-background terminal-style TokenDanceCode CLI hero using AgentHub design colors and a stable TOKENDANCE wordmark.</desc>
 
   <defs>
     <filter id="softShadow" x="-10%" y="-10%" width="120%" height="130%">
@@ -11,7 +11,6 @@
   <!-- AgentHub design dark tokens:
        app-bg #1a1a20, surface #24242d, surface-dim #1e1e26,
        text-1 #e3e4e6, text-2 #9a9aa4, primary dark #29ABE2. -->
-  <rect width="1200" height="640" fill="#08172a"/>
   <rect x="56" y="48" width="1088" height="560" rx="10" fill="#1a1a20" stroke="#2a3850" stroke-width="1" filter="url(#softShadow)"/>
 
   <!-- Terminal chrome -->
@@ -41,7 +40,7 @@
   <text x="88" y="360" fill="#e3e4e6" font-family="Cascadia Mono, SFMono-Regular, Consolas, monospace" font-size="24" font-weight="700">
     TokenDanceCode 0.2.0-ts.0
     <tspan fill="#9a9aa4"> Provider:</tspan>
-    <tspan fill="#29ABE2"> mock</tspan>
+    <tspan fill="#29ABE2"> TokenDance Gateway</tspan>
     <tspan fill="#9a9aa4"> CWD:</tspan>
     <tspan fill="#e3e4e6"> &lt;workspace&gt;</tspan>
   </text>

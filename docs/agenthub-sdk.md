@@ -813,7 +813,7 @@ const quality = await tools.execute(
 );
 ```
 
-`tools.list()` 返回不含 executor/parse 函数的工具能力 metadata：`name`、`description`、`risk`、`riskSummary`、`concurrency`、各权限模式下的 `permission` 状态、对应的 `permissionReasons`、`permissionRiskMetadata`，以及工具级 `safetyNotes`。AgentHub 可以用它渲染调试面板、权限说明、拒绝原因预览或工具开关。
+`tools.list()` 返回不含 executor/parse 函数的工具能力 metadata：`name`、`description`、`risk`、`riskSummary`、`concurrency`、`permissionProfiles`、各权限模式下的 `permission` 状态、对应的 `permissionReasons`、`permissionRiskMetadata`，以及工具级 `safetyNotes`。AgentHub 首选消费 `permissionProfiles.default/safe/auto/yolo`，每个 profile 直接包含同一模式下的 `status`、`reason` 和 `riskMetadata`，不用再把三个并行 map 自行拼装；旧 map 字段保留用于兼容现有面板或日志。AgentHub 可以用它渲染调试面板、权限说明、拒绝原因预览或工具开关。
 
 这个 facade 的 `execute()` 返回 core `ToolResult`，用于 AgentHub 调试面板、手动质量门、Git diff/review、worktree/subagent 管理工作流和受控工具执行。`quality_gate` 不传 `command` 时会自动发现 `package.json` 的 `verify` 脚本，缺少 `verify` 时回退到 `test`；传入 `command` 时使用显式命令覆盖。即使用 `yolo` 让质量命令运行，PowerShell 工具层仍会拒绝已知高风险命令。`worktree_create`、`worktree_remove`、`subagent_run`、`subagent_accept` 和 `subagent_discard` 是 shell 风险工具，默认模式下需要审批或显式 tool facade 覆盖权限。
 

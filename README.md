@@ -121,6 +121,7 @@ SDK 已提供：
 - doctor/config readiness facade
 - transcript/search/session lifecycle helpers
 - task/todo/subagent/worktree facade
+- AgentHub-readable `tools.list()` catalog with `permissionProfiles.default/safe/auto/yolo`
 - TokenDanceID OIDC Authorization Code + PKCE login URL helper
 
 详细接入说明见 [docs/agenthub-sdk.md](docs/agenthub-sdk.md)。

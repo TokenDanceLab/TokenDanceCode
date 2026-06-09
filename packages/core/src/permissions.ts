@@ -1,7 +1,23 @@
-import type { PermissionApprovalResponse, PermissionDecision, PermissionDecisionAction, PermissionMode, PermissionRiskMetadata, ToolSpec } from "./types.js";
+import type { PermissionApprovalResponse, PermissionDecision, PermissionDecisionAction, PermissionMode, PermissionProfileMetadata, PermissionRiskMetadata, ToolSpec } from "./types.js";
 
 export class PermissionEngine {
   constructor(private readonly mode: PermissionMode) {}
+
+  static describeProfiles(tool: ToolSpec): Record<PermissionMode, PermissionProfileMetadata> {
+    return Object.fromEntries(
+      permissionModes.map((mode) => {
+        const decision = new PermissionEngine(mode).decide(tool);
+        return [
+          mode,
+          {
+            status: decision.status,
+            reason: decision.reason,
+            riskMetadata: decision.riskMetadata
+          }
+        ];
+      })
+    ) as Record<PermissionMode, PermissionProfileMetadata>;
+  }
 
   decide(tool: ToolSpec): PermissionDecision {
     if (this.mode === "yolo") {
@@ -25,6 +41,8 @@ export class PermissionEngine {
       : requiresApproval(this.mode, tool, `default mode requires approval before running ${tool.risk} tools`);
   }
 }
+
+const permissionModes = ["default", "safe", "auto", "yolo"] as const satisfies readonly PermissionMode[];
 
 export function normalizeApprovalDecision(
   baseDecision: Extract<PermissionDecision, { status: "requires_approval" }>,

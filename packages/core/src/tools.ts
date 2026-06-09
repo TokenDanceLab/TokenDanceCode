@@ -5,7 +5,7 @@ import { buildGitTools } from "./git-tools.js";
 import { createApplyPatchTool } from "./patch-tools.js";
 import { createRunPowerShellTool } from "./shell-tools.js";
 import { buildWorktreeTools } from "./worktrees.js";
-import type { PermissionDecision, PermissionMode, PermissionRiskMetadata, SessionState, ToolCall, ToolResult, ToolSafetyEvidence, ToolSpec, ToolRisk } from "./types.js";
+import type { PermissionDecision, PermissionMode, PermissionProfileMetadata, PermissionRiskMetadata, SessionState, ToolCall, ToolResult, ToolSafetyEvidence, ToolSpec, ToolRisk } from "./types.js";
 
 export interface ToolMetadata {
   name: string;
@@ -13,6 +13,7 @@ export interface ToolMetadata {
   risk: ToolRisk;
   riskSummary: string;
   concurrency: ToolSpec["concurrency"];
+  permissionProfiles: Record<PermissionMode, PermissionProfileMetadata>;
   permission: Record<PermissionMode, PermissionDecision["status"]>;
   permissionReasons: Record<PermissionMode, string>;
   permissionRiskMetadata: Record<PermissionMode, PermissionRiskMetadata | undefined>;
@@ -39,17 +40,21 @@ export class ToolRegistry {
   }
 
   metadata(): ToolMetadata[] {
-    return this.list().map((tool) => ({
-      name: tool.name,
-      description: tool.description,
-      risk: tool.risk,
-      riskSummary: riskSummary(tool.risk),
-      concurrency: tool.concurrency,
-      permission: permissionMetadata(tool),
-      permissionReasons: permissionReasonMetadata(tool),
-      permissionRiskMetadata: permissionRiskMetadata(tool),
-      safetyNotes: tool.safetyNotes ?? []
-    }));
+    return this.list().map((tool) => {
+      const profiles = PermissionEngine.describeProfiles(tool);
+      return {
+        name: tool.name,
+        description: tool.description,
+        risk: tool.risk,
+        riskSummary: riskSummary(tool.risk),
+        concurrency: tool.concurrency,
+        permissionProfiles: profiles,
+        permission: permissionMetadata(profiles),
+        permissionReasons: permissionReasonMetadata(profiles),
+        permissionRiskMetadata: permissionRiskMetadata(profiles),
+        safetyNotes: tool.safetyNotes ?? []
+      };
+    });
   }
 }
 
@@ -104,32 +109,19 @@ export function createEchoTool(): ToolSpec<{ text: string }, { text: string }> {
   };
 }
 
-function permissionMetadata(tool: ToolSpec): Record<PermissionMode, PermissionDecision["status"]> {
-  return {
-    default: new PermissionEngine("default").decide(tool).status,
-    safe: new PermissionEngine("safe").decide(tool).status,
-    auto: new PermissionEngine("auto").decide(tool).status,
-    yolo: new PermissionEngine("yolo").decide(tool).status
-  };
+function permissionMetadata(profiles: Record<PermissionMode, PermissionProfileMetadata>): Record<PermissionMode, PermissionDecision["status"]> {
+  return Object.fromEntries(permissionModes.map((mode) => [mode, profiles[mode].status])) as Record<PermissionMode, PermissionDecision["status"]>;
 }
 
-function permissionReasonMetadata(tool: ToolSpec): Record<PermissionMode, string> {
-  return {
-    default: new PermissionEngine("default").decide(tool).reason,
-    safe: new PermissionEngine("safe").decide(tool).reason,
-    auto: new PermissionEngine("auto").decide(tool).reason,
-    yolo: new PermissionEngine("yolo").decide(tool).reason
-  };
+function permissionReasonMetadata(profiles: Record<PermissionMode, PermissionProfileMetadata>): Record<PermissionMode, string> {
+  return Object.fromEntries(permissionModes.map((mode) => [mode, profiles[mode].reason])) as Record<PermissionMode, string>;
 }
 
-function permissionRiskMetadata(tool: ToolSpec): Record<PermissionMode, PermissionRiskMetadata | undefined> {
-  return {
-    default: new PermissionEngine("default").decide(tool).riskMetadata,
-    safe: new PermissionEngine("safe").decide(tool).riskMetadata,
-    auto: new PermissionEngine("auto").decide(tool).riskMetadata,
-    yolo: new PermissionEngine("yolo").decide(tool).riskMetadata
-  };
+function permissionRiskMetadata(profiles: Record<PermissionMode, PermissionProfileMetadata>): Record<PermissionMode, PermissionRiskMetadata | undefined> {
+  return Object.fromEntries(permissionModes.map((mode) => [mode, profiles[mode].riskMetadata])) as Record<PermissionMode, PermissionRiskMetadata | undefined>;
 }
+
+const permissionModes = ["default", "safe", "auto", "yolo"] as const satisfies readonly PermissionMode[];
 
 function riskSummary(risk: ToolRisk): string {
   switch (risk) {

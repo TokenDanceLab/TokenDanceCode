@@ -29,6 +29,8 @@ tokendance quality --json
 
 Interactive turns use a scrollback-first renderer instead of a full-screen TUI. Tool lifecycle, permission, success, error, and token usage lines keep stable plain-text badges such as `[tool]`, `[permission]`, `[done]`, `[error]`, and `[usage]`; ANSI color only highlights those same tokens when color is enabled, so `NO_COLOR` and test captures remain deterministic. Tool events include compact command/path/output summaries, text output is collapsed to one scrollback line with character and line counts, and failures render as small reason/evidence blocks for copy-paste debugging.
 
+`tokendance tools` prints the human-readable tool catalog. AgentHub and other structured consumers should use the SDK `tools.list()` facade for the same catalog with `permissionProfiles.default/safe/auto/yolo`, where each profile carries the mode-specific `status`, `reason`, and `riskMetadata`; the CLI text output stays compact.
+
 Help output stays command-palette inspired but plain: the header is a compact ASCII brand banner (`TokenDanceCode`, `TD CODE`, and the scrollback-first tagline), commands are grouped by workflow (`Core`, `Session`, `Work`, `Diagnostics`, `Gateway`), and section headers render as printable `== Name ==` lines. Do not add OpenTUI/full-screen widgets, cursor-managed panes, or renderer behavior that depends on terminal state beyond optional ANSI color.
 
 ## Release Baseline

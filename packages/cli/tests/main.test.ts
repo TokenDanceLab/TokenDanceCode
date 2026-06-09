@@ -331,6 +331,16 @@ describe("TokenDanceCode CLI", () => {
     expect(ready.stdoutText()).not.toContain("gateway-secret");
   });
 
+  it("rejects unknown doctor arguments with usage instead of running diagnostics", async () => {
+    const io = createTestIO();
+
+    const exitCode = await runCli(["doctor", "--verbose"], io);
+
+    expect(exitCode).toBe(1);
+    expect(io.stderrText()).toContain("Usage: tokendance doctor [--json]");
+    expect(io.stdoutText()).toBe("");
+  });
+
   it("uses global env files for provider keys without reading project env by default", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-cli-env-"));
     const home = await mkdtemp(join(tmpdir(), "tdcode-cli-home-"));
@@ -617,6 +627,38 @@ describe("TokenDanceCode CLI", () => {
     expect(topLevelReview.stdoutText()).toContain("[medium] Diff adds TODO text that may need a tracked follow-up.");
     expect(topLevelQualityAuto.stdoutText()).toContain("cli auto quality");
     expect(topLevelQuality.stdoutText()).toContain("Quality passed.");
+  });
+
+  it("prints quality gate results as JSON for scripts", async () => {
+    const root = await initRepo();
+    await writeFile(
+      join(root, "package.json"),
+      JSON.stringify({ scripts: { verify: "node -e \"console.log('cli quality json')\"" } }),
+      "utf8"
+    );
+    const topLevel = createTestIO("", root);
+    const interactive = createTestIO("/quality --json\n/exit\n", root);
+
+    const topLevelExitCode = await runCli(["quality", "--json"], topLevel);
+    const interactiveExitCode = await runCli([], interactive);
+
+    const topLevelJson = JSON.parse(topLevel.stdoutText());
+    const interactiveJsonMatch = interactive.stdoutText().match(/\{\n[\s\S]*\n\}/);
+    const interactiveJson = JSON.parse(interactiveJsonMatch?.[0] ?? "{}");
+
+    expect(topLevelExitCode).toBe(0);
+    expect(interactiveExitCode).toBe(0);
+    expect(topLevelJson).toEqual({
+      passed: true,
+      result: {
+        stdout: "cli quality json\n",
+        stderr: "",
+        exitCode: 0
+      }
+    });
+    expect(interactiveJson).toEqual(topLevelJson);
+    expect(topLevel.stdoutText()).not.toContain("Quality passed.");
+    expect(interactive.stdoutText()).not.toContain("Quality passed.");
   });
 
   it("warns about uncommitted changes before exiting an interactive session", async () => {

@@ -133,8 +133,8 @@ node packages/cli/dist/main.js run "hello"
 
 ### P2：上下文与恢复
 
-- [x] Context builder：system prompt、AGENTS.md/CLAUDE.md/README 摘要、compact summary、memory、recent messages，并接入 runtime provider request；transient context 不写回 session/transcript。
-- [x] Compact：确定性 summary boundary，不引入复杂 microcompact。
+- [x] Context builder：system prompt、AGENTS.md/CLAUDE.md/README 摘要、compact summary、memory、recent messages，并接入 runtime provider request；transient context 不写回 session/transcript。Context preview 支持显式字符预算，分别约束 instruction、compact、memory 和 recent messages，并返回 dropped recent message metadata。
+- [x] Compact：确定性 summary boundary，不引入复杂 microcompact；compact 输出包含 recovery notes 和 recent recoverable transcript snippets，并写回 session `compactSummary` 供 resume/context 继续使用。
 - [x] Resume：从 JSONL 恢复 session，过滤未闭合 tool call 和坏链路。
 - [x] Transcript metadata/search：SDK/CLI 可展示 sessionDir、transcriptPath、eventCount，并搜索源事件匹配。
 - [x] Compact helper：SDK/CLI 可对 latest 或指定 session 生成 compact summary。
@@ -151,7 +151,7 @@ node packages/cli/dist/main.js run "hello"
 - [x] 提供 `TDCodeEvent` -> AgentHub `run.agent.*` runtime event mapper。
 - [x] 提供 AgentHub `agent.stream` payload sink fixture。
 - [x] 暴露 `thread.state` session snapshot，供 AgentHub 读取当前 thread 状态。
-- [x] 暴露 `thread.context(input)` transient preview，供 AgentHub 调试面板预览下一轮 provider context，且不污染 session/transcript。
+- [x] 暴露 `thread.context(input, { contextBudget? })` transient preview，供 AgentHub 调试面板预览下一轮 provider context，且不污染 session/transcript。
 - [x] 增加 SDK `client.resume({ sessionId?, storageRoot? })` 便捷入口，兼容 latest/by-id resume。
 - [x] 增加 SDK `thread.searchTranscript(query, { limit? })`，供 AgentHub 调试面板或轻量索引读取匹配事件。
 - [x] 增加 SDK `client.memory({ projectRoot?, homeDir? })`，供 AgentHub 管理 project/global memory。

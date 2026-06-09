@@ -11,6 +11,15 @@ export interface ContextBuilderOptions {
   maxRecentMessages?: number;
   maxInstructionFileBytes?: number;
   systemPrompt?: string;
+  contextBudget?: ContextBudget;
+  memoryHomeDir?: string;
+}
+
+export interface ContextBudget {
+  instructions?: number;
+  compact?: number;
+  memory?: number;
+  recentMessages?: number;
 }
 
 export interface BuildContextInput {
@@ -35,6 +44,8 @@ export interface ContextPreviewMetadata {
   memoryEntryCount: number;
   systemMessageCharacters: number;
   totalMessageCharacters: number;
+  contextBudget?: ContextBudget;
+  droppedRecentMessageCount: number;
 }
 
 export class ContextBuilder {
@@ -47,25 +58,40 @@ export class ContextBuilder {
     const workspaceRoot = await resolveWorkspaceRoot(workingDirectory, input.workspaceRoot);
     const maxInstructionFileBytes = this.options.maxInstructionFileBytes ?? defaultMaxInstructionFileBytes;
 
+    const instructionParts: string[] = [];
     for (const instructionFile of await discoverInstructionFiles(workingDirectory, workspaceRoot)) {
       const content = await readOptionalText(instructionFile.absolutePath, maxInstructionFileBytes);
       if (content) {
         includedFiles.push(instructionFile.displayPath);
-        systemParts.push(`## ${instructionFile.displayPath}\n${content}`);
+        instructionParts.push(`## ${instructionFile.displayPath}\n${content}`);
       }
+    }
+    const instructionContent = limitText(instructionParts.join("\n\n"), this.options.contextBudget?.instructions);
+    if (instructionContent) {
+      systemParts.push(instructionContent);
     }
 
     if (input.session.compactSummary) {
-      systemParts.push(`## Compact Summary\n${input.session.compactSummary}`);
+      const compactSummary = limitText(input.session.compactSummary, this.options.contextBudget?.compact);
+      if (compactSummary) {
+        systemParts.push(`## Compact Summary\n${compactSummary}`);
+      }
     }
 
-    const memory = new MemoryStore({ projectRoot: workspaceRoot });
+    const memory = new MemoryStore({ projectRoot: workspaceRoot, homeDir: this.options.memoryHomeDir });
     const memoryEntries = [...(await memory.listGlobalMemory()), ...(await memory.listProjectMemory())];
     if (memoryEntries.length > 0) {
-      systemParts.push(`## Memory\n${memoryEntries.map((entry) => `- ${entry}`).join("\n")}`);
+      const memoryContent = limitText(memoryEntries.map((entry) => `- ${entry}`).join("\n"), this.options.contextBudget?.memory);
+      if (memoryContent) {
+        systemParts.push(`## Memory\n${memoryContent}`);
+      }
     }
     const maxRecentMessages = this.options.maxRecentMessages ?? 20;
-    const includedRecentMessages = recentMessages(input.session, maxRecentMessages);
+    const { messages: includedRecentMessages, droppedCount } = recentMessages(
+      input.session,
+      maxRecentMessages,
+      this.options.contextBudget?.recentMessages
+    );
     const systemContent = systemParts.join("\n\n");
     const messages = [
       { role: "system" as const, content: systemContent },
@@ -85,17 +111,79 @@ export class ContextBuilder {
         hasCompactSummary: Boolean(input.session.compactSummary),
         memoryEntryCount: memoryEntries.length,
         systemMessageCharacters: systemContent.length,
-        totalMessageCharacters: messages.reduce((total, message) => total + message.content.length, 0)
+        totalMessageCharacters: messages.reduce((total, message) => total + message.content.length, 0),
+        contextBudget: this.options.contextBudget ? { ...this.options.contextBudget } : undefined,
+        droppedRecentMessageCount: droppedCount
       }
     };
   }
 }
 
-function recentMessages(session: SessionState, maxRecentMessages: number): TDMessage[] {
+function recentMessages(
+  session: SessionState,
+  maxRecentMessages: number,
+  characterBudget?: number
+): { messages: TDMessage[]; droppedCount: number } {
   if (maxRecentMessages <= 0) {
-    return [];
+    return { messages: [], droppedCount: session.messages.length };
   }
-  return session.messages.slice(-maxRecentMessages);
+  const candidates = session.messages.slice(-maxRecentMessages);
+  const omittedByCount = Math.max(0, session.messages.length - candidates.length);
+  if (characterBudget === undefined) {
+    return { messages: candidates, droppedCount: omittedByCount };
+  }
+  if (characterBudget <= 0) {
+    return { messages: [], droppedCount: omittedByCount + candidates.length };
+  }
+
+  const messages: TDMessage[] = [];
+  let remaining = characterBudget;
+  for (let index = candidates.length - 1; index >= 0; index -= 1) {
+    const message = candidates[index];
+    if (!message) {
+      continue;
+    }
+    if (message.content.length <= remaining) {
+      messages.unshift({ ...message });
+      remaining -= message.content.length;
+      continue;
+    }
+    if (messages.length === 0) {
+      const content = limitText(message.content, remaining);
+      if (content) {
+        messages.unshift({ ...message, content });
+      }
+    }
+    break;
+  }
+
+  return { messages, droppedCount: omittedByCount + candidates.length - messages.length };
+}
+
+function limitText(text: string, characterBudget?: number): string | undefined {
+  if (characterBudget === undefined) {
+    return text;
+  }
+  if (characterBudget <= 0) {
+    return undefined;
+  }
+  if (text.length <= characterBudget) {
+    return text;
+  }
+
+  let sliceLength = characterBudget;
+  let marker = "";
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const omitted = Math.max(0, text.length - sliceLength);
+    marker = `\n...[truncated ${omitted} characters]`;
+    sliceLength = Math.max(0, characterBudget - marker.length);
+  }
+  if (sliceLength <= 0) {
+    return text.slice(0, characterBudget);
+  }
+  const omitted = text.length - sliceLength;
+  marker = `\n...[truncated ${omitted} characters]`;
+  return `${text.slice(0, Math.max(0, characterBudget - marker.length))}${marker}`;
 }
 
 async function readOptionalText(path: string, maxBytes: number): Promise<string | undefined> {

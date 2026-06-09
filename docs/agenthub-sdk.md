@@ -52,6 +52,7 @@ const client = new TokenDanceCode({
 | `env` | SDK 内部构造 provider 时读取 API key；用于 AgentHub 注入进程环境或受控配置。 |
 | `approvalCallback` | 当权限决策为 `requires_approval` 时调用。返回 `true` 允许，`false` 拒绝，也可返回完整 `PermissionDecision`。 |
 | `eventSink` | 每个 runtime event 写入 transcript 后同步推给 AgentHub。 |
+| `contextBudget` | 可选字符预算，作用于实际 `run()` provider context；per-call `thread.context(..., { contextBudget })` 只影响 preview。 |
 
 真实 provider 的 key 名：
 
@@ -188,11 +189,17 @@ console.log(preview.metadata.includedRecentMessageCount);
 console.log(preview.messages[0]?.content);
 
 const shortPreview = await thread.context("next prompt", {
-  maxRecentMessages: 6
+  maxRecentMessages: 6,
+  contextBudget: {
+    instructions: 24000,
+    compact: 12000,
+    memory: 8000,
+    recentMessages: 12000
+  }
 });
 ```
 
-`thread.context()` 只返回 transient preview，不会把本轮 user message 或 system context 写入 `thread.state`、session 文件或 transcript。`maxRecentMessages` 可限制 preview 中带入的历史消息数量，供 AgentHub resume 面板、运行前调试或低上下文预算场景使用；不传时保持默认最近 20 条消息。`preview.metadata` 是只读派生信息，包含 `workspaceRoot`、`maxRecentMessages`、`sessionMessageCount`、`includedRecentMessageCount`、`includedFiles`、`hasCompactSummary`、`memoryEntryCount`、`systemMessageCharacters` 和 `totalMessageCharacters`，用于调试面板解释为什么某些上下文被带入或省略。
+`thread.context()` 只返回 transient preview，不会把本轮 user message 或 system context 写入 `thread.state`、session 文件或 transcript。`maxRecentMessages` 可限制 preview 中带入的历史消息数量，供 AgentHub resume 面板、运行前调试或低上下文预算场景使用；不传时保持默认最近 20 条消息。`contextBudget` 是可选字符预算，分别限制 instruction 文件、compact summary、memory 和 recent messages；它不会做向量检索，只做确定性截断和最近消息回退。`preview.metadata` 是只读派生信息，包含 `workspaceRoot`、`maxRecentMessages`、`sessionMessageCount`、`includedRecentMessageCount`、`droppedRecentMessageCount`、`includedFiles`、`hasCompactSummary`、`memoryEntryCount`、`systemMessageCharacters`、`totalMessageCharacters` 和可选 `contextBudget`，用于调试面板解释为什么某些上下文被带入、截断或省略。
 
 ## 6. 流式事件
 
@@ -485,7 +492,7 @@ fixture.decideApproval("tool-call-id", "allow", "approved in AgentHub");
 await turnPromise;
 ```
 
-SDK runner 每次 `run()` 都会创建一个新的 `TokenDanceCode` client，并用同一套 AgentHub stream envelope helper 把 runtime events 投递为递增 `event_seq` 的 `agent.stream` payload。传入的 AgentHub `sessionId` 会同时作为 TokenDanceCode thread id 使用；runner 会先按该 id `resume()`，没有现存 session 时才 `startThread()`，保证 Hub 事件、SDK `TurnResult.threadId`、provider 可见的消息历史和 transcript 目录使用同一个 session 标识。`defaultPermissionMode` 只作用于新建 thread；已存在 session 继续使用 session 内保存的权限模式。`streamIdFactory` 可接管 `agent.stream.id` 生成，`contextMaxRecentMessages` 可作为 runner 级 preview 历史上限，单次 `runner.context({ maxRecentMessages })` 可以覆盖该默认值。`runner.context()` 复用同一条按 Hub `sessionId` resume-or-start 的路径，返回下一轮 transient provider context preview；它不会发出 `agent.stream` 事件，也不会把 preview prompt 或 system context 追加进 transcript。`runner.bootstrap()` 一次返回 SDK manifest 和 doctor diagnostics；`packageInfo()` / `doctor()` 仍保留给需要分开刷新 UI 面板的调用方。真实 AgentHub 集成可以直接复制这个组合方式，再替换为自己的 Hub client、任务状态和 session 生命周期。
+SDK runner 每次 `run()` 都会创建一个新的 `TokenDanceCode` client，并用同一套 AgentHub stream envelope helper 把 runtime events 投递为递增 `event_seq` 的 `agent.stream` payload。传入的 AgentHub `sessionId` 会同时作为 TokenDanceCode thread id 使用；runner 会先按该 id `resume()`，没有现存 session 时才 `startThread()`，保证 Hub 事件、SDK `TurnResult.threadId`、provider 可见的消息历史和 transcript 目录使用同一个 session 标识。`defaultPermissionMode` 只作用于新建 thread；已存在 session 继续使用 session 内保存的权限模式。`streamIdFactory` 可接管 `agent.stream.id` 生成，`contextMaxRecentMessages` 可作为 runner 级 preview 历史上限，单次 `runner.context({ maxRecentMessages })` 可以覆盖该默认值；单次 `runner.context({ contextBudget })` 也会透传给同源 context builder。`runner.context()` 复用同一条按 Hub `sessionId` resume-or-start 的路径，返回下一轮 transient provider context preview；它不会发出 `agent.stream` 事件，也不会把 preview prompt 或 system context 追加进 transcript。`runner.bootstrap()` 一次返回 SDK manifest 和 doctor diagnostics；`packageInfo()` / `doctor()` 仍保留给需要分开刷新 UI 面板的调用方。真实 AgentHub 集成可以直接复制这个组合方式，再替换为自己的 Hub client、任务状态和 session 生命周期。
 
 当 runner 配置了 `onApprovalRequest` 时，远程审批请求会先发出 `run.agent.permission_requested` envelope，再等待 Hub/Edge 调用 `runner.decideApproval()`。决策返回后，runtime 会继续发出 `run.agent.permission_decided`、`run.agent.tool_result` 和最终结果事件。`pendingApprovals()` 返回待处理请求快照；`decideApproval()` 对重复、过期或未知 request id 返回 `false`。
 
@@ -573,7 +580,7 @@ console.log(latestCompact.path);
 console.log(selectedCompact.eventCount);
 ```
 
-`client.compact()` 先通过同一套 resume 入口定位 latest 或指定 session，再生成 deterministic compact summary；调用方也可以在已持有 `Thread` 时继续使用 `thread.compact()`。
+`client.compact()` 先通过同一套 resume 入口定位 latest 或指定 session，再生成 deterministic compact summary；调用方也可以在已持有 `Thread` 时继续使用 `thread.compact()`。Compact summary 会写入 `compact/compact-000N.md`，并同步保存到 `session.json` 的 `compactSummary`，因此后续 resume/context preview 可以把 Recovery Notes 和 Recent Recoverable Transcript 重新带入模型上下文。
 
 ## 11. Config
 

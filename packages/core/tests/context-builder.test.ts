@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ContextBuilder, type SessionState } from "../src/index.js";
+import { ContextBuilder, MemoryStore, type SessionState } from "../src/index.js";
 
 describe("ContextBuilder", () => {
   it("builds system context from defaults, AGENTS.md, README.md, compact summary, and recent messages", async () => {
@@ -89,6 +89,60 @@ describe("ContextBuilder", () => {
     expect(systemContent).toContain("[truncated");
     expect(systemContent).not.toContain("Outer rules must not be read.");
     expect(systemContent).not.toContain("long suffix");
+  });
+
+  it("applies context budgets to instructions, compact summary, memory, and recent messages", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-context-budget-"));
+    const home = await mkdtemp(join(tmpdir(), "tdcode-context-budget-home-"));
+    await writeFile(
+      join(root, "AGENTS.md"),
+      `instruction-anchor ${"x".repeat(120)} instruction-hidden\n`,
+      "utf8"
+    );
+    await new MemoryStore({ projectRoot: root, homeDir: home }).addProjectMemory(`memory-anchor ${"y".repeat(120)} memory-hidden`);
+    const session = createSession(root);
+    session.compactSummary = `compact-anchor ${"z".repeat(120)} compact-hidden`;
+    session.messages = [
+      { role: "user", content: "older message should be dropped by the recent-message budget" },
+      { role: "assistant", content: `assistant-anchor ${"a".repeat(120)} assistant-hidden` }
+    ];
+
+    const context = await new ContextBuilder({
+      maxRecentMessages: 5,
+      memoryHomeDir: home,
+      contextBudget: {
+        instructions: 72,
+        compact: 64,
+        memory: 60,
+        recentMessages: 58
+      }
+    }).build({
+      session,
+      userMessage: "next task",
+      workspaceRoot: root
+    });
+
+    const systemContent = context.messages[0]?.content ?? "";
+    expect(systemContent).toContain("instruction-anchor");
+    expect(systemContent).toContain("compact-anchor");
+    expect(systemContent).toContain("memory-anchor");
+    expect(systemContent).toContain("[truncated");
+    expect(systemContent).not.toContain("instruction-hidden");
+    expect(systemContent).not.toContain("compact-hidden");
+    expect(systemContent).not.toContain("memory-hidden");
+    expect(context.messages.slice(1)).toEqual([
+      { role: "assistant", content: expect.stringContaining("assistant-anchor") },
+      { role: "user", content: "next task" }
+    ]);
+    expect(context.messages[1]?.content.length).toBeLessThanOrEqual(58);
+    expect(context.messages[1]?.content).not.toContain("assistant-hidden");
+    expect(context.metadata.contextBudget).toMatchObject({
+      instructions: 72,
+      compact: 64,
+      memory: 60,
+      recentMessages: 58
+    });
+    expect(context.metadata.droppedRecentMessageCount).toBe(1);
   });
 });
 

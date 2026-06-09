@@ -1,4 +1,4 @@
-import type { ModelProvider, PermissionMode } from "@tokendance/code-core";
+import type { ContextBudget, ModelProvider, PermissionMode } from "@tokendance/code-core";
 import { AsyncLocalStorage } from "node:async_hooks";
 import {
   createAgentHubAgentStreamEmitter,
@@ -51,6 +51,7 @@ export interface AgentHubTokenDanceContextOptions {
   permissionMode?: PermissionMode;
   sessionId: string;
   maxRecentMessages?: number;
+  contextBudget?: ContextBudget;
 }
 
 export interface AgentHubTokenDanceDoctorOptions {
@@ -220,7 +221,8 @@ export function createAgentHubTokenDanceRunner(options: AgentHubTokenDanceRunner
       });
       const thread = await resumeOrStartThread(client, contextOptions, storageRoot, options.defaultPermissionMode);
       return thread.context(contextOptions.prompt, {
-        maxRecentMessages: contextOptions.maxRecentMessages ?? options.contextMaxRecentMessages
+        maxRecentMessages: contextOptions.maxRecentMessages ?? options.contextMaxRecentMessages,
+        contextBudget: contextOptions.contextBudget
       });
     },
 

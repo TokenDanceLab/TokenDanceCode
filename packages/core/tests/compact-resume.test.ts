@@ -38,6 +38,63 @@ describe("CompactService", () => {
     expect(content).toContain("Range: seq 1-2");
     expect(content).toContain("Events: 2");
   });
+
+  it("writes a recoverable compact summary with recent transcript snippets", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-compact-recover-"));
+    const session = createSession(root, "session-recover");
+    const store = new FileTranscriptStore({ rootDir: root });
+    await store.initialize(session);
+    await store.append({
+      type: "user.message",
+      sessionId: session.id,
+      turnId: "turn-1",
+      message: { role: "user", content: "Need context budget support for long tasks." }
+    });
+    await store.append({
+      type: "assistant.completed",
+      sessionId: session.id,
+      turnId: "turn-1",
+      message: { role: "assistant", content: "Added budget tests and compact recovery notes." }
+    });
+    await store.append({
+      type: "turn.completed",
+      sessionId: session.id,
+      turnId: "turn-1",
+      finalResponse: "Budget and compact work can resume from this point."
+    });
+
+    const result = await new CompactService(store.sessionDir(session.id)).manualCompact();
+    const content = await readFile(result.path, "utf8");
+
+    expect(content).toContain("## Recovery Notes");
+    expect(content).toContain("Latest turn: turn-1");
+    expect(content).toContain("Last user request: Need context budget support for long tasks.");
+    expect(content).toContain("Last assistant response: Added budget tests and compact recovery notes.");
+    expect(content).toContain("## Recent Recoverable Transcript");
+    expect(content).toContain("seq 1 user: Need context budget support for long tasks.");
+    expect(content).toContain("seq 2 assistant: Added budget tests and compact recovery notes.");
+    expect(content).not.toContain("finalResponse");
+  });
+
+  it("persists the latest compact summary into session state for resume context", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-compact-session-"));
+    const session = createSession(root, "session-compact-state");
+    const store = new FileTranscriptStore({ rootDir: root });
+    await store.initialize(session);
+    await store.append({
+      type: "user.message",
+      sessionId: session.id,
+      turnId: "turn-1",
+      message: { role: "user", content: "compact this session" }
+    });
+
+    const result = await new CompactService(store.sessionDir(session.id)).manualCompact();
+    const resumed = await store.loadSession(session.id);
+    const [listed] = await new ResumeService(root).listSessions();
+
+    expect(resumed.compactSummary).toBe(result.summary);
+    expect(listed).toMatchObject({ sessionId: session.id, hasCompactSummary: true });
+  });
 });
 
 describe("ResumeService", () => {

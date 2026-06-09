@@ -38,6 +38,7 @@ import {
   type CompactResult,
   type ConfigInfo,
   type ConfigPatch,
+  type ContextBudget,
   type ProviderConfigValidation,
   type ConfigWriteScope,
   type BuiltContext,
@@ -87,6 +88,7 @@ export interface TokenDanceCodeOptions {
   env?: Record<string, string | undefined>;
   approvalCallback?: PermissionApprovalCallback;
   eventSink?: TDCodeEventSink;
+  contextBudget?: ContextBudget;
 }
 
 export interface StartThreadOptions {
@@ -120,6 +122,7 @@ export type ThreadContext = BuiltContext;
 
 export interface ThreadContextOptions {
   maxRecentMessages?: number;
+  contextBudget?: ContextBudget;
 }
 
 export type MemoryScope = "project" | "global";
@@ -337,7 +340,8 @@ export class TokenDanceCode {
       store: new FileTranscriptStore({ rootDir: this.storageRootFor(session) }),
       session,
       approvalCallback: this.options.approvalCallback,
-      eventSink: this.options.eventSink
+      eventSink: this.options.eventSink,
+      contextBudget: this.options.contextBudget
     });
   }
 
@@ -443,7 +447,7 @@ export class Thread {
   }
 
   context(input: ThreadInput, options: ThreadContextOptions = {}): Promise<ThreadContext> {
-    return new ContextBuilder({ maxRecentMessages: options.maxRecentMessages }).build({
+    return new ContextBuilder({ maxRecentMessages: options.maxRecentMessages, contextBudget: options.contextBudget }).build({
       session: this.options.session,
       userMessage: normalizeInput(input),
       workspaceRoot: this.options.session.cwd
@@ -648,6 +652,7 @@ export type {
   CompactResult,
   ConfigPatch,
   ConfigWriteScope,
+  ContextBudget,
   ProviderConfigValidation,
   ModelProvider,
   PermissionApprovalCallback,

@@ -32,6 +32,23 @@ class WriteFileProvider implements ModelProvider {
   }
 }
 
+class CapturingProvider implements ModelProvider {
+  readonly requests: ModelTurnRequest[] = [];
+  private calls = 0;
+
+  async createTurn(request: ModelTurnRequest): Promise<ModelTurnResponse> {
+    this.requests.push(request);
+    this.calls += 1;
+    return {
+      assistantMessage:
+        this.calls === 1
+          ? `assistant-anchor ${"a".repeat(120)} assistant-hidden`
+          : "captured",
+      toolCalls: []
+    };
+  }
+}
+
 describe("TokenDanceCode SDK", () => {
   it("buffers a turn result for AgentHub callers", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
@@ -129,6 +146,45 @@ describe("TokenDanceCode SDK", () => {
     expect(visibleContent).toContain("third resume turn");
     expect(visibleContent).toContain("Mock response: third resume turn");
     expect(context.messages.at(-1)).toEqual({ role: "user", content: "preview with short history" });
+  });
+
+  it("passes context budgets through AgentHub thread previews", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-context-budget-"));
+    const client = new TokenDanceCode({ storageRoot: root });
+    const thread = client.startThread({ workingDirectory: root });
+    await thread.run(`budget-anchor ${"x".repeat(120)} budget-hidden`);
+
+    const context = await thread.context("preview with budget", {
+      contextBudget: { recentMessages: 80 }
+    });
+
+    expect(context.metadata.contextBudget).toMatchObject({ recentMessages: 80 });
+    expect(context.metadata.droppedRecentMessageCount).toBe(1);
+    expect(context.messages.slice(1)).toEqual([
+      { role: "assistant", content: expect.stringContaining("Mock response: budget-anchor") },
+      { role: "user", content: "preview with budget" }
+    ]);
+    expect(context.messages[1]?.content).not.toContain("budget-hidden");
+  });
+
+  it("applies configured context budgets to runtime provider requests", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-runtime-budget-"));
+    const provider = new CapturingProvider();
+    const client = new TokenDanceCode({
+      storageRoot: root,
+      provider,
+      contextBudget: { recentMessages: 80 }
+    });
+    const thread = client.startThread({ workingDirectory: root });
+    await thread.run(`user-anchor ${"x".repeat(120)} user-hidden`);
+
+    await thread.run("second turn");
+    const secondRequestContents = provider.requests[1]?.session.messages.map((message) => message.content) ?? [];
+
+    expect(secondRequestContents).toContainEqual(expect.stringContaining("assistant-anchor"));
+    expect(secondRequestContents).not.toContainEqual(expect.stringContaining("assistant-hidden"));
+    expect(secondRequestContents).not.toContainEqual(expect.stringContaining("user-anchor"));
+    expect(secondRequestContents.at(-1)).toBe("second turn");
   });
 
   it("loads latest thread with recent transcript for AgentHub callers", async () => {
@@ -932,10 +988,17 @@ describe("TokenDanceCode SDK", () => {
       sessionId: "hub-session-sdk-runner",
       agentInstanceId: "agent-sdk-runner"
     });
+    const budgetedContext = await runner.context({
+      prompt: "budgeted runner preview",
+      workingDirectory: root,
+      sessionId: "hub-session-sdk-runner",
+      contextBudget: { recentMessages: 42 }
+    });
 
     expect(startup.packageInfo.packages.sdk.name).toBe("@tokendance/code-sdk");
     expect(startup.doctor.agentHub.ready).toBe(true);
     expect(turn.threadId).toBe("hub-session-sdk-runner");
+    expect(budgetedContext.metadata.contextBudget).toMatchObject({ recentMessages: 42 });
     expect(events.map((event) => event.event_type)).toEqual(["run.agent.text_delta", "run.agent.text_block", "run.agent.result"]);
     expect(events[0]).toMatchObject({
       id: "sdk-runner-1",

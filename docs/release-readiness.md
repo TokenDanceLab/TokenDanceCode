@@ -1,12 +1,14 @@
 # Release Readiness
 
-Last updated: 2026-06-09 19:45 HKT.
+Last updated: 2026-06-09 20:52 HKT.
 
 TokenDanceCode has a local npm first-candidate baseline. The public registry does not show the packages yet, so the correct public status is release-review ready, not published.
 
 ## Candidate
 
 - Version: `0.2.0-ts.0`
+- Candidate commit: `aac4a81` (`docs(readme): refresh public npm baseline`)
+- Release branch: `release/npm-first` points at the candidate commit.
 - Packages:
   - `@tokendance/code-core`
   - `@tokendance/code-sdk`
@@ -39,10 +41,12 @@ git diff --check
 
 Latest known local evidence, to be refreshed immediately before publish:
 
+- `pnpm wave7:status -- --json` passed with all six Wave 7 worktrees clean.
 - `pnpm release:next:check` passed on the release-candidate baseline.
-- `pnpm verify` passed inside that gate with TypeScript build and the current Vitest suite.
+- `pnpm verify` passed inside that gate with TypeScript build and Vitest `26` files / `301` tests passing.
 - `pnpm pack:smoke` installed real packed core, SDK, and CLI tarballs into a temporary npm project, imported the packed SDK AgentHub consumer fixture, and ran a mock AgentHub turn.
 - `pnpm registry:next:check` reported npm `E404` for core, SDK, and CLI.
+- `git diff --check` passed after README/docs cleanup.
 - The tarball smoke privacy scan follows pnpm scoped-package symlinks, fails if it scans zero readable package files, and checks common provider, npm, GitHub token, local path, and private-key patterns.
 
 Use fresh command output as the source for current test counts.

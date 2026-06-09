@@ -136,7 +136,7 @@ describe("AgentHub TokenDanceCode runner example", () => {
     ]);
     expect(frames.map((frame) => frame.event_seq)).toEqual([1, 2, 3, 4, 5, 6]);
     expect(frames[0]).toMatchObject({
-      schema_version: 1,
+      schema_version: 2,
       sdk_contract_version: "agenthub-sdk.v1",
       source: "tokendance-code-sdk",
       id: "tdcode_evt_1",
@@ -193,7 +193,7 @@ describe("AgentHub TokenDanceCode runner example", () => {
       "hub-run.agent.result-3"
     ]);
     expect(frames[0]).toMatchObject({
-      schema_version: 1,
+      schema_version: 2,
       sdk_contract_version: "agenthub-sdk.v1",
       source: "tokendance-code-sdk"
     });
@@ -600,7 +600,7 @@ describe("AgentHub TokenDanceCode runner example", () => {
     expect(startup.doctor.cwd).toBe(root);
     expect(startup.doctor.agentHub).toMatchObject({
       contractVersion: "agenthub-sdk.v1",
-      agentStreamSchemaVersion: 1,
+      agentStreamSchemaVersion: 2,
       ready: true,
       blockingChecks: []
     });

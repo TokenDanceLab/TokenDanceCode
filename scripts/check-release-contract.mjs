@@ -127,7 +127,7 @@ async function assertAgentHubContractReadiness(rootPackage) {
   assert(agentHubExamplePackage.private === true, "AgentHub example package must stay private");
   assert(agentHubExamplePackage.name === "@tokendance/code-agenthub-example", "AgentHub example package name drifted");
   assert(packageInfo.includes('AGENTHUB_SDK_CONTRACT_VERSION = "agenthub-sdk.v1"'), "SDK contract version constant drifted");
-  assert(packageInfo.includes("AGENTHUB_AGENT_STREAM_SCHEMA_VERSION = 1"), "agent.stream schema version drifted");
+  assert(packageInfo.includes("AGENTHUB_AGENT_STREAM_SCHEMA_VERSION = 2"), "agent.stream schema version drifted");
   assert(packageInfo.includes('AGENTHUB_AGENT_STREAM_SOURCE = "tokendance-code-sdk"'), "agent.stream source drifted");
   for (const feature of [
     "event-envelope",
@@ -157,11 +157,22 @@ async function assertAgentHubContractReadiness(rootPackage) {
     "createAgentHubAgentStreamEmitter",
     "sdk_contract_version",
     "schema_version",
+    "source_event_type",
     "event_seq",
     "run.agent.permission_requested",
     "run.agent.result"
   ]) {
     assert(agentHubEvents.includes(symbol), `AgentHub events contract missing ${symbol}`);
+  }
+  for (const typeName of [
+    "AgentRunRecord",
+    "TaskRecord",
+    "TodoRecord",
+    "ToolMetadata",
+    "ToolResult",
+    "WorktreeRecord"
+  ]) {
+    assert(new RegExp(`export type[\\s\\S]*\\b${typeName}\\b`).test(sdkIndex), `SDK index must re-export public facade type ${typeName}`);
   }
   for (const symbol of [
     "createAgentHubTokenDanceRunner",

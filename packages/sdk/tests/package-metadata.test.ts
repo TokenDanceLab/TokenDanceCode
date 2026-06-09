@@ -116,7 +116,7 @@ describe("package metadata", () => {
       version: "0.2.0-ts.0",
       agentHub: {
         sdkContractVersion: "agenthub-sdk.v1",
-        agentStreamSchemaVersion: 1,
+        agentStreamSchemaVersion: 2,
         features: [
           "runner-options",
           "event-envelope",
@@ -177,6 +177,23 @@ describe("package metadata", () => {
     expect(new Set(AGENTHUB_FEATURE_FLAGS).size).toBe(AGENTHUB_FEATURE_FLAGS.length);
     expect(supportsAgentHubFeature("agenthub-event-envelope-schema")).toBe(true);
     expect(supportsAgentHubFeature("missing-feature")).toBe(false);
+  });
+
+  it("keeps SDK facade contract types importable from the public barrel", async () => {
+    const sdkIndex = await readText("packages/sdk/src/index.ts");
+    const publicTypes = [
+      "AgentRunRecord",
+      "TaskRecord",
+      "TodoRecord",
+      "ToolMetadata",
+      "ToolResult",
+      "WorktreeRecord"
+    ];
+
+    for (const typeName of publicTypes) {
+      expect(sdkIndex).toContain(typeName);
+      expect(sdkIndex).toMatch(new RegExp(`export type[\\s\\S]*\\b${typeName}\\b`));
+    }
   });
 
   it("documents the next prerelease and tarball install gates", async () => {

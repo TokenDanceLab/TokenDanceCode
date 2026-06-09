@@ -31,6 +31,8 @@ describe("agent manager", () => {
       diff: ""
     });
     expect(await manager.list()).toEqual([result]);
+    expect(result.transcriptPath.endsWith("events.jsonl")).toBe(true);
+    expect(result.transcriptPath).not.toContain("transcript.jsonl");
     await expect(readFile(result.transcriptPath, "utf8")).resolves.toContain("subagent_completed");
     await expect(readFile(join(root, ".tokendance", "agents", "agents.json"), "utf8")).resolves.toContain("agent-0001");
   });

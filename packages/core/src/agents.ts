@@ -14,6 +14,8 @@ export interface SubagentRequest {
   agentType: AgentType;
   prompt: string;
   cwd: string;
+  eventLogPath: string;
+  /** @deprecated Use eventLogPath. Subagent logs are not session transcript envelopes. */
   transcriptPath: string;
   readonly: boolean;
   worktree?: string;
@@ -35,6 +37,8 @@ export interface AgentRunRecord {
   status: "completed" | "accepted" | "discarded";
   readonly: boolean;
   cwd: string;
+  eventLogPath: string;
+  /** @deprecated Use eventLogPath. Subagent logs are not session transcript envelopes. */
   transcriptPath: string;
   changedFiles: string[];
   diff: string;
@@ -108,7 +112,7 @@ export class AgentManager {
   async list(): Promise<AgentRunRecord[]> {
     try {
       const data = JSON.parse(await readFile(this.indexPath(), "utf8")) as { agents?: AgentRunRecord[] };
-      return Promise.all((data.agents ?? []).map((agent) => this.enrichAgent(agent)));
+      return Promise.all((data.agents ?? []).map((agent) => this.enrichAgent(this.normalizeAgentRecord(agent))));
     } catch {
       return [];
     }
@@ -150,7 +154,7 @@ export class AgentManager {
     await this.worktreeManager.remove(agent.worktree, { discard: options.discard });
     const updated: AgentRunRecord = { ...agent, status: "discarded", worktreeDirty: false, worktreeDirtyFiles: [], updatedAt: new Date().toISOString() };
     agents[index] = updated;
-    await appendJsonl(agent.transcriptPath, { type: "subagent_discarded", payload: updated });
+    await appendJsonl(agent.eventLogPath, { type: "subagent_discarded", payload: updated });
     await this.writeIndex(agents);
     return updated;
   }
@@ -194,7 +198,7 @@ export class AgentManager {
       updatedAt: new Date().toISOString()
     };
     agents[index] = updated;
-    await appendJsonl(agent.transcriptPath, { type: "subagent_accepted", payload: updated });
+    await appendJsonl(agent.eventLogPath, { type: "subagent_accepted", payload: updated });
     await this.writeIndex(agents);
     return updated;
   }
@@ -212,18 +216,19 @@ export class AgentManager {
     const prompt = requiredText(input.prompt, "prompt");
     const id = input.id ?? await this.nextAgentId();
     const now = new Date().toISOString();
-    const transcriptPath = join(this.stateDir(), id, "transcript.jsonl");
+    const eventLogPath = join(this.stateDir(), id, "events.jsonl");
     const request: SubagentRequest = {
       id,
       agentType: input.agentType,
       prompt,
       cwd: input.cwd,
-      transcriptPath,
+      eventLogPath,
+      transcriptPath: eventLogPath,
       readonly: input.readonly,
       worktree: input.worktree,
       taskId: input.taskId
     };
-    await appendJsonl(transcriptPath, { type: "subagent_started", payload: request });
+    await appendJsonl(eventLogPath, { type: "subagent_started", payload: request });
     const output = await this.runner(request);
     const changes = input.readonly ? { changedFiles: [], diff: "" } : await collectChanges(input.cwd);
     const record: AgentRunRecord = {
@@ -234,7 +239,8 @@ export class AgentManager {
       status: "completed",
       readonly: input.readonly,
       cwd: input.cwd,
-      transcriptPath,
+      eventLogPath,
+      transcriptPath: eventLogPath,
       changedFiles: output.changedFiles ?? changes.changedFiles,
       diff: output.diff ?? changes.diff,
       validationResult: output.validationResult ?? "",
@@ -246,7 +252,7 @@ export class AgentManager {
       createdAt: now,
       updatedAt: new Date().toISOString()
     };
-    await appendJsonl(transcriptPath, { type: "subagent_completed", payload: record });
+    await appendJsonl(eventLogPath, { type: "subagent_completed", payload: record });
     await this.writeIndex([...(await this.list()), record]);
     return record;
   }
@@ -271,6 +277,11 @@ export class AgentManager {
 
   private indexPath(): string {
     return join(this.stateDir(), "agents.json");
+  }
+
+  private normalizeAgentRecord(agent: AgentRunRecord): AgentRunRecord {
+    const eventLogPath = agent.eventLogPath ?? agent.transcriptPath;
+    return { ...agent, eventLogPath, transcriptPath: eventLogPath };
   }
 
   private async enrichAgent(agent: AgentRunRecord): Promise<AgentRunRecord> {

@@ -112,7 +112,7 @@ describe("AgentHub event mapping", () => {
 
     expect(frames).toEqual([
       {
-        schema_version: 1,
+        schema_version: 2,
         sdk_contract_version: "agenthub-sdk.v1",
         source: "tokendance-code-sdk",
         id: "evt-1",
@@ -127,7 +127,7 @@ describe("AgentHub event mapping", () => {
         created_at: "2026-06-09T00:00:00.000Z"
       },
       {
-        schema_version: 1,
+        schema_version: 2,
         sdk_contract_version: "agenthub-sdk.v1",
         source: "tokendance-code-sdk",
         id: "evt-2",

@@ -8,7 +8,7 @@
 - worktree：`D:\Code\TokenDance\TokenDanceCode\.worktrees\ts-refactor`
 - 目标：把 TokenDanceCode 从 Python v0.1 参考实现重构为 TypeScript monorepo，并给 AgentHub 暴露稳定 SDK。
 - 当前可验证命令：`pnpm verify`、`pnpm contract:check`、`pnpm pack:check`、`pnpm release:next:check`
-- 最近验证结果：`pnpm release:next:check` 通过，覆盖只读 release contract drift gate、typecheck、Vitest 26 个测试文件 213 个测试、core/sdk/cli dry-run pack 和增强 tarball install smoke。
+- 最近验证结果：`pnpm release:next:check` 通过，覆盖只读 release contract drift gate、typecheck、Vitest 26 个测试文件 240 个测试、core/sdk/cli dry-run pack 和增强 tarball install smoke。
 
 旧 `src/tokendance` 和 `tests/` 暂时保留为功能迁移参考。新增 TS 能力默认写入 `packages/*`，不要继续扩展 Python 运行时，除非明确是在补迁移对照或保护旧行为。
 
@@ -202,13 +202,13 @@ node packages/cli/dist/main.js run "hello"
 
 ### P6：Wave 5 对标收敛与长期基线
 
-- [ ] 架构对标评估：整理 ClaudeCode / Codex / OpenCode 中适合自用 Agent 框架吸收的薄 CLI、事件流、权限、session/transcript、provider、SDK/release 模式，并明确拒绝过重模式。
-- [ ] CLI main.ts 过大风险：把顶层命令、slash command、usage 文案和 JSON contract 收敛到 command registry lane；`main.ts` 只保留 IO-aware handler wiring。
-- [ ] Codex contract/schema drift gate：把 SDK manifest、AgentHub event envelope、transcript schema、provider schema 和 CLI JSON 输出的漂移纳入 package metadata / focused tests。
-- [ ] OpenCode command metadata registry：吸收 id/category/title/aliases/usage/JSON contract 的 registry 形态，继续拒绝 full-screen palette 和 provider tree。
-- [ ] 拒绝 app-server daemon、拒绝 OpenTUI、拒绝 plugin marketplace、拒绝 native installer：这些都不是 Wave 5 或首版 CLI harness 的实现目标。
-- [ ] Release/npm baseline：保持 `pnpm contract:check`、`pnpm release:next:check` 和 tarball smoke 作为发布前本地 gate；`npm publish --tag next` 继续只允许 release owner 人工执行。
-- [ ] AgentHub SDK contract：继续强化 `agenthub-sdk.v1` manifest、event envelope、approval bridge、doctor readiness 和生产接入边界。
-- [ ] Gateway/OIDC onboarding：把 `gateway init`、`doctor`、`config validate`、TokenDanceID OIDC login URL helper 串成可读 quickstart；继续区分 TokenDance API key 与 TokenDanceID session token。
-- [ ] Provider protocol hardening：OpenAI Responses、OpenAI-compatible Chat/Gateway、Anthropic Messages 保持统一错误和工具调用结果形态；真实 smoke 继续显式 opt-in。
-- [ ] Permission/session/subagent/TUI polish：在不引入 full-screen 复杂 TUI 或常驻 team-agent 系统的前提下，补可审计性、可读性和 AgentHub 调试面板数据。
+- [x] 架构对标评估：整理 ClaudeCode / Codex / OpenCode 中适合自用 Agent 框架吸收的薄 CLI、事件流、权限、session/transcript、provider、SDK/release 模式，并明确拒绝过重模式。
+- [x] CLI main.ts 过大风险：把顶层命令、slash command、usage 文案和 JSON contract 收敛到 command registry lane；`main.ts` 只保留 IO-aware handler wiring。
+- [x] Codex contract/schema drift gate：把 SDK manifest、AgentHub event envelope、transcript schema、provider schema 和 CLI JSON 输出的漂移纳入 package metadata / focused tests；`agent.stream` schema 已随 required `source_event_type` 显式 bump 到 v2。
+- [x] OpenCode command metadata registry：吸收 id/category/title/aliases/usage/JSON contract 的 registry 形态，继续拒绝 full-screen palette 和 provider tree。
+- [x] 拒绝 app-server daemon、拒绝 OpenTUI、拒绝 plugin marketplace、拒绝 native installer：这些都不是 Wave 5 或首版 CLI harness 的实现目标。
+- [x] Release/npm baseline：保持 `pnpm contract:check`、`pnpm release:next:check` 和 tarball smoke 作为发布前本地 gate；`npm publish --tag next` 继续只允许 release owner 人工执行。
+- [x] AgentHub SDK contract：继续强化 `agenthub-sdk.v1` manifest、event envelope、approval bridge、doctor readiness 和生产接入边界；SDK barrel 显式 re-export facade 公开类型。
+- [x] Gateway/OIDC onboarding：把 `gateway init`、`doctor`、`config validate`、TokenDanceID OIDC login URL helper 串成可读 quickstart；继续区分 TokenDance API key 与 TokenDanceID session token。
+- [x] Provider protocol hardening：OpenAI Responses、OpenAI-compatible Chat/Gateway、Anthropic Messages 保持统一错误和工具调用结果形态；真实 smoke 继续显式 opt-in。
+- [x] Permission/session/subagent/TUI polish：在不引入 full-screen 复杂 TUI 或常驻 team-agent 系统的前提下，补可审计性、可读性和 AgentHub 调试面板数据；subagent 专属日志使用 `events.jsonl`，避免与 session transcript schema 混淆。

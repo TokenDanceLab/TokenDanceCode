@@ -694,7 +694,7 @@ describe("TokenDanceCode SDK", () => {
       contractVersion: "agenthub-sdk.v1",
       sdkContractVersion: "agenthub-sdk.v1",
       readinessContract: "agenthub.doctor-readiness.v1",
-      agentStreamSchemaVersion: 1,
+      agentStreamSchemaVersion: 2,
       ready: true,
       blockingChecks: []
     });
@@ -715,7 +715,7 @@ describe("TokenDanceCode SDK", () => {
 
     expect(TOKEN_DANCE_CODE_PACKAGE.agentHub).toEqual({
       sdkContractVersion: "agenthub-sdk.v1",
-      agentStreamSchemaVersion: 1,
+      agentStreamSchemaVersion: 2,
       features: expect.arrayContaining([
         "runner-options",
         "event-envelope",
@@ -735,7 +735,7 @@ describe("TokenDanceCode SDK", () => {
       },
       agentHub: {
         sdkContractVersion: "agenthub-sdk.v1",
-        agentStreamSchemaVersion: 1
+        agentStreamSchemaVersion: 2
       }
     });
     expect(doctor.startup.hub).toMatchObject({ ok: true });

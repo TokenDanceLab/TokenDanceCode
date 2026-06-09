@@ -652,7 +652,12 @@ export type {
   PermissionApprovalCallback,
   PermissionMode,
   SessionState,
+  TaskRecord,
+  TodoRecord,
+  ToolMetadata,
+  ToolResult,
   TDCodeEvent,
   TDCodeEventSink,
-  TranscriptEnvelope
+  TranscriptEnvelope,
+  WorktreeRecord
 };

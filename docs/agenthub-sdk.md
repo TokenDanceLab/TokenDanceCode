@@ -98,7 +98,7 @@ console.log(TOKEN_DANCE_CODE_PACKAGE.verification.tarballSmoke);
 console.log(TOKEN_DANCE_CODE_PACKAGE.verification.prerelease);
 ```
 
-当前 manifest 覆盖 core/sdk/cli 包名、SDK/Core import specifier、CLI bin 名、AgentHub SDK contract version、`agent.stream` schema version、SDK feature flags 和推荐验证命令：`pnpm verify`、`pnpm pack:check`、`pnpm pack:smoke`、`pnpm release:next:check`。它不包含本机路径、密钥或 workspace 私有路径，适合进入 AgentHub UI 或日志。AgentHub Hub/Edge 启动检查可以把 `agentHub.sdkContractVersion === "agenthub-sdk.v1"` 和 `agentHub.agentStreamSchemaVersion === 1` 当作当前稳定契约的快速断言。SDK 同时导出 `AGENTHUB_FEATURE_FLAGS` 和 `supportsAgentHubFeature(feature)`，避免 AgentHub 复制 feature flag 字符串。`agentHub.features` 当前还显式标记 `doctor-readiness`、`runner-bootstrap`、`agenthub-consumer-fixture`、`agenthub-package-feature-flags`、`agenthub-event-envelope-schema`、`agenthub-approval-bridge`、`agenthub-doctor-readiness` 和 `agenthub-contract-readiness`，用于区分是否能读取 manifest feature flags、`agent.stream` envelope schema、approval bridge request schema、`doctor.agentHub` 汇总和样例 runner/fixture 链路。
+当前 manifest 覆盖 core/sdk/cli 包名、SDK/Core import specifier、CLI bin 名、AgentHub SDK contract version、`agent.stream` schema version、SDK feature flags 和推荐验证命令：`pnpm verify`、`pnpm pack:check`、`pnpm pack:smoke`、`pnpm release:next:check`。它不包含本机路径、密钥或 workspace 私有路径，适合进入 AgentHub UI 或日志。AgentHub Hub/Edge 启动检查可以把 `agentHub.sdkContractVersion === "agenthub-sdk.v1"` 和 `agentHub.agentStreamSchemaVersion === 2` 当作当前稳定契约的快速断言。SDK 同时导出 `AGENTHUB_FEATURE_FLAGS` 和 `supportsAgentHubFeature(feature)`，避免 AgentHub 复制 feature flag 字符串。`agentHub.features` 当前还显式标记 `doctor-readiness`、`runner-bootstrap`、`agenthub-consumer-fixture`、`agenthub-package-feature-flags`、`agenthub-event-envelope-schema`、`agenthub-approval-bridge`、`agenthub-doctor-readiness` 和 `agenthub-contract-readiness`，用于区分是否能读取 manifest feature flags、`agent.stream` envelope schema、approval bridge request schema、`doctor.agentHub` 汇总和样例 runner/fixture 链路。
 
 ## 4. TokenDanceID OIDC 登录启动
 
@@ -281,7 +281,7 @@ const client = new TokenDanceCode({
 
 ```ts
 {
-  schema_version: 1;
+  schema_version: 2;
   sdk_contract_version: "agenthub-sdk.v1";
   source: "tokendance-code-sdk";
   id: string;
@@ -765,7 +765,7 @@ const throwaway = await subagents.runCoding({
 await subagents.discard(throwaway.id, { discard: true });
 ```
 
-Subagent 索引写入 `<projectRoot>/.tokendance/agents/agents.json`，单个 subagent transcript 写入 `<projectRoot>/.tokendance/agents/<agent-id>/transcript.jsonl`。`runCoding({ taskId })` 会把任务关联保存到 `AgentRunRecord.taskId`，方便 AgentHub 将 task、subagent transcript 和 worktree diff 串成同一条执行闭环。`AgentRunRecord` 会带 `worktreeDirty` 和 `worktreeDirtyFiles`；`subagents.list()` / `subagents.get(id)` 会按当前 managed worktree 重新计算这两个字段，但不会改写索引。`subagents.metadata()` 返回 run 类型/状态计数、dirty worktree 数、task 关联数和最新 agent id，供调试面板做只读汇总。`subagents.accept(id)` 会把 coding subagent worktree 的当前 diff 应用回目标仓库并把 run 标记为 `accepted`，目标仓库存在用户可见未提交改动时默认拒绝，错误对象带 `dirtyFiles`，避免把 subagent diff 混进脏工作区；只有显式 `accept(id, { allowDirtyTarget: true })` 才覆盖这个保护。`subagents.discard(id)` 会移除 coding subagent 的 managed worktree 并把 run 标记为 `discarded`，dirty worktree 默认拒绝删除，错误对象带 `dirtyFiles`，只有显式 `discard(id, { discard: true })` 才会强制丢弃未提交改动。默认 registry 同时暴露 `subagent_run`、`subagent_list`、`subagent_get`、`subagent_accept` 和 `subagent_discard`；`subagent_run`、`subagent_accept` 和 `subagent_discard` 是 shell 风险工具，因为它们会创建、应用或移除 worktree。
+Subagent 索引写入 `<projectRoot>/.tokendance/agents/agents.json`，单个 subagent event log 写入 `<projectRoot>/.tokendance/agents/<agent-id>/events.jsonl`。这个文件只记录 bounded delegation 的 `subagent_started` / `subagent_completed` / `subagent_accepted` / `subagent_discarded` 事件，不是 `.tokendance/sessions/<session-id>/transcript.jsonl` 的 canonical `TranscriptEnvelope` schema；`AgentRunRecord.eventLogPath` 是推荐字段，`transcriptPath` 仅作为旧调用方兼容别名保留。`runCoding({ taskId })` 会把任务关联保存到 `AgentRunRecord.taskId`，方便 AgentHub 将 task、subagent event log 和 worktree diff 串成同一条执行闭环。`AgentRunRecord` 会带 `worktreeDirty` 和 `worktreeDirtyFiles`；`subagents.list()` / `subagents.get(id)` 会按当前 managed worktree 重新计算这两个字段，但不会改写索引。`subagents.metadata()` 返回 run 类型/状态计数、dirty worktree 数、task 关联数和最新 agent id，供调试面板做只读汇总。`subagents.accept(id)` 会把 coding subagent worktree 的当前 diff 应用回目标仓库并把 run 标记为 `accepted`，目标仓库存在用户可见未提交改动时默认拒绝，错误对象带 `dirtyFiles`，避免把 subagent diff 混进脏工作区；只有显式 `accept(id, { allowDirtyTarget: true })` 才覆盖这个保护。`subagents.discard(id)` 会移除 coding subagent 的 managed worktree 并把 run 标记为 `discarded`，dirty worktree 默认拒绝删除，错误对象带 `dirtyFiles`，只有显式 `discard(id, { discard: true })` 才会强制丢弃未提交改动。默认 registry 同时暴露 `subagent_run`、`subagent_list`、`subagent_get`、`subagent_accept` 和 `subagent_discard`；`subagent_run`、`subagent_accept` 和 `subagent_discard` 是 shell 风险工具，因为它们会创建、应用或移除 worktree。
 
 ## 16. Memory
 

@@ -1,66 +1,60 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400" viewBox="0 0 800 400" role="img" aria-labelledby="title desc">
-  <title id="title">TokenDanceCode</title>
-  <desc id="desc">TokenDanceCode CLI hero – a local coding agent with scrollback-first CLI.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640" role="img" aria-labelledby="title desc">
+  <title id="title">TokenDanceCode CLI hero</title>
+  <desc id="desc">A dark blue terminal-style TokenDanceCode CLI hero using AgentHub design colors and a stable TOKENDANCE wordmark.</desc>
 
-  <!-- Background -->
-  <rect width="800" height="400" rx="12" fill="#0d1117"/>
+  <defs>
+    <filter id="softShadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#020814" flood-opacity="0.42"/>
+    </filter>
+  </defs>
 
-  <!-- Terminal title bar -->
-  <circle cx="32" cy="24" r="6" fill="#ff5f56"/>
-  <circle cx="52" cy="24" r="6" fill="#ffbd2e"/>
-  <circle cx="72" cy="24" r="6" fill="#27c93f"/>
-  <text x="400" y="29" fill="#484f58" font-family="system-ui, -apple-system, sans-serif" font-size="13" text-anchor="middle">tokendance</text>
-  <line x1="16" y1="42" x2="784" y2="42" stroke="#21262d" stroke-width="1"/>
+  <!-- AgentHub design dark tokens:
+       app-bg #1a1a20, surface #24242d, surface-dim #1e1e26,
+       text-1 #e3e4e6, text-2 #9a9aa4, primary dark #29ABE2. -->
+  <rect width="1200" height="640" fill="#08172a"/>
+  <rect x="56" y="48" width="1088" height="560" rx="10" fill="#1a1a20" stroke="#2a3850" stroke-width="1" filter="url(#softShadow)"/>
 
-  <!-- TD Mark: geometric logo built from pure paths -->
-  <g transform="translate(80, 80)">
-    <!-- T -->
-    <path d="M0 0 h80 v20 h-28 v100 h-24 v-100 h-28 z" fill="#58a6ff"/>
-    <!-- D -->
-    <path d="M96 0 h12 a48 48 0 0 1 48 48 v24 a48 48 0 0 1-48 48 h-12 z m24 20 v80 a28 28 0 0 0 0-80 z" fill="#58a6ff"/>
+  <!-- Terminal chrome -->
+  <rect x="56" y="48" width="1088" height="54" rx="10" fill="#24242d"/>
+  <rect x="56" y="88" width="1088" height="1" fill="#2f405a"/>
+  <circle cx="88" cy="75" r="7" fill="#ff5f56"/>
+  <circle cx="113" cy="75" r="7" fill="#ffbd2e"/>
+  <circle cx="138" cy="75" r="7" fill="#27c93f"/>
+  <text x="600" y="80" fill="#9a9aa4" font-family="Inter, Segoe UI, system-ui, sans-serif" font-size="15" text-anchor="middle">tokendance</text>
+
+  <!-- Prompt line -->
+  <text x="88" y="143" font-family="Cascadia Mono, SFMono-Regular, Consolas, monospace" font-size="24" font-weight="700">
+    <tspan fill="#e3e4e6">PS</tspan>
+    <tspan fill="#9a9aa4"> &lt;workspace&gt;</tspan>
+    <tspan fill="#e3e4e6">&gt;</tspan>
+    <tspan fill="#29ABE2"> tokendance</tspan>
+  </text>
+  <rect x="88" y="174" width="1024" height="2" rx="1" fill="#2f405a"/>
+
+  <!-- Stable wordmark: one SVG text run, no box-drawing characters. -->
+  <text x="600" y="278" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="86" font-weight="800" text-anchor="middle">
+    <tspan fill="#e3e4e6">TOKEN</tspan><tspan fill="#29ABE2">DANCE</tspan>
+  </text>
+  <rect x="120" y="304" width="960" height="3" rx="1.5" fill="#29ABE2" opacity="0.55"/>
+
+  <!-- Product metadata -->
+  <text x="88" y="360" fill="#e3e4e6" font-family="Cascadia Mono, SFMono-Regular, Consolas, monospace" font-size="24" font-weight="700">
+    TokenDanceCode 0.2.0-ts.0
+    <tspan fill="#9a9aa4"> Provider:</tspan>
+    <tspan fill="#29ABE2"> mock</tspan>
+    <tspan fill="#9a9aa4"> CWD:</tspan>
+    <tspan fill="#e3e4e6"> &lt;workspace&gt;</tspan>
+  </text>
+  <rect x="88" y="394" width="1024" height="2" rx="1" fill="#2f405a"/>
+
+  <!-- Feature copy -->
+  <g font-family="Cascadia Mono, SFMono-Regular, Consolas, monospace" font-size="23" font-weight="650">
+    <text x="88" y="448" fill="#e3e4e6">&gt; local coding-agent runtime for repositories</text>
+    <text x="88" y="500" fill="#e3e4e6">&gt; guarded PowerShell tools, JSONL transcripts, SDK events</text>
+    <text x="88" y="552" fill="#e3e4e6">&gt; OpenAI, Anthropic-compatible, and TokenDance Gateway providers</text>
   </g>
 
-  <!-- TokenDanceCode wordmark -->
-  <text x="280" y="130" fill="#e6edf3" font-family="'Inter', 'Segoe UI', system-ui, sans-serif" font-size="36" font-weight="700" letter-spacing="-0.5">
-    Token<tspan fill="#58a6ff">Dance</tspan>Code
-  </text>
-  <text x="280" y="158" fill="#7d8590" font-family="'Inter', 'Segoe UI', system-ui, sans-serif" font-size="15">
-    local coding agent · scrollback-first CLI
-  </text>
-
-  <!-- Version badge -->
-  <rect x="280" y="174" width="106" height="22" rx="11" fill="#1f6feb" opacity="0.2"/>
-  <text x="333" y="189" fill="#58a6ff" font-family="'Inter', 'Segoe UI', system-ui, sans-serif" font-size="11" font-weight="600" text-anchor="middle">v0.2.0-ts.0</text>
-
-  <!-- Terminal content -->
-  <text x="40" y="238" fill="#7d8590" font-family="'Cascadia Mono', 'Fira Code', 'SF Mono', Consolas, monospace" font-size="14">
-    <tspan fill="#e6edf3">PS</tspan> <tspan fill="#7d8590">&lt;workspace&gt;</tspan><tspan fill="#e6edf3">&gt;</tspan> <tspan fill="#58a6ff" font-weight="600">tokendance</tspan> <tspan fill="#a5d6ff">run</tspan> <tspan fill="#a5d6ff">"summarize this repo"</tspan> <tspan fill="#7d8590">--json</tspan>
-  </text>
-
-  <!-- Mock output -->
-  <text x="56" y="264" fill="#7d8590" font-family="'Cascadia Mono', 'Fira Code', 'SF Mono', Consolas, monospace" font-size="13">
-    Provider: mock  |  Session: sess_01  |  Events: 42
-  </text>
-  <text x="56" y="288" fill="#3fb950" font-family="'Cascadia Mono', 'Fira Code', 'SF Mono', Consolas, monospace" font-size="13">
-    [done] transcript saved, permissions recorded, AgentHub stream ready
-  </text>
-
-  <!-- Bottom bar -->
-  <line x1="16" y1="320" x2="784" y2="320" stroke="#21262d" stroke-width="1"/>
-  <text x="40" y="344" fill="#484f58" font-family="'Inter', 'Segoe UI', system-ui, sans-serif" font-size="12">
-    npm install -g @tokendance/code-cli@next
-  </text>
-
-  <!-- Feature pills -->
-  <rect x="40" y="362" width="90" height="22" rx="11" fill="#21262d"/>
-  <text x="85" y="377" fill="#7d8590" font-family="'Inter', 'Segoe UI', system-ui, sans-serif" font-size="10" font-weight="600" text-anchor="middle">OpenAI</text>
-
-  <rect x="140" y="362" width="100" height="22" rx="11" fill="#21262d"/>
-  <text x="190" y="377" fill="#7d8590" font-family="'Inter', 'Segoe UI', system-ui, sans-serif" font-size="10" font-weight="600" text-anchor="middle">Anthropic</text>
-
-  <rect x="250" y="362" width="110" height="22" rx="11" fill="#21262d"/>
-  <text x="305" y="377" fill="#7d8590" font-family="'Inter', 'Segoe UI', system-ui, sans-serif" font-size="10" font-weight="600" text-anchor="middle">TD Gateway</text>
-
-  <rect x="370" y="362" width="60" height="22" rx="11" fill="#21262d"/>
-  <text x="400" y="377" fill="#7d8590" font-family="'Inter', 'Segoe UI', system-ui, sans-serif" font-size="10" font-weight="600" text-anchor="middle">Mock</text>
+  <!-- Command/status colors -->
+  <text x="88" y="578" fill="#7dd3fc" font-family="Cascadia Mono, SFMono-Regular, Consolas, monospace" font-size="20" font-weight="700">tokendance run "summarize this repo" --json</text>
+  <text x="694" y="578" fill="#9ccf8f" font-family="Cascadia Mono, SFMono-Regular, Consolas, monospace" font-size="20" font-weight="700">[done] AgentHub stream ready</text>
 </svg>

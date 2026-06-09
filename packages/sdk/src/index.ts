@@ -28,6 +28,10 @@ import {
   type PermissionMode,
   type SessionState,
   type SessionListItem,
+  type SessionExport,
+  type SessionPruneCandidate,
+  type SessionPruneOptions,
+  type ResumeDiagnostic,
   type TDCodeEvent,
   type TDCodeEventSink,
   type CompactResult,
@@ -54,7 +58,7 @@ export * from "./approval-bridge.js";
 export * from "./doctor.js";
 export * from "./package-info.js";
 export * from "./tokendance-id.js";
-export type { SessionListItem } from "@tokendance/code-core";
+export type { ResumeDiagnostic, SessionExport, SessionListItem, SessionPruneCandidate, SessionPruneOptions } from "@tokendance/code-core";
 
 export type ThreadInput = string | Array<{ type: "text"; text: string }>;
 
@@ -439,6 +443,18 @@ export class TokenDanceSessions {
 
   list(): Promise<SessionListItem[]> {
     return this.resume.listSessions();
+  }
+
+  export(sessionId: string): Promise<SessionExport> {
+    return this.resume.exportSession(sessionId);
+  }
+
+  pruneCandidates(options: SessionPruneOptions = {}): Promise<SessionPruneCandidate[]> {
+    return this.resume.pruneCandidates(options);
+  }
+
+  diagnose(sessionId?: string): Promise<ResumeDiagnostic> {
+    return this.resume.diagnose(sessionId);
   }
 
   searchTranscript(sessionId: string, query: string, options: { limit?: number } = {}): Promise<TranscriptSearchResult[]> {

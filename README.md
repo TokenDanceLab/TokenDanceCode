@@ -21,7 +21,7 @@ tokendance
 当前分支已经建立 TypeScript 第一批可验证闭环：
 
 - `@tokendance/code-core`：session、event、runtime、tool registry、permission engine、JSONL transcript store、task/todo/subagent/worktree store、MockProvider。
-- `@tokendance/code-sdk`：AgentHub 可消费的 `TokenDanceCode -> Thread -> run/runStreamed/context` 编程接口，支持 provider 配置、审批回调、事件下沉、AgentHub runtime event 映射、recent transcript resume、transcript search、task/todo/subagent/worktree facade，以及 TokenDanceID OIDC Authorization Code + PKCE 登录启动 helper。
+- `@tokendance/code-sdk`：AgentHub 可消费的 `TokenDanceCode -> Thread -> run/runStreamed/context` 编程接口，支持 provider 配置、审批回调、事件下沉、AgentHub runtime event 映射、recent transcript resume、session lifecycle metadata/export/prune candidates/diagnostics、transcript search、task/todo/subagent/worktree facade，以及 TokenDanceID OIDC Authorization Code + PKCE 登录启动 helper。
 - `@tokendance/code-cli`：薄 CLI 入口，支持 `--version`、`doctor`、`run <prompt>`、分组帮助、可读 status/config/doctor 输出、Gateway 首次配置提示、最小交互式 REPL、context preview、task/todo/subagent/worktree 管理和工具事件渲染。
 - `@tokendance/code-agenthub-example`：私有示例包，演示 AgentHub emitter 如何通过 SDK 接收 `agent.stream` payload、桥接远程审批，并从 AgentHub shell 启动 TokenDanceID OIDC 登录 URL。
 - `pnpm verify`：同时执行 TypeScript typecheck 和 Vitest 测试。
@@ -322,6 +322,12 @@ const matches = await resumed.searchTranscript("needle");
 console.log(matches.map((match) => `${match.seq}:${match.eventType}`));
 const sessionMatches = await client.sessions({ storageRoot: process.cwd() }).searchTranscript(resumed.id, "needle");
 console.log(sessionMatches.map((match) => match.preview));
+const exported = await client.sessions({ storageRoot: process.cwd() }).export(resumed.id);
+console.log(exported.eventCount, exported.transcriptJsonl.length);
+const pruneCandidates = await client.sessions({ storageRoot: process.cwd() }).pruneCandidates({ keepLatest: 20 });
+console.log(pruneCandidates.map((session) => `${session.sessionId}:${session.reason}`));
+const resumeDiagnostic = await client.sessions({ storageRoot: process.cwd() }).diagnose(resumed.id);
+console.log(resumeDiagnostic.ok, resumeDiagnostic.reason);
 
 const preview = await resumed.context("preview next turn");
 console.log(preview.includedFiles);

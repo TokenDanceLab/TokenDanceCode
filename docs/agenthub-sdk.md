@@ -497,9 +497,12 @@ const byId = await client.resume({ sessionId: "session-id", storageRoot });
 ```ts
 const sessions = await client.sessions({ storageRoot }).list();
 const matches = await client.sessions({ storageRoot }).searchTranscript("session-id", "needle", { limit: 10 });
+const exported = await client.sessions({ storageRoot }).export("session-id");
+const pruneCandidates = await client.sessions({ storageRoot }).pruneCandidates({ keepLatest: 20 });
+const diagnostic = await client.sessions({ storageRoot }).diagnose("session-id");
 
 for (const session of sessions) {
-  console.log(session.sessionId, session.latest, session.eventCount);
+  console.log(session.sessionId, session.latest, session.eventCount, session.messageCount);
   console.log(session.sessionDir);
   console.log(session.transcriptPath);
 }
@@ -507,9 +510,15 @@ for (const session of sessions) {
 for (const match of matches) {
   console.log(match.seq, match.eventType, match.preview);
 }
+
+console.log(exported.transcriptJsonl);
+console.log(pruneCandidates.map((session) => [session.sessionId, session.reason]));
+console.log(diagnostic.ok, diagnostic.reason);
 ```
 
-每条记录包含 `sessionId`、`sessionDir`、`transcriptPath`、`createdAt`、`updatedAt`、`eventCount`、可选 `lastEventTimestamp` 和 `latest` 标记。`sessions.searchTranscript()` 通过 core 共享的 safe search helper 读取指定 session 的 JSONL transcript，只返回 `sessionId`、`seq`、`eventType`、`timestamp`、可选 `turnId` 和 `preview`，不会把完整原始事件交给 UI。该 facade 只读取 session/transcript 文件，不写入 session state，也不改变 transcript schema。
+每条记录包含 `sessionId`、`sessionDir`、`transcriptPath`、`createdAt`、`updatedAt`、`cwd`、`permissionMode`、`messageCount`、`eventCount`、可选 `lastEventTimestamp` 和 `latest` 标记。`sessions.searchTranscript()` 通过 core 共享的 safe search helper 读取指定 session 的 JSONL transcript，只返回 `sessionId`、`seq`、`eventType`、`timestamp`、可选 `turnId` 和 `preview`，不会把完整原始事件交给 UI。
+
+`sessions.export(sessionId)` 是只读导出 helper，返回同一份 session metadata、完整 `session`、完整 parsed `transcript` 和原始 `transcriptJsonl`，用于 AgentHub 调试面板下载、复制或离线排查；它不新增文件、不写 session state，也不改变 transcript schema。`sessions.pruneCandidates({ keepLatest?, olderThanMs?, now? })` 只计算候选，返回 `reason`、`ageMs` 和 `rank`，不会删除 session；真正删除策略仍应由调用方确认后另行实现。`sessions.diagnose(sessionId?)` 返回 `ok/reason/message/sessionsDir/availableSessionIds/selectedSessionId`，供 resume 面板在 `no_sessions`、`session_not_found` 或 `session_unreadable` 时展示结构化原因。该 facade 整体只读取 session/transcript 文件，不写入 session state，也不改变 transcript schema。
 
 需要把 transcript 路径展示给 AgentHub UI 或调试面板时，使用 `thread.transcript()`：
 

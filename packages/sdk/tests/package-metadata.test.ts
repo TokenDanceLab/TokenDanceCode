@@ -100,6 +100,7 @@ describe("package metadata", () => {
           "runner-bootstrap",
           "agenthub-consumer-fixture",
           "session-resume",
+          "session-lifecycle-metadata",
           "context-preview",
           "remote-approval",
           "tokendanceid-oidc-login",

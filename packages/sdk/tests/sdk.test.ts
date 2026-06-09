@@ -285,6 +285,33 @@ describe("TokenDanceCode SDK", () => {
     ]);
   });
 
+  it("exports and inspects session lifecycle metadata through the SDK sessions facade", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-session-lifecycle-"));
+    const client = new TokenDanceCode({ storageRoot: root });
+    const first = client.startThread({ id: "session-first", workingDirectory: root });
+    await first.run("first lifecycle session");
+    const second = client.startThread({ id: "session-second", workingDirectory: root });
+    await second.run("second lifecycle session");
+
+    const exported = await client.sessions().export("session-first");
+    const candidates = await client.sessions().pruneCandidates({ keepLatest: 1 });
+    const diagnostic = await client.sessions().diagnose("session-missing");
+
+    expect(exported).toMatchObject({
+      sessionId: "session-first",
+      eventCount: 4,
+      transcriptPath: join(root, ".tokendance", "sessions", "session-first", "transcript.jsonl")
+    });
+    expect(exported.transcriptJsonl).toContain("first lifecycle session");
+    expect(candidates).toEqual([expect.objectContaining({ sessionId: "session-first", reason: "exceeds_keep_latest" })]);
+    expect(diagnostic).toMatchObject({
+      ok: false,
+      reason: "session_not_found",
+      requestedSessionId: "session-missing",
+      availableSessionIds: ["session-second", "session-first"]
+    });
+  });
+
   it("manages memory through the SDK boundary for AgentHub callers", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
     const client = new TokenDanceCode();

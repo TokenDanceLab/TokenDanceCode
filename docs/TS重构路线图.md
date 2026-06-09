@@ -192,4 +192,4 @@ node packages/cli/dist/main.js run "hello"
 - [ ] 滚动式 TUI polish：继续改善颜色、错误块、权限/风险/usage 输出，同时保持无颜色输出可测试。
 - [x] 真实 provider smoke gate：`preflightProviderSmoke()` / `shouldRunProviderIntegration()` 使用 `TOKENDANCE_RUN_REAL_PROVIDER_SMOKE=1` 做显式 opt-in 预检和 skip gate，不默认读取项目 `.env`，不在 CI 或 pack smoke 中使用真实 key。
 - [ ] 权限策略审计：完善拒绝原因、PowerShell 高危命令 evidence、approval bridge 边界和 tool risk metadata。
-- [ ] 线程生命周期：完善 session/resume/search/export/prune 候选和 AgentHub 调试面板所需只读元数据，除非有必要不改变 transcript schema。
+- [x] 线程生命周期：完善 session/resume/search/export/prune 候选和 AgentHub 调试面板所需只读元数据，除非有必要不改变 transcript schema。

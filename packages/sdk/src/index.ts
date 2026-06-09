@@ -24,6 +24,7 @@ import {
   type PermissionApprovalCallback,
   type PermissionMode,
   type SessionState,
+  type SessionListItem,
   type TDCodeEvent,
   type TDCodeEventSink,
   type CompactResult,
@@ -147,6 +148,10 @@ export interface SubagentOptions {
   projectRoot?: string;
 }
 
+export interface SessionFacadeOptions {
+  storageRoot?: string;
+}
+
 export class TokenDanceCode {
   constructor(private readonly options: TokenDanceCodeOptions = {}) {}
 
@@ -193,6 +198,10 @@ export class TokenDanceCode {
   async compact(options: ResumeThreadOptions = {}): Promise<CompactResult> {
     const thread = await this.resume(options);
     return thread.compact();
+  }
+
+  sessions(options: SessionFacadeOptions = {}): TokenDanceSessions {
+    return new TokenDanceSessions(new ResumeService(options.storageRoot ?? this.options.storageRoot ?? process.cwd()));
   }
 
   memory(options: MemoryOptions = {}): TokenDanceMemory {
@@ -408,6 +417,14 @@ export class Thread {
       userMessage: normalizeInput(input),
       workspaceRoot: this.options.session.cwd
     });
+  }
+}
+
+export class TokenDanceSessions {
+  constructor(private readonly resume: ResumeService) {}
+
+  list(): Promise<SessionListItem[]> {
+    return this.resume.listSessions();
   }
 }
 

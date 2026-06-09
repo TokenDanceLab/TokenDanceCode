@@ -61,6 +61,40 @@ describe("ResumeService", () => {
     expect(result.recent.map((envelope) => envelope.event.type)).toEqual(["user.message", "turn.completed"]);
   });
 
+  it("lists available sessions with transcript metadata for AgentHub", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-resume-list-"));
+    const oldSession = createSession(root, "old-session");
+    const newSession = createSession(root, "new-session");
+    const store = new FileTranscriptStore({ rootDir: root });
+    await store.initialize(oldSession);
+    await store.append({ type: "user.message", sessionId: oldSession.id, turnId: "turn-1", message: { role: "user", content: "old" } });
+    await store.initialize(newSession);
+    await store.append({ type: "user.message", sessionId: newSession.id, turnId: "turn-1", message: { role: "user", content: "new" } });
+    await store.append({
+      type: "turn.completed",
+      sessionId: newSession.id,
+      turnId: "turn-1",
+      finalResponse: "done"
+    });
+
+    const sessions = await new ResumeService(root).listSessions();
+
+    expect(sessions.map((session) => session.sessionId)).toEqual(["new-session", "old-session"]);
+    expect(sessions[0]).toMatchObject({
+      sessionId: "new-session",
+      sessionDir: join(root, ".tokendance", "sessions", "new-session"),
+      transcriptPath: join(root, ".tokendance", "sessions", "new-session", "transcript.jsonl"),
+      eventCount: 2,
+      latest: true
+    });
+    expect(sessions[0]?.lastEventTimestamp).toBeDefined();
+    expect(sessions[1]).toMatchObject({
+      sessionId: "old-session",
+      eventCount: 1,
+      latest: false
+    });
+  });
+
   it("filters unrecoverable in-flight tool events", () => {
     const recoverable = recoverRecentTranscript(
       [

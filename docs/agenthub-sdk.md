@@ -438,6 +438,20 @@ const byId = await client.resume({ sessionId: "session-id", storageRoot });
 
 `recentTranscript` 暴露的是过滤后的 JSONL envelope，用于 AgentHub 恢复侧栏、事件列表或继续 thread。完整 transcript 仍以 `.tokendance/sessions/<session-id>/transcript.jsonl` 为事实源。
 
+需要给 AgentHub 会话侧栏、调试面板或轻量索引列出可恢复 session 时，使用只读 `client.sessions().list()`：
+
+```ts
+const sessions = await client.sessions({ storageRoot }).list();
+
+for (const session of sessions) {
+  console.log(session.sessionId, session.latest, session.eventCount);
+  console.log(session.sessionDir);
+  console.log(session.transcriptPath);
+}
+```
+
+每条记录包含 `sessionId`、`sessionDir`、`transcriptPath`、`createdAt`、`updatedAt`、`eventCount`、可选 `lastEventTimestamp` 和 `latest` 标记。该 facade 只读取 session/transcript 文件，不写入 session state，也不改变 transcript schema。
+
 需要把 transcript 路径展示给 AgentHub UI 或调试面板时，使用 `thread.transcript()`：
 
 ```ts
@@ -663,7 +677,7 @@ const quality = await tools.execute(
 
 ## 18. 当前测试覆盖
 
-- `packages/sdk/tests/sdk.test.ts` 覆盖 buffered turn、streamed events、多轮 thread、context preview/history limit、latest/by-id resume、latest/by-id compact、transcript metadata/search、config facade、doctor facade/startup checks、memory facade、task/todo facade、subagent facade、worktree facade、tool metadata facade、tool execution facade、worktree/subagent tools、审批允许/拒绝、provider env 配置错误、event sink。
+- `packages/sdk/tests/sdk.test.ts` 覆盖 buffered turn、streamed events、多轮 thread、context preview/history limit、latest/by-id resume、session list facade、latest/by-id compact、transcript metadata/search、config facade、doctor facade/startup checks、memory facade、task/todo facade、subagent facade、worktree facade、tool metadata facade、tool execution facade、worktree/subagent tools、审批允许/拒绝、provider env 配置错误、event sink。
 - `packages/sdk/tests/package-metadata.test.ts` 覆盖 public package metadata、`pack:check` 脚本、tarball ignore 规则和 SDK 导出的 AgentHub-readable package manifest。
 - `packages/sdk/tests/approval-bridge.test.ts` 覆盖 AgentHub 远程审批 bridge、pending 快照、allow/deny 决策回填。
 - `packages/sdk/tests/agenthub-events.test.ts` 覆盖 `TDCodeEvent` 到 AgentHub `run.agent.*` 的映射、sink 包装和 `agent.stream` payload fixture。

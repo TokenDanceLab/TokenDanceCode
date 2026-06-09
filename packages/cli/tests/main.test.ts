@@ -885,6 +885,10 @@ describe("TokenDanceCode CLI", () => {
     const output = io.stdoutText();
 
     expect(exitCode).toBe(0);
+    expect(output).toContain("[tool] tool echo started [status=running]");
+    expect(output).toContain("[permission] permission allowed");
+    expect(output).toContain("[ok] tool echo completed");
+    expect(output).toContain("[usage] usage input=1 output=10");
     expect(output).toContain("tool echo started");
     expect(output).toContain("permission allowed");
     expect(output).toContain("tool echo completed");
@@ -920,7 +924,7 @@ describe("TokenDanceCode CLI", () => {
 
     const exitCode = await runCli([], io);
     const output = io.stdoutText();
-    const summaryLine = output.split("\n").find((line) => line.startsWith("tool echo completed:"));
+    const summaryLine = output.split("\n").find((line) => line.startsWith("[ok] tool echo completed:"));
 
     expect(exitCode).toBe(0);
     expect(summaryLine).toBeDefined();

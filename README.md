@@ -100,7 +100,6 @@ CLI 会读取有效配置来启动 `tokendance` 交互式 session 和 `tokendanc
 配置可以放在以下位置：
 
 - 当前 PowerShell 会话环境变量。
-- 当前项目根目录的 `.env`。
 - 全局 `~/.tokendance/.env`。
 
 ### 方式一：当前 PowerShell 会话
@@ -120,9 +119,9 @@ $env:ANTHROPIC_BASE_URL = "https://api.deepseek.com/anthropic"
 $env:MODEL_ID = "deepseek-v4-pro"
 ```
 
-### 方式二：项目 `.env`
+### 方式二：全局 `.tokendance/.env`
 
-在项目根目录创建 `.env`：
+在用户目录创建 `~/.tokendance/.env`：
 
 ```env
 ANTHROPIC_API_KEY=your-api-key
@@ -137,7 +136,7 @@ ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic
 MODEL_ID=deepseek-v4-pro
 ```
 
-不要把 `.env` 提交到 Git。仓库已经默认忽略它。
+TokenDanceCode 默认不读取项目根目录 `.env` 作为自身 provider key 来源。项目 `.env` 通常属于业务配置，可能包含应用密钥；需要给 AgentHub 或脚本注入 provider key 时，优先通过 SDK `env` 显式传入受控环境。
 
 ## 启动使用
 

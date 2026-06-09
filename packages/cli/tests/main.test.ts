@@ -114,6 +114,31 @@ describe("TokenDanceCode CLI", () => {
     expect(topLevel.stdoutText()).toContain("model: claude-test");
   });
 
+  it("uses global env files for provider keys without reading project env by default", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-env-"));
+    const home = await mkdtemp(join(tmpdir(), "tdcode-cli-home-"));
+    await writeFile(join(root, ".env"), "OPENAI_API_KEY=project-key\n", "utf8");
+    const projectOnly = createTestIO("", root, home, {});
+
+    const projectOnlyExitCode = await runCli(["doctor"], projectOnly);
+
+    await mkdir(join(home, ".tokendance"), { recursive: true });
+    await writeFile(
+      join(home, ".tokendance", ".env"),
+      "OPENAI_API_KEY=global-openai\nANTHROPIC_API_KEY=\"global-anthropic\"\n",
+      "utf8"
+    );
+    const globalEnv = createTestIO("", root, home, {});
+    const globalEnvExitCode = await runCli(["doctor"], globalEnv);
+
+    expect(projectOnlyExitCode).toBe(0);
+    expect(projectOnly.stdoutText()).toContain("api OPENAI_API_KEY: missing");
+    expect(globalEnvExitCode).toBe(0);
+    expect(globalEnv.stdoutText()).toContain("api OPENAI_API_KEY: present");
+    expect(globalEnv.stdoutText()).toContain("api ANTHROPIC_API_KEY: present");
+    expect(globalEnv.stdoutText()).not.toContain("global-openai");
+  });
+
   it("starts interactive sessions with the configured permission mode", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-cli-config-"));
     await mkdir(join(root, ".tokendance"), { recursive: true });
@@ -504,7 +529,12 @@ describe("TokenDanceCode CLI", () => {
   });
 });
 
-function createTestIO(input = "", cwd = "D:/workspace"): CliIO & { stdoutText(): string; stderrText(): string } {
+function createTestIO(
+  input = "",
+  cwd = "D:/workspace",
+  homeDir?: string,
+  env?: Record<string, string | undefined>
+): CliIO & { stdoutText(): string; stderrText(): string } {
   let stdout = "";
   let stderr = "";
   return {
@@ -522,6 +552,8 @@ function createTestIO(input = "", cwd = "D:/workspace"): CliIO & { stdoutText():
       }
     }),
     cwd: () => cwd,
+    homeDir: homeDir ? () => homeDir : undefined,
+    env: env ? () => env : undefined,
     stdoutText: () => stdout,
     stderrText: () => stderr
   };

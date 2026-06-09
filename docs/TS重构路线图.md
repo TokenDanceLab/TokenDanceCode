@@ -147,6 +147,7 @@ node packages/cli/dist/main.js run "hello"
 - [x] `/new`、`/status`、`/doctor`、`/config`、`/permissions`。
 - [x] Doctor 诊断：Node/cwd/platform、API key present/missing、Git/PowerShell 可用性、config 路径/source、`.tokendance` 状态目录可写性；不输出 secret 值；顶层 `doctor --json` 和交互式 `/doctor json` 可输出同源结构化诊断。
 - [x] CLI 新 session 启动会消费有效配置：`provider`/`model` 映射到 SDK provider，`permissionMode` 作为 `tokendance` REPL 和 `tokendance run` 的初始权限模式。
+- [x] CLI provider key 来源对齐安全边界：读取进程环境和全局 `~/.tokendance/.env`，不默认读取项目 `.env`。
 - [x] 顶层 `config`、`resume [session-id]`、`memory [add|delete] [project|global] [value]`、`agents [run investigator|reviewer <prompt>]`、`agents run coding [--worktree name] <prompt>`、`agents show <agent-id>`、`agents accept <agent-id> [--discard-worktree] [--allow-dirty-target]`、`agents discard <agent-id> [--discard]`、`tasks [create|doing|done] [value]`、`todo [add|doing|done] [value]`、`worktree [list|create|remove] [name] [--discard]`、`diff [path ...]`、`review`、`tools`、`quality <command>`、`transcript [session-id]`、`transcript [session-id] search <query>`、`context [--session session-id] <prompt>`、`compact [session-id]`，交互式 `/config`、`/resume`、`/memory`、`/agents`、`/tasks`、`/todo`、`/worktree`、`/diff`、`/review`、`/tools`、`/quality`、`/transcript`、`/transcript search <query>`、`/context <prompt>`、`/compact`。
 - [x] 滚动式事件 renderer 闭环：assistant 文本、tool started、permission decision、tool completed、tool failed reason、tool duration、tool output summary、turn token usage。
 - [x] 增强 renderer：独立 CLI event renderer 合并连续 assistant delta，遇到工具/权限/完成进度时换行，避免未来真实 provider streaming 时一 token 一行。

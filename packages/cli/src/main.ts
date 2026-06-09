@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 import { fileURLToPath } from "node:url";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
+import { readFile } from "node:fs/promises";
 import {
   TokenDanceCode,
   type DoctorInfo,
@@ -26,6 +27,8 @@ export interface CliIO {
   stdout: Writable;
   stderr: Writable;
   cwd: () => string;
+  homeDir?: () => string;
+  env?: () => Record<string, string | undefined>;
 }
 
 export async function runCli(argv: string[], io: CliIO = defaultIO()): Promise<number> {
@@ -314,7 +317,7 @@ async function memoryCommand(args: string[], io: CliIO): Promise<number> {
 }
 
 async function configCommand(io: CliIO): Promise<number> {
-  const info = await new TokenDanceCode().config({ projectRoot: io.cwd() });
+  const info = await new TokenDanceCode().config({ projectRoot: io.cwd(), homeDir: homeDirFor(io) });
   await write(io.stdout, `provider: ${info.config.provider}\n`);
   await write(io.stdout, `model: ${info.config.model}\n`);
   await write(io.stdout, `permissionMode: ${info.config.permissionMode}\n`);
@@ -781,7 +784,10 @@ async function printStatus(io: CliIO, thread: Thread): Promise<void> {
 }
 
 async function printDoctor(io: CliIO, args: string[] = []): Promise<void> {
-  const doctor = await new TokenDanceCode().doctor({ projectRoot: io.cwd() });
+  const doctor = await new TokenDanceCode({
+    storageRoot: io.cwd(),
+    env: await readCliEnv(io)
+  }).doctor({ projectRoot: io.cwd(), homeDir: homeDirFor(io) });
   if (doctorFormat(args) === "json") {
     await write(io.stdout, `${JSON.stringify(doctor, null, 2)}\n`);
     return;
@@ -986,12 +992,14 @@ function parseTodoAddArgs(args: string[]): { text: string; taskId?: string } {
 }
 
 async function createConfiguredClient(io: CliIO): Promise<{ client: TokenDanceCode; permissionMode: PermissionMode }> {
-  const baseClient = new TokenDanceCode({ storageRoot: io.cwd() });
-  const info = await baseClient.config({ projectRoot: io.cwd() });
+  const env = await readCliEnv(io);
+  const baseClient = new TokenDanceCode({ storageRoot: io.cwd(), env });
+  const info = await baseClient.config({ projectRoot: io.cwd(), homeDir: homeDirFor(io) });
   return {
     client: new TokenDanceCode({
       storageRoot: io.cwd(),
-      provider: providerFromConfig(info.config)
+      provider: providerFromConfig(info.config),
+      env
     }),
     permissionMode: info.config.permissionMode
   };
@@ -1012,12 +1020,60 @@ function previewText(value: string): string {
   return normalized.length <= 140 ? normalized : `${normalized.slice(0, 137)}...`;
 }
 
+async function readCliEnv(io: CliIO): Promise<Record<string, string | undefined>> {
+  return {
+    ...(await readGlobalEnvFile(homeDirFor(io))),
+    ...(io.env?.() ?? process.env)
+  };
+}
+
+async function readGlobalEnvFile(homeDir: string): Promise<Record<string, string>> {
+  try {
+    return parseEnvFile(await readFile(join(homeDir, ".tokendance", ".env"), "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function parseEnvFile(content: string): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) {
+      continue;
+    }
+    const separatorIndex = line.indexOf("=");
+    if (separatorIndex <= 0) {
+      continue;
+    }
+    const key = line.slice(0, separatorIndex).trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
+      continue;
+    }
+    env[key] = unquoteEnvValue(line.slice(separatorIndex + 1).trim());
+  }
+  return env;
+}
+
+function unquoteEnvValue(value: string): string {
+  if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
+function homeDirFor(io: CliIO): string {
+  return io.homeDir?.() ?? process.env.USERPROFILE ?? process.env.HOME ?? io.cwd();
+}
+
 function defaultIO(): CliIO {
   return {
     stdin: process.stdin,
     stdout: process.stdout,
     stderr: process.stderr,
-    cwd: () => process.cwd()
+    cwd: () => process.cwd(),
+    homeDir: () => process.env.USERPROFILE ?? process.env.HOME ?? process.cwd(),
+    env: () => process.env
   };
 }
 

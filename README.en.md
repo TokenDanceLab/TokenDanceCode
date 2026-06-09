@@ -4,9 +4,9 @@
 
 [中文](README.md) · [AgentHub SDK](docs/agenthub-sdk.md) · [Release readiness](docs/release-readiness.md) · [TS roadmap](docs/TS重构路线图.md)
 
-![Screenshot: TokenDanceCode CLI terminal session](docs/images/image-01.png)
+![TokenDanceCode CLI overview](docs/images/tokendance-cli-hero.svg)
 
-The screenshot shows `tokendance` running as a local CLI inside PowerShell.
+The image shows the current TypeScript/npm CLI startup screen and common run path.
 
 ## What It Is
 
@@ -57,6 +57,8 @@ Without API keys, the CLI uses MockProvider. That is enough for install checks, 
 ```powershell
 tokendance
 tokendance run "summarize this repo"
+tokendance run --json "summarize this repo"
+tokendance run --stream-json "summarize this repo"
 tokendance doctor --json
 tokendance config validate --json
 tokendance gateway init --model <model-name>
@@ -65,6 +67,8 @@ tokendance sessions
 tokendance transcript search "needle"
 tokendance quality "pnpm verify"
 ```
+
+The interactive CLI is a scrollback terminal surface, not a full-screen TUI. It supports slash commands such as `/status`, `/permissions`, `/config`, `/doctor`, `/diff`, `/review`, `/quality`, `/tasks`, `/todo`, `/worktree`, `/agents`, `/transcript`, `/context`, `/compact`, `/memory`, and `/resume`. Top-level help and interactive handlers share the same command metadata registry.
 
 ## Provider Boundary
 
@@ -101,7 +105,7 @@ const turn = await thread.run("summarize this repo");
 console.log(turn.finalResponse);
 ```
 
-The SDK exposes thread runs, streamed events, context preview, AgentHub event sinks, remote approval bridging, doctor/config readiness, transcript helpers, task/todo/subagent/worktree facades, and a TokenDanceID OIDC Authorization Code + PKCE login URL helper.
+The SDK exposes thread runs, streamed events, context preview, AgentHub event sinks, remote approval bridging, doctor/config readiness, transcript helpers, task/todo/subagent/worktree facades, an AgentHub-readable `tools.list()` catalog with `permissionProfiles.default/safe/auto/yolo`, and a TokenDanceID OIDC Authorization Code + PKCE login URL helper.
 
 ## Packages
 
@@ -113,7 +117,7 @@ packages/
   agenthub-example/   private AgentHub integration example
 ```
 
-The old Python `src/tokendance` and `tests/` directories are kept as v0.1 migration references. New work on this branch goes into the TypeScript packages.
+The old Python `src/tokendance` and `tests/` directories are retained only as migration references. The repository root no longer carries Python package metadata. Current development, tests, and release gates target the TypeScript packages.
 
 ## Development
 

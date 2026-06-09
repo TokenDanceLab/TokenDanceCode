@@ -320,14 +320,16 @@ describe("package metadata", () => {
     expect(readme).toContain("OpenAI Responses API、OpenAI Chat Completions API 与 Anthropic-compatible Messages API");
     expect(readme).toContain("TokenDanceCode 默认不读取项目根目录 `.env`");
     expect(readme).toContain("[English](README.en.md)");
-    expect(readme).toContain("![Screenshot: TokenDanceCode CLI terminal session](docs/images/image-01.png)");
-    expect(readme).toContain("截图展示了 `tokendance` 在 PowerShell 中启动后的本地 CLI 体验。");
+    expect(readme).toContain("![TokenDanceCode CLI overview](docs/images/tokendance-cli-hero.svg)");
+    expect(readme).toContain("当前 TypeScript/npm 版本的 CLI 启动界面");
     expect(readme).toContain("当前代码库已经重构为 TypeScript monorepo");
+    expect(readme).toContain("滚动式终端界面，不是 full-screen TUI");
     expect(readme).not.toContain("`codex/ts-refactor` 分支");
     expect(englishReadme).toContain("[中文](README.md)");
-    expect(englishReadme).toContain("![Screenshot: TokenDanceCode CLI terminal session](docs/images/image-01.png)");
-    expect(englishReadme).toContain("The screenshot shows `tokendance` running as a local CLI inside PowerShell.");
+    expect(englishReadme).toContain("![TokenDanceCode CLI overview](docs/images/tokendance-cli-hero.svg)");
+    expect(englishReadme).toContain("current TypeScript/npm CLI startup screen");
     expect(englishReadme).toContain("The current codebase is a TypeScript monorepo");
+    expect(englishReadme).toContain("The interactive CLI is a scrollback terminal surface");
     expect(englishReadme).toContain("TokenDance Gateway");
     expect(englishReadme).toContain("Subagent / worktree");
     expect(englishReadme).not.toContain("The `codex/ts-refactor` branch");
@@ -343,6 +345,7 @@ describe("package metadata", () => {
     const roadmap = await readText("docs/TS重构路线图.md");
     const parallelPlan = await readText("docs/并行推进计划.md");
     const acceptance = await readText("docs/端到端验收清单.md");
+    await expect(readText("pyproject.toml")).rejects.toThrow();
 
     for (const text of [architectureBenchmark, roadmap, parallelPlan]) {
       expect(text).toContain("CLI main.ts 过大风险");
@@ -361,7 +364,7 @@ describe("package metadata", () => {
     expect(englishReadme).toContain("AgentHub owns team workflows");
     expect(englishReadme).toContain("Common Commands");
     expect(englishReadme).toContain("Packages");
-    expect(acceptance).toContain("未配置时默认是 `mock` provider、`mock` model 和 `default` permission mode");
+    expect(acceptance).toContain("真实 provider 缺 key/model 时作为 readiness missing 项显示");
     expect(acceptance).not.toContain("当前默认值应为 `openai`、`gpt-5.4`、`default`、`local`、`local`");
   });
 

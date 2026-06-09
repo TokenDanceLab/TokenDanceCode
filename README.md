@@ -4,9 +4,9 @@
 
 [English](README.en.md) · [AgentHub SDK](docs/agenthub-sdk.md) · [发布准备](docs/release-readiness.md) · [TS 路线图](docs/TS重构路线图.md)
 
-![Screenshot: TokenDanceCode CLI terminal session](docs/images/image-01.png)
+![TokenDanceCode CLI overview](docs/images/tokendance-cli-hero.svg)
 
-截图展示了 `tokendance` 在 PowerShell 中启动后的本地 CLI 体验。
+上图展示当前 TypeScript/npm 版本的 CLI 启动界面和常用运行方式。
 
 ## 项目定位
 
@@ -64,6 +64,8 @@ node packages/cli/dist/main.js run "hello"
 ```powershell
 tokendance
 tokendance run "summarize this repo"
+tokendance run --json "summarize this repo"
+tokendance run --stream-json "summarize this repo"
 tokendance doctor --json
 tokendance config validate --json
 tokendance gateway init --model <model-name>
@@ -73,7 +75,7 @@ tokendance transcript search "needle"
 tokendance quality "pnpm verify"
 ```
 
-交互式 CLI 支持 `/status`、`/permissions`、`/config`、`/doctor`、`/diff`、`/review`、`/quality`、`/tasks`、`/todo`、`/worktree`、`/agents`、`/transcript`、`/context`、`/compact`、`/memory`、`/resume` 等 slash commands。命令说明来自同一份 metadata registry，减少 help、usage 和 handler 漂移。
+交互式 CLI 是滚动式终端界面，不是 full-screen TUI。它支持 `/status`、`/permissions`、`/config`、`/doctor`、`/diff`、`/review`、`/quality`、`/tasks`、`/todo`、`/worktree`、`/agents`、`/transcript`、`/context`、`/compact`、`/memory`、`/resume` 等 slash commands。命令说明来自同一份 metadata registry，减少 help、usage 和 handler 漂移。
 
 ## Provider 与凭据边界
 
@@ -141,7 +143,7 @@ docs/
   架构对标评估.md
 ```
 
-旧 Python `src/tokendance` 和 `tests/` 只作为 v0.1 迁移参考保留；TS 分支不再扩展旧 Python runtime。
+旧 Python `src/tokendance` 和 `tests/` 只作为迁移参考保留；仓库根目录不再提供 Python package metadata。当前开发、测试和发布都以 TypeScript packages 为准。
 
 ## 开发与验证
 

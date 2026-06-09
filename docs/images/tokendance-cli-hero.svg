@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="760" viewBox="0 0 1440 760" role="img" aria-labelledby="title desc">
+  <title id="title">TokenDanceCode CLI hero</title>
+  <desc id="desc">A terminal-style TokenDanceCode startup screen with sanitized project and provider details.</desc>
+  <rect width="1440" height="760" fill="#0d0f12"/>
+  <rect x="1" y="1" width="1438" height="758" fill="none" stroke="#222831"/>
+  <text x="32" y="54" fill="#d8dee9" font-family="Cascadia Mono, Consolas, monospace" font-size="24">PS &lt;workspace&gt;&gt; <tspan fill="#f6d365" font-weight="700">tokendance</tspan></text>
+  <line x1="32" y1="88" x2="1408" y2="88" stroke="#d8dee9" stroke-width="2"/>
+  <g fill="#d8dee9" font-family="Cascadia Mono, Consolas, monospace" font-size="24" font-weight="700" xml:space="preserve">
+    <text x="42" y="140">████████╗ ██████╗ ██╗  ██╗███████╗███╗   ██╗██████╗  █████╗ ███╗   ██╗ ██████╗███████╗</text>
+    <text x="42" y="174">╚══██╔══╝██╔═══██╗██║ ██╔╝██╔════╝████╗  ██║██╔══██╗██╔══██╗████╗  ██║██╔════╝██╔════╝</text>
+    <text x="42" y="208">   ██║   ██║   ██║█████╔╝ █████╗  ██╔██╗ ██║██║  ██║███████║██╔██╗ ██║██║     █████╗  </text>
+    <text x="42" y="242">   ██║   ██║   ██║██╔═██╗ ██╔══╝  ██║╚██╗██║██║  ██║██╔══██║██║╚██╗██║██║     ██╔══╝  </text>
+    <text x="42" y="276">   ██║   ╚██████╔╝██║  ██╗███████╗██║ ╚████║██████╔╝██║  ██║██║ ╚████║╚██████╗███████╗</text>
+    <text x="42" y="310">   ╚═╝    ╚═════╝ ╚═╝  ╚═╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═══╝ ╚═════╝╚══════╝</text>
+  </g>
+  <text x="32" y="362" fill="#d8dee9" font-family="Cascadia Mono, Consolas, monospace" font-size="24">TokenDanceCode 0.2.0-ts.0   Provider: mock   CWD: &lt;workspace&gt;</text>
+  <line x1="32" y1="392" x2="1408" y2="392" stroke="#d8dee9" stroke-width="2"/>
+  <text x="32" y="456" fill="#d8dee9" font-family="Cascadia Mono, Consolas, monospace" font-size="24">> local coding-agent runtime for repositories</text>
+  <text x="32" y="512" fill="#d8dee9" font-family="Cascadia Mono, Consolas, monospace" font-size="24">> guarded PowerShell tools, JSONL transcripts, SDK events</text>
+  <text x="32" y="568" fill="#d8dee9" font-family="Cascadia Mono, Consolas, monospace" font-size="24">> OpenAI, Anthropic-compatible, and TokenDance Gateway providers</text>
+  <text x="32" y="624" fill="#8fbcbb" font-family="Cascadia Mono, Consolas, monospace" font-size="24">tokendance run "summarize this repo" --json</text>
+  <text x="32" y="680" fill="#a3be8c" font-family="Cascadia Mono, Consolas, monospace" font-size="24">[done] transcript saved, permissions recorded, AgentHub stream ready</text>
+</svg>

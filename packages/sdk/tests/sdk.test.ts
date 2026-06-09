@@ -418,7 +418,33 @@ describe("TokenDanceCode SDK", () => {
       expect.objectContaining({
         name: "worktree_create",
         risk: "shell",
-        concurrency: "exclusive"
+        concurrency: "exclusive",
+        permissionProfiles: expect.objectContaining({
+          default: expect.objectContaining({
+            status: "requires_approval",
+            reason: expect.stringContaining("mode=default tool=worktree_create risk=shell action=approval_required"),
+            riskMetadata: expect.objectContaining({
+              mode: "default",
+              toolName: "worktree_create",
+              toolRisk: "shell",
+              action: "approval_required"
+            })
+          }),
+          auto: expect.objectContaining({
+            status: "allowed",
+            riskMetadata: expect.objectContaining({
+              mode: "auto",
+              action: "allowed"
+            })
+          }),
+          yolo: expect.objectContaining({
+            status: "allowed",
+            riskMetadata: expect.objectContaining({
+              mode: "yolo",
+              action: "allowed"
+            })
+          })
+        })
       })
     );
     expect(tools.list().map((tool) => tool.name)).toContain("quality_gate");

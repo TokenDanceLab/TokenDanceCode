@@ -58,6 +58,12 @@ export type PermissionDecision =
   | { status: "denied"; reason: string; riskMetadata?: PermissionRiskMetadata }
   | { status: "requires_approval"; reason: string; riskMetadata?: PermissionRiskMetadata };
 
+export interface PermissionProfileMetadata {
+  status: PermissionDecision["status"];
+  reason: string;
+  riskMetadata: PermissionRiskMetadata | undefined;
+}
+
 export interface ToolSafetyEvidenceDetail {
   rule: string;
   matched: string;

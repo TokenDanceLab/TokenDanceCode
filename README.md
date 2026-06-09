@@ -361,6 +361,7 @@ await worktrees.remove("stage15-wt");
 
 const tools = client.tools({ workingDirectory: process.cwd() });
 console.log(tools.list().map((tool) => `${tool.name}:${tool.risk}`));
+console.log(tools.list()[0]?.permissionProfiles.default.status);
 const status = await tools.execute("git_status");
 console.log(status.ok);
 
@@ -494,7 +495,7 @@ const client = new TokenDanceCode({
 - `auto`：自动允许更多常规操作。
 - `yolo`：限制最少，使用时要小心。
 
-权限决策会同时返回可读 `reason` 和结构化 `riskMetadata`，包含 mode、tool、risk、action、并发策略和工具安全说明。PowerShell 工具即使在 `yolo` 下仍会硬拒绝已知高危命令，并在 `safetyEvidence.evidence` 中记录命中的规则、命令片段和短命令预览。AgentHub 远程审批 bridge 支持可选 timeout；重复、过期或未知决策会返回 `false`，不会重新放行已结算请求。
+权限决策会同时返回 `status`、可读 `reason` 和结构化 `riskMetadata`，包含 mode、tool、risk、action、并发策略和工具安全说明。`tools.list()` 为 AgentHub 暴露 `permissionProfiles.default/safe/auto/yolo`，每个 profile 都聚合该模式下的 `status`、`reason` 和 `riskMetadata`；旧的 `permission`、`permissionReasons` 和 `permissionRiskMetadata` map 保留给既有消费方。PowerShell 工具即使在 `yolo` 下仍会硬拒绝已知高危命令，并在 `safetyEvidence.evidence` 中记录命中的规则、命令片段和短命令预览。AgentHub 远程审批 bridge 支持可选 timeout；重复、过期或未知决策会返回 `false`，不会重新放行已结算请求。
 
 ## 项目结构
 

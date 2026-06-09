@@ -30,9 +30,16 @@ const config = await client.setConfig(
   { projectRoot: process.cwd() }
 );
 console.log(config.config.provider, config.projectConfigPath);
+
+const tools = client.tools({ workingDirectory: process.cwd() });
+const [firstTool] = tools.list();
+console.log(firstTool?.permissionProfiles.default.status);
+console.log(firstTool?.permissionProfiles.default.reason);
 ```
 
 AgentHub startup surfaces can use the `doctor-readiness` and `runner-bootstrap` feature flags to detect the compact startup contract. `doctor.agentHub.ready` is the quick go/no-go value; `blockingChecks` and `warningChecks` point back to the detailed Hub and Edge startup check groups.
+
+`tools.list()` is the AgentHub-readable tool catalog. Each item omits parser/executor functions and includes `permissionProfiles.default/safe/auto/yolo`; every profile carries the unified permission `status`, displayable `reason`, and structured `riskMetadata` for that mode. The legacy `permission`, `permissionReasons`, and `permissionRiskMetadata` maps remain available for compatibility.
 
 ## Release Baseline
 

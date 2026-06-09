@@ -17,6 +17,29 @@ describe("tool registry metadata", () => {
         name: "worktree_create",
         risk: "shell",
         concurrency: "exclusive",
+        permissionProfiles: expect.objectContaining({
+          default: {
+            status: "requires_approval",
+            reason: expect.stringContaining("mode=default tool=worktree_create risk=shell action=approval_required"),
+            riskMetadata: expect.objectContaining({
+              mode: "default",
+              toolName: "worktree_create",
+              toolRisk: "shell",
+              action: "approval_required",
+              approvalScope: "tool_call",
+              concurrency: "exclusive"
+            })
+          },
+          safe: expect.objectContaining({
+            status: "denied",
+            reason: expect.stringContaining("mode=safe tool=worktree_create risk=shell action=denied"),
+            riskMetadata: expect.objectContaining({
+              mode: "safe",
+              action: "denied",
+              approvalScope: "none"
+            })
+          })
+        }),
         permission: expect.objectContaining({
           default: "requires_approval",
           safe: "denied",

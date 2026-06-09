@@ -37,6 +37,48 @@ describe("PermissionEngine", () => {
     }
   });
 
+  it("describes every permission profile with unified status, reason, and risk metadata", () => {
+    const profiles = PermissionEngine.describeProfiles(shellTool);
+
+    expect(profiles).toMatchObject({
+      default: {
+        status: "requires_approval",
+        reason: "mode=default tool=shell risk=shell action=approval_required: default mode requires approval before running shell tools",
+        riskMetadata: {
+          mode: "default",
+          toolName: "shell",
+          toolRisk: "shell",
+          action: "approval_required",
+          approvalScope: "tool_call",
+          concurrency: "exclusive",
+          safetyNotes: []
+        }
+      },
+      safe: expect.objectContaining({
+        status: "denied",
+        riskMetadata: expect.objectContaining({
+          mode: "safe",
+          action: "denied",
+          approvalScope: "none"
+        })
+      }),
+      auto: expect.objectContaining({
+        status: "allowed",
+        riskMetadata: expect.objectContaining({
+          mode: "auto",
+          action: "allowed"
+        })
+      }),
+      yolo: expect.objectContaining({
+        status: "allowed",
+        riskMetadata: expect.objectContaining({
+          mode: "yolo",
+          action: "allowed"
+        })
+      })
+    });
+  });
+
   it("requires approval for shell tools in default mode", () => {
     expect(new PermissionEngine("default").decide(shellTool).status).toBe("requires_approval");
   });

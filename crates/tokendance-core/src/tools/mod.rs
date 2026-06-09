@@ -174,6 +174,63 @@ impl ToolRegistry {
             .decide(&tool.policy(), guard_result.subject.as_deref())
     }
 
+    /// Execute a tool call using a pre-computed permission decision.
+    /// This avoids double-computation when `permission_decision()` was already called.
+    /// The decision is trusted; no re-check is performed.
+    pub fn execute_with_decision(
+        &self,
+        call: &ToolCall,
+        decision: &PermissionDecision,
+        session: &SessionState,
+    ) -> anyhow::Result<ToolExecutionResult> {
+        if decision.status != PermissionStatus::Allowed {
+            return Ok(ToolExecutionResult {
+                call_id: call.id.clone(),
+                tool_name: call.name.clone(),
+                ok: false,
+                output: None,
+                error: Some(decision.reason.clone()),
+                safety_evidence: Some(ToolSafetyEvidence {
+                    tool_name: call.name.clone(),
+                    source: ToolSafetyEvidenceSource::PermissionEngine,
+                    status: decision.status,
+                    reason: decision.reason.clone(),
+                    decision: Some(decision.clone()),
+                }),
+            });
+        }
+
+        let Some(tool) = self.get(&call.name) else {
+            return Ok(ToolExecutionResult {
+                call_id: call.id.clone(),
+                tool_name: call.name.clone(),
+                ok: false,
+                output: None,
+                error: Some(format!("Unknown tool: {}", call.name)),
+                safety_evidence: None,
+            });
+        };
+
+        match (tool.executor)(call.input.clone(), session) {
+            Ok(output) => Ok(ToolExecutionResult {
+                call_id: call.id.clone(),
+                tool_name: call.name.clone(),
+                ok: true,
+                output: Some(output),
+                error: None,
+                safety_evidence: None,
+            }),
+            Err(error) => Ok(ToolExecutionResult {
+                call_id: call.id.clone(),
+                tool_name: call.name.clone(),
+                ok: false,
+                output: None,
+                error: Some(error.to_string()),
+                safety_evidence: None,
+            }),
+        }
+    }
+
     pub fn execute(
         &self,
         call: &ToolCall,

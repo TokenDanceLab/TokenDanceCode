@@ -1,17 +1,47 @@
 use crate::{
-    ModelProvider, PermissionMode, ProviderRequest, RuntimeEvent, SessionState, ToolRegistry,
-    ToolResult, TranscriptStore, TurnResult, assistant_message, create_default_tool_registry,
-    user_message,
+    HookContext, HookPoint, HookRegistry, HookResult, ModelProvider, PermissionMode,
+    ProviderRequest, RuntimeEvent, SessionState, ToolCall, ToolRegistry, ToolResult,
+    TranscriptStore, TurnResult, assistant_message, create_default_tool_registry, user_message,
 };
+use serde::Serialize;
 use std::path::PathBuf;
 use uuid::Uuid;
 
 const MAX_MODEL_CALLS_PER_TURN: usize = 2;
 
+/// A streaming event emitted during agent execution.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "type")]
+pub enum StreamEvent {
+    /// Text content being streamed from the model.
+    #[serde(rename = "content.delta")]
+    ContentDelta { text: String },
+    /// Model completed, tool calls pending.
+    #[serde(rename = "content.done")]
+    ContentDone { message: String },
+    /// Tool execution started.
+    #[serde(rename = "tool.started")]
+    ToolStarted { name: String, call_id: String },
+    /// Tool execution completed.
+    #[serde(rename = "tool.completed")]
+    ToolCompleted {
+        name: String,
+        call_id: String,
+        ok: bool,
+    },
+    /// Turn completed with final response.
+    #[serde(rename = "turn.completed")]
+    TurnCompleted { final_response: String },
+    /// Turn failed.
+    #[serde(rename = "turn.failed")]
+    TurnFailed { error: String },
+}
+
 pub struct Runtime<P> {
     provider: P,
     tools: ToolRegistry,
     store: TranscriptStore,
+    hooks: HookRegistry,
 }
 
 #[derive(Debug, Clone)]
@@ -28,6 +58,7 @@ impl<P: ModelProvider> Runtime<P> {
             provider,
             tools: create_default_tool_registry(),
             store: TranscriptStore::new(storage_root),
+            hooks: HookRegistry::new(),
         }
     }
 
@@ -40,7 +71,13 @@ impl<P: ModelProvider> Runtime<P> {
             provider,
             tools,
             store: TranscriptStore::new(storage_root),
+            hooks: HookRegistry::new(),
         }
+    }
+
+    pub fn with_hooks(mut self, hooks: HookRegistry) -> Self {
+        self.hooks = hooks;
+        self
     }
 
     pub fn start_thread(&self, options: StartThreadOptions) -> Thread<'_, P> {
@@ -58,6 +95,7 @@ impl<P: ModelProvider> Runtime<P> {
             provider: &self.provider,
             tools: &self.tools,
             store: self.store.clone(),
+            hooks: &self.hooks,
             session,
             next_seq: position.next_seq,
             last_uuid: position.last_uuid,
@@ -69,6 +107,7 @@ pub struct Thread<'a, P> {
     provider: &'a P,
     tools: &'a ToolRegistry,
     store: TranscriptStore,
+    hooks: &'a HookRegistry,
     session: SessionState,
     next_seq: u64,
     last_uuid: Option<String>,
@@ -93,8 +132,19 @@ impl<P: ModelProvider> Thread<'_, P> {
         .await?;
 
         let mut tool_results = Vec::new();
+        let mut model_call_count: usize = 0;
         let final_response = loop {
-            let model_call_number = if tool_results.is_empty() { 1 } else { 2 };
+            model_call_count += 1;
+            if model_call_count > MAX_MODEL_CALLS_PER_TURN {
+                let error = anyhow::anyhow!(
+                    "model call limit exceeded; max={}",
+                    MAX_MODEL_CALLS_PER_TURN
+                );
+                self.emit_turn_failed(&turn_id, error.to_string(), &mut events)
+                    .await?;
+                return Err(error);
+            }
+
             let response = self
                 .provider
                 .create_turn(ProviderRequest {
@@ -127,16 +177,6 @@ impl<P: ModelProvider> Thread<'_, P> {
                 break response.assistant_message.unwrap_or_default();
             }
 
-            if model_call_number >= MAX_MODEL_CALLS_PER_TURN {
-                let error = anyhow::anyhow!(
-                    "model call limit exceeded while processing tool calls; max={}",
-                    MAX_MODEL_CALLS_PER_TURN
-                );
-                self.emit_turn_failed(&turn_id, error.to_string(), &mut events)
-                    .await?;
-                return Err(error);
-            }
-
             tool_results = Vec::with_capacity(response.tool_calls.len());
             for call in response.tool_calls {
                 let decision = self.tools.permission_decision(&call, &self.session);
@@ -145,13 +185,62 @@ impl<P: ModelProvider> Thread<'_, P> {
                         session_id: self.session.id.clone(),
                         turn_id: turn_id.clone(),
                         call: call.clone(),
-                        decision,
+                        decision: decision.clone(),
                     },
                     &mut events,
                 )
                 .await?;
 
-                let result = self.tools.execute(&call, &self.session)?;
+                // Run pre-tool-use hooks.
+                let hook_ctx = HookContext {
+                    session_id: self.session.id.clone(),
+                    turn_id: turn_id.clone(),
+                    tool_call: Some(call.clone()),
+                    tool_result: None,
+                    decision: Some(decision.clone()),
+                };
+                let hook_result = self.hooks.run(HookPoint::PreToolUse, &hook_ctx);
+
+                let effective_call = match hook_result {
+                    HookResult::Block { reason } => {
+                        // Hook blocked execution; record as a failed tool result.
+                        tool_results.push(ToolResult {
+                            call_id: call.id.clone(),
+                            tool_name: call.name.clone(),
+                            ok: false,
+                            output: None,
+                            error: Some(reason),
+                        });
+                        continue;
+                    }
+                    HookResult::Modify { modified_input } => ToolCall {
+                        id: call.id.clone(),
+                        name: call.name.clone(),
+                        input: modified_input,
+                    },
+                    HookResult::Continue => call.clone(),
+                };
+
+                let result =
+                    self.tools
+                        .execute_with_decision(&effective_call, &decision, &self.session)?;
+
+                // Run post-tool-use hooks.
+                let post_hook_ctx = HookContext {
+                    session_id: self.session.id.clone(),
+                    turn_id: turn_id.clone(),
+                    tool_call: Some(effective_call),
+                    tool_result: Some(ToolResult {
+                        call_id: result.call_id.clone(),
+                        tool_name: result.tool_name.clone(),
+                        ok: result.ok,
+                        output: result.output.clone(),
+                        error: result.error.clone(),
+                    }),
+                    decision: Some(decision.clone()),
+                };
+                self.hooks.run(HookPoint::PostToolUse, &post_hook_ctx);
+
                 tool_results.push(ToolResult {
                     call_id: result.call_id,
                     tool_name: result.tool_name,
@@ -176,12 +265,77 @@ impl<P: ModelProvider> Thread<'_, P> {
         )
         .await?;
 
+        // Run turn-completed hooks.
+        let completed_ctx = HookContext {
+            session_id: self.session.id.clone(),
+            turn_id: turn_id.clone(),
+            tool_call: None,
+            tool_result: None,
+            decision: None,
+        };
+        self.hooks.run(HookPoint::TurnCompleted, &completed_ctx);
+
         Ok(TurnResult {
             thread_id: self.session.id.clone(),
             turn_id,
             final_response,
             events,
         })
+    }
+
+    /// Run a turn and yield streaming events via a channel.
+    /// Currently delegates to `run()` and forwards key events as stream events.
+    /// Full async streaming will be added when the provider trait supports it.
+    pub async fn run_streaming(
+        &mut self,
+        prompt: impl Into<String>,
+    ) -> anyhow::Result<tokio::sync::mpsc::Receiver<StreamEvent>> {
+        let (tx, rx) = tokio::sync::mpsc::channel(64);
+
+        let turn_result = self.run(prompt).await;
+
+        match turn_result {
+            Ok(result) => {
+                // Emit ContentDone for the assistant message.
+                if !result.final_response.is_empty() {
+                    let _ = tx
+                        .send(StreamEvent::ContentDone {
+                            message: result.final_response.clone(),
+                        })
+                        .await;
+                }
+                // Emit events for tool interactions.
+                for event in &result.events {
+                    match event {
+                        RuntimeEvent::ToolPermission { call, .. } => {
+                            let _ = tx
+                                .send(StreamEvent::ToolStarted {
+                                    name: call.name.clone(),
+                                    call_id: call.id.clone(),
+                                })
+                                .await;
+                        }
+                        RuntimeEvent::TurnCompleted { final_response, .. } => {
+                            let _ = tx
+                                .send(StreamEvent::TurnCompleted {
+                                    final_response: final_response.clone(),
+                                })
+                                .await;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Err(error) => {
+                let _ = tx
+                    .send(StreamEvent::TurnFailed {
+                        error: error.to_string(),
+                    })
+                    .await;
+            }
+        }
+
+        Ok(rx)
     }
 
     pub fn state(&self) -> &SessionState {
@@ -198,11 +352,23 @@ impl<P: ModelProvider> Thread<'_, P> {
             RuntimeEvent::TurnFailed {
                 session_id: self.session.id.clone(),
                 turn_id: turn_id.to_string(),
-                error,
+                error: error.clone(),
             },
             events,
         )
-        .await
+        .await?;
+
+        // Run turn-failed hooks.
+        let failed_ctx = HookContext {
+            session_id: self.session.id.clone(),
+            turn_id: turn_id.to_string(),
+            tool_call: None,
+            tool_result: None,
+            decision: None,
+        };
+        self.hooks.run(HookPoint::TurnFailed, &failed_ctx);
+
+        Ok(())
     }
 
     async fn emit(
@@ -405,6 +571,219 @@ mod tests {
 
         assert!(error.to_string().contains("model call limit"));
         assert_eq!(calls.lock().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn stream_event_serializes_tagged_json() {
+        let delta = StreamEvent::ContentDelta {
+            text: "hello".to_string(),
+        };
+        let value = serde_json::to_value(&delta).unwrap();
+        assert_eq!(value["type"], "content.delta");
+        assert_eq!(value["text"], "hello");
+
+        let completed = StreamEvent::ToolCompleted {
+            name: "read_file".to_string(),
+            call_id: "call-1".to_string(),
+            ok: true,
+        };
+        let value = serde_json::to_value(&completed).unwrap();
+        assert_eq!(value["type"], "tool.completed");
+        assert_eq!(value["ok"], true);
+    }
+
+    #[tokio::test]
+    async fn run_streaming_emits_events_in_order() {
+        let root = std::env::temp_dir().join(format!("tdcode-rs-test-{}", Uuid::new_v4()));
+        let runtime = Runtime::new(MockProvider, root.clone());
+        let mut thread = runtime.start_thread(StartThreadOptions {
+            working_directory: root.clone(),
+            storage_root: root.clone(),
+            permission_mode: PermissionMode::Default,
+            session_id: Some("session-stream".to_string()),
+        });
+
+        let mut rx = thread.run_streaming("hello").await.unwrap();
+        let mut events = Vec::new();
+        while let Some(event) = rx.recv().await {
+            events.push(event);
+        }
+
+        // MockProvider returns immediately with no tool calls:
+        // ContentDone, then TurnCompleted
+        assert!(events.len() >= 2);
+        assert!(
+            matches!(&events[0], StreamEvent::ContentDone { message } if message.contains("hello"))
+        );
+        assert!(
+            matches!(&events[events.len() - 1], StreamEvent::TurnCompleted { final_response } if final_response.contains("hello"))
+        );
+    }
+
+    #[tokio::test]
+    async fn pre_tool_use_hook_blocks_execution() {
+        let root = std::env::temp_dir().join(format!("tdcode-rs-test-{}", Uuid::new_v4()));
+        let provider = ToolLoopProvider::new(vec![
+            ProviderResponse {
+                assistant_message: None,
+                tool_calls: vec![ToolCall {
+                    id: "call-add".to_string(),
+                    name: "add_one".to_string(),
+                    input: json!({ "value": 41 }),
+                }],
+            },
+            ProviderResponse {
+                assistant_message: Some("after block".to_string()),
+                tool_calls: Vec::new(),
+            },
+        ]);
+
+        let mut hooks = HookRegistry::new();
+        hooks.register(
+            HookPoint::PreToolUse,
+            Box::new(|_ctx| HookResult::Block {
+                reason: "test blocked".to_string(),
+            }),
+        );
+
+        let runtime = Runtime::with_tool_registry(provider, root.clone(), add_one_registry())
+            .with_hooks(hooks);
+        let mut thread = runtime.start_thread(StartThreadOptions {
+            working_directory: root.clone(),
+            storage_root: root.clone(),
+            permission_mode: PermissionMode::Yolo,
+            session_id: Some("session-hook-block".to_string()),
+        });
+
+        let result = thread.run("calculate").await.unwrap();
+        assert_eq!(result.final_response, "after block");
+        // The tool result should show the block reason.
+        assert!(
+            result
+                .events
+                .iter()
+                .any(|event| matches!(event, RuntimeEvent::ToolPermission { .. }))
+        );
+    }
+
+    #[tokio::test]
+    async fn pre_tool_use_hook_modifies_input() {
+        let root = std::env::temp_dir().join(format!("tdcode-rs-test-{}", Uuid::new_v4()));
+        let provider = ToolLoopProvider::new(vec![
+            ProviderResponse {
+                assistant_message: None,
+                tool_calls: vec![ToolCall {
+                    id: "call-add".to_string(),
+                    name: "add_one".to_string(),
+                    input: json!({ "value": 41 }),
+                }],
+            },
+            ProviderResponse {
+                assistant_message: Some("modified result".to_string()),
+                tool_calls: Vec::new(),
+            },
+        ]);
+        let calls = provider.requests.clone();
+
+        let mut hooks = HookRegistry::new();
+        hooks.register(
+            HookPoint::PreToolUse,
+            Box::new(|_ctx| HookResult::Modify {
+                modified_input: json!({ "value": 99 }),
+            }),
+        );
+
+        let runtime = Runtime::with_tool_registry(provider, root.clone(), add_one_registry())
+            .with_hooks(hooks);
+        let mut thread = runtime.start_thread(StartThreadOptions {
+            working_directory: root.clone(),
+            storage_root: root.clone(),
+            permission_mode: PermissionMode::Yolo,
+            session_id: Some("session-hook-modify".to_string()),
+        });
+
+        let result = thread.run("calculate").await.unwrap();
+        assert_eq!(result.final_response, "modified result");
+        // The second provider call should have received the modified tool result (99 + 1 = 100).
+        let requests = calls.lock().unwrap();
+        assert_eq!(
+            requests[1].tool_results[0].output,
+            Some(json!({ "value": 100 }))
+        );
+    }
+
+    #[tokio::test]
+    async fn turn_completed_hook_fires_on_success() {
+        let root = std::env::temp_dir().join(format!("tdcode-rs-test-{}", Uuid::new_v4()));
+        let hook_called = Arc::new(Mutex::new(false));
+        let hook_called_clone = hook_called.clone();
+
+        let mut hooks = HookRegistry::new();
+        hooks.register(
+            HookPoint::TurnCompleted,
+            Box::new(move |_ctx| {
+                *hook_called_clone.lock().unwrap() = true;
+                HookResult::Continue
+            }),
+        );
+
+        let runtime = Runtime::new(MockProvider, root.clone()).with_hooks(hooks);
+        let mut thread = runtime.start_thread(StartThreadOptions {
+            working_directory: root.clone(),
+            storage_root: root.clone(),
+            permission_mode: PermissionMode::Default,
+            session_id: Some("session-hook-complete".to_string()),
+        });
+
+        thread.run("hello").await.unwrap();
+        assert!(*hook_called.lock().unwrap());
+    }
+
+    #[tokio::test]
+    async fn turn_failed_hook_fires_on_error() {
+        let root = std::env::temp_dir().join(format!("tdcode-rs-test-{}", Uuid::new_v4()));
+        let hook_called = Arc::new(Mutex::new(false));
+        let hook_called_clone = hook_called.clone();
+
+        let mut hooks = HookRegistry::new();
+        hooks.register(
+            HookPoint::TurnFailed,
+            Box::new(move |_ctx| {
+                *hook_called_clone.lock().unwrap() = true;
+                HookResult::Continue
+            }),
+        );
+
+        let provider = ToolLoopProvider::new(vec![
+            ProviderResponse {
+                assistant_message: None,
+                tool_calls: vec![ToolCall {
+                    id: "call-add-1".to_string(),
+                    name: "add_one".to_string(),
+                    input: json!({ "value": 1 }),
+                }],
+            },
+            ProviderResponse {
+                assistant_message: None,
+                tool_calls: vec![ToolCall {
+                    id: "call-add-2".to_string(),
+                    name: "add_one".to_string(),
+                    input: json!({ "value": 2 }),
+                }],
+            },
+        ]);
+
+        let runtime = Runtime::with_tool_registry(provider, root.clone(), add_one_registry())
+            .with_hooks(hooks);
+        let mut thread = runtime.start_thread(StartThreadOptions {
+            working_directory: root.clone(),
+            storage_root: root.clone(),
+            permission_mode: PermissionMode::Yolo,
+            session_id: Some("session-hook-fail".to_string()),
+        });
+
+        let _ = thread.run("loop").await;
+        assert!(*hook_called.lock().unwrap());
     }
 
     async fn read_transcript(root: &std::path::Path, session_id: &str) -> Vec<TranscriptEnvelope> {

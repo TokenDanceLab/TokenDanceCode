@@ -694,7 +694,7 @@ const task = await tasks.create({
 
 await tasks.addDependency(task.id, "task-parent");
 await tasks.linkSession(task.id, "sess_01HX...");
-await tasks.linkWorktree(task.id, "<workspace>/TokenDanceCode/.worktrees/ts-refactor");
+await tasks.linkWorktree(task.id, "<managedWorktreePath>");
 await tasks.updateStatus(task.id, "completed");
 console.log(await tasks.metadata());
 
@@ -722,7 +722,7 @@ AgentHub 可以通过 SDK 管理 TokenDanceCode 的受控 Git worktree 池，用
 
 ```ts
 const worktrees = client.worktrees({
-  repositoryRoot: "<workspace>/TokenDanceCode"
+  repositoryRoot: "<repositoryRoot>"
 });
 
 const created = await worktrees.create({ name: "agenthub-wt" });

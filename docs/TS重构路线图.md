@@ -5,7 +5,7 @@
 ## 1. 当前分支事实
 
 - 分支：`codex/ts-refactor`
-- worktree：`<workspace>\TokenDanceCode\.worktrees\ts-refactor`
+- 当前工作目录：任意基于该分支的仓库或受控 worktree；不要在公开文档中固化本机目录拓扑。
 - 目标：把 TokenDanceCode 从 Python v0.1 参考实现重构为 TypeScript monorepo，并给 AgentHub 暴露稳定 SDK。
 - 当前可验证命令：`pnpm verify`、`pnpm contract:check`、`pnpm pack:check`、`pnpm release:next:check`
 - 最近验证结果以当前 `pnpm release:next:check` 输出为准；该 gate 覆盖只读 release contract drift gate、typecheck、Vitest、core/sdk/cli dry-run pack 和增强 tarball install smoke。
@@ -14,11 +14,7 @@
 
 ## 2. 参考来源
 
-本轮只读参考了 AgentHub 的源码镜像：
-
-- `<workspace>\AgentHub\reference\claude-code-source\claude-code-main`
-- `<workspace>\AgentHub\reference\codex`
-- `<workspace>\AgentHub\reference\opencode`
+本轮只读参考了 Claude Code、Codex 和 OpenCode 的 CLI agent 架构材料。参考材料只用于提炼架构取舍，不作为本仓库的运行依赖，也不在公开文档中记录本机镜像路径。
 
 可借鉴但不照搬的结论：
 
@@ -94,7 +90,7 @@ Residual risk matrix：
 | npm 发布动作不可由本地检查证明 | `pnpm contract:check` 和其他检查脚本明确不发布 | Manual approval gate 后由 release owner 逐包执行 |
 | 真实 provider smoke 依赖外部 key | 默认测试不读取项目 `.env`，真实集成测试显式 opt-in | 需要时由 release owner 在受控 shell 注入 |
 | AgentHub 生产接入仍需产品侧替换样例存储 | SDK 和 example 覆盖 contract 与事件形态 | Hub/Edge 合并时替换为自己的 event bus、approval store 和 session 生命周期 |
-| Python v0.1 验收项仍在文档后半段 | TS 权威验收已前置 | 后续迁移切片继续替换旧项 |
+| 旧实现迁移口径仍可能出现在长文档后段 | TS/npm 权威验收已前置 | 后续迁移切片继续替换为 Node/SDK/CLI 口径 |
 
 涉及 CLI 行为时额外运行：
 

@@ -1174,6 +1174,16 @@ describe("TokenDanceCode CLI", () => {
     expect(io.stderrText()).toBe("");
   });
 
+  it("treats unknown top-level argv as a direct prompt", async () => {
+    const io = createTestIO();
+
+    const exitCode = await runCli(["hello", "direct", "prompt"], io);
+
+    expect(exitCode).toBe(0);
+    expect(io.stdoutText()).toContain("Mock response: hello direct prompt\n");
+    expect(io.stderrText()).toBe("");
+  });
+
   it("keeps run format-looking tokens after the first prompt word as literal text", async () => {
     const io = createTestIO();
 

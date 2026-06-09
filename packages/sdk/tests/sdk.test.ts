@@ -769,6 +769,7 @@ describe("TokenDanceCode SDK", () => {
     const client = new TokenDanceCode({
       env: {
         OPENAI_API_KEY: "openai-secret-value",
+        TOKENDANCE_GATEWAY_API_KEY: "gateway-secret-value",
         ANTHROPIC_API_KEY: ""
       }
     });
@@ -781,9 +782,11 @@ describe("TokenDanceCode SDK", () => {
     expect(doctor.platform).toBe(process.platform);
     expect(doctor.apiKeys).toEqual({
       OPENAI_API_KEY: "present",
+      TOKENDANCE_GATEWAY_API_KEY: "present",
       ANTHROPIC_API_KEY: "missing"
     });
     expect(JSON.stringify(doctor)).not.toContain("openai-secret-value");
+    expect(JSON.stringify(doctor)).not.toContain("gateway-secret-value");
     expect(doctor.git.available).toEqual(expect.any(Boolean));
     expect(doctor.git.repository).toEqual(expect.any(Boolean));
     expect(doctor.powershell.available).toEqual(expect.any(Boolean));
@@ -822,6 +825,8 @@ describe("TokenDanceCode SDK", () => {
     const missingProviderCheck = missing.startup.hub.checks.find((check) => check.name === "provider-ready");
     const readyProviderCheck = ready.startup.hub.checks.find((check) => check.name === "provider-ready");
 
+    expect(missing.apiKeys.TOKENDANCE_GATEWAY_API_KEY).toBe("missing");
+    expect(ready.apiKeys.TOKENDANCE_GATEWAY_API_KEY).toBe("present");
     expect(missing.config.validation).toMatchObject({
       ready: false,
       provider: "openai-chat-completions",

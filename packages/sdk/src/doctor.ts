@@ -23,6 +23,7 @@ export interface DoctorInfo {
   platform: NodeJS.Platform;
   apiKeys: {
     OPENAI_API_KEY: SecretStatus;
+    TOKENDANCE_GATEWAY_API_KEY: SecretStatus;
     ANTHROPIC_API_KEY: SecretStatus;
   };
   git: {
@@ -100,6 +101,7 @@ export async function collectDoctorInfo(options: DoctorOptions): Promise<DoctorI
     platform: process.platform,
     apiKeys: {
       OPENAI_API_KEY: secretStatus(env.OPENAI_API_KEY),
+      TOKENDANCE_GATEWAY_API_KEY: secretStatus(env.TOKENDANCE_GATEWAY_API_KEY),
       ANTHROPIC_API_KEY: secretStatus(env.ANTHROPIC_API_KEY)
     },
     git: {

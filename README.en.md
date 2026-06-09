@@ -38,11 +38,35 @@ Planned public packages:
 
 ## Quick Start
 
+After npm publication, install the CLI directly:
+
+```powershell
+npm install -g @tokendance/code-cli@next
+tokendance --version
+tokendance doctor
+tokendance run "hello"
+```
+
+SDK consumers can install:
+
+```powershell
+npm install @tokendance/code-sdk@next @tokendance/code-core@next
+```
+
+Before the first publish, treat the registry checks in [Release readiness](docs/release-readiness.md) as the source of truth.
+
+Source install:
+
 ```powershell
 git clone https://github.com/TokenDanceLab/TokenDanceCode.git
 cd TokenDanceCode
 pnpm install
 pnpm verify
+```
+
+Build and run the CLI:
+
+```powershell
 pnpm --filter @tokendance/code-cli build
 node packages/cli/dist/main.js --version
 node packages/cli/dist/main.js quickstart

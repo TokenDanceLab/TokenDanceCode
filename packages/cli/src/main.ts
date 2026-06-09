@@ -49,10 +49,7 @@ export async function runCli(argv: string[], io: CliIO = defaultIO()): Promise<n
       await runInteractive(io);
       return 0;
     },
-    unknown: async (command) => {
-      await write(io.stderr, `Unknown command: ${command}\n`);
-      return 1;
-    }
+    unknown: (command, args) => runCommand([command, ...args], io)
   });
 }
 

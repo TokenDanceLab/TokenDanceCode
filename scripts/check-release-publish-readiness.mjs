@@ -20,8 +20,7 @@ async function main() {
   const rootPackage = JSON.parse(await readFile(resolve(workspaceRoot, "package.json"), "utf8"));
   const failures = [];
 
-  await collect(failures, "clean worktree", assertCleanWorktree);
-  await collect(failures, "release branch pointer", assertReleaseBranchPointer);
+  assertPublishPreconditions();
   await collect(failures, "registry next state", () => run("pnpm", ["registry:next:check"]));
   await collect(failures, "contract gate", () => run("pnpm", ["contract:check"]));
   await collect(failures, "verify gate", () => run("pnpm", ["verify"]));
@@ -38,6 +37,11 @@ async function main() {
 
   const currentBranch = currentGitBranch();
   console.log(`Release publish readiness passed for ${rootPackage.version} at ${releaseBranch} tip; current branch is ${currentBranch}.`);
+}
+
+function assertPublishPreconditions() {
+  assertCleanWorktree();
+  assertReleaseBranchPointer();
 }
 
 async function collect(failures, label, check) {

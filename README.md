@@ -38,6 +38,23 @@ TokenDanceCode 聚焦本地 coding-agent runtime 和 AgentHub 可调用的 SDK s
 
 ## 快速开始
 
+npm 发布后可直接安装 CLI：
+
+```powershell
+npm install -g @tokendance/code-cli@next
+tokendance --version
+tokendance doctor
+tokendance run "hello"
+```
+
+SDK 消费方可安装：
+
+```powershell
+npm install @tokendance/code-sdk@next @tokendance/code-core@next
+```
+
+首次发布前，以上命令以 [发布准备](docs/release-readiness.md) 中的 registry 检查结果为准。
+
 源码安装：
 
 ```powershell

@@ -65,7 +65,7 @@ Before publishing:
 4. Run `pnpm release:publish:check` on a clean worktree.
 5. Review packed contents from `pnpm pack:dry-run`.
 6. Publish only the staged tarball paths printed by `pnpm release:publish:check`; verify their SHA-256 hashes before publishing.
-7. Release owner runs the private publish checklist from the operator secret store.
+7. Release owner completes the external npm credential and 2FA checklist outside this repository.
 
 Public command shape:
 
@@ -94,4 +94,4 @@ tokendance --version
 tokendance doctor --json
 ```
 
-Do not print npm tokens in logs or docs. Rotate any token that was exposed outside the private secret store.
+Do not print npm tokens in logs or docs. Rotate any token that was exposed outside approved credential storage.

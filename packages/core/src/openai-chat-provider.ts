@@ -121,12 +121,16 @@ export class OpenAIChatCompletionsProvider implements ModelProvider {
   }
 
   private buildMessages(request: ModelTurnRequest): OpenAIChatMessage[] {
-    const priorMessages = this.conversationBySession.get(request.session.id);
-    const baseMessages = priorMessages ?? request.session.messages.map(toOpenAIChatMessage);
+    const sessionMessages = request.session.messages.map(toOpenAIChatMessage);
     if (request.toolResults.length === 0) {
+      return sessionMessages;
+    }
+    const baseMessages = this.conversationBySession.get(request.session.id) ?? sessionMessages;
+    const missingResults = request.toolResults.filter((result) => !hasOpenAIChatToolResult(baseMessages, result.callId));
+    if (missingResults.length === 0) {
       return baseMessages;
     }
-    return [...baseMessages, ...request.toolResults.map(toOpenAIChatToolResult)];
+    return [...baseMessages, ...missingResults.map(toOpenAIChatToolResult)];
   }
 }
 
@@ -160,6 +164,10 @@ function toOpenAIChatToolResult(result: ToolResult): OpenAIChatMessage {
     tool_call_id: result.callId,
     content: JSON.stringify(result.ok ? result.output ?? null : { error: result.error ?? "Tool failed" })
   };
+}
+
+function hasOpenAIChatToolResult(messages: OpenAIChatMessage[], callId: string): boolean {
+  return messages.some((message) => message.role === "tool" && message.tool_call_id === callId);
 }
 
 function toConversationAssistantMessage(message: OpenAIChatResponseMessage | undefined): OpenAIChatMessage {

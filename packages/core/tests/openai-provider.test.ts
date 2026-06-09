@@ -79,6 +79,94 @@ describe("OpenAIResponsesProvider", () => {
     expect(second.assistantMessage).toBe("done");
   });
 
+  it("does not duplicate prior function_call_output items during multi-step tool loops", async () => {
+    const bodies: Array<{ input: Array<Record<string, unknown>> }> = [];
+    const provider = new OpenAIResponsesProvider({
+      apiKey: "test-key",
+      model: "gpt-test",
+      baseUrl: "https://api.test/v1",
+      fetch: async (_url, init) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        if (bodies.length === 1) {
+          return jsonResponse({
+            output: [{ type: "function_call", call_id: "call-1", name: "echo", arguments: "{\"text\":\"first\"}" }]
+          });
+        }
+        if (bodies.length === 2) {
+          return jsonResponse({
+            output: [{ type: "function_call", call_id: "call-2", name: "echo", arguments: "{\"text\":\"second\"}" }]
+          });
+        }
+        return jsonResponse({ output: [{ type: "message", content: [{ type: "output_text", text: "done" }] }] });
+      }
+    });
+
+    await provider.createTurn(baseRequest());
+    await provider.createTurn({
+      ...baseRequest(),
+      toolResults: [{ callId: "call-1", toolName: "echo", ok: true, output: { text: "first" } }]
+    });
+    await provider.createTurn({
+      ...baseRequest(),
+      toolResults: [
+        { callId: "call-1", toolName: "echo", ok: true, output: { text: "first" } },
+        { callId: "call-2", toolName: "echo", ok: true, output: { text: "second" } }
+      ]
+    });
+
+    const thirdInput = bodies[2]?.input ?? [];
+    expect(thirdInput.filter((item) => item.type === "function_call_output" && item.call_id === "call-1")).toHaveLength(1);
+    expect(thirdInput.filter((item) => item.type === "function_call_output" && item.call_id === "call-2")).toHaveLength(1);
+    expect(thirdInput).toMatchObject([
+      { role: "user", content: "hello" },
+      { type: "function_call", call_id: "call-1", name: "echo" },
+      { type: "function_call_output", call_id: "call-1", output: "{\"text\":\"first\"}" },
+      { type: "function_call", call_id: "call-2", name: "echo" },
+      { type: "function_call_output", call_id: "call-2", output: "{\"text\":\"second\"}" }
+    ]);
+  });
+
+  it("uses fresh session messages for a later user turn after a tool loop completes", async () => {
+    const bodies: Array<{ input: Array<Record<string, unknown>> }> = [];
+    const provider = new OpenAIResponsesProvider({
+      apiKey: "test-key",
+      model: "gpt-test",
+      baseUrl: "https://api.test/v1",
+      fetch: async (_url, init) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        if (bodies.length === 1) {
+          return jsonResponse({
+            output: [{ type: "function_call", call_id: "call-1", name: "echo", arguments: "{\"text\":\"hi\"}" }]
+          });
+        }
+        return jsonResponse({ output: [{ type: "message", content: [{ type: "output_text", text: "done" }] }] });
+      }
+    });
+
+    await provider.createTurn(baseRequest());
+    await provider.createTurn({
+      ...baseRequest(),
+      toolResults: [{ callId: "call-1", toolName: "echo", ok: true, output: { text: "hi" } }]
+    });
+    await provider.createTurn({
+      ...baseRequest(),
+      session: {
+        ...baseRequest().session,
+        messages: [
+          { role: "user", content: "hello" },
+          { role: "assistant", content: "done" },
+          { role: "user", content: "next question" }
+        ]
+      }
+    });
+
+    expect(bodies[2]?.input).toEqual([
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "done" },
+      { role: "user", content: "next question" }
+    ]);
+  });
+
   it("surfaces API errors", async () => {
     const provider = new OpenAIResponsesProvider({
       apiKey: "test-key",

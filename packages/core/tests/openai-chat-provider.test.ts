@@ -107,6 +107,136 @@ describe("OpenAIChatCompletionsProvider", () => {
     expect(second.assistantMessage).toBe("done");
   });
 
+  it("does not duplicate prior tool messages during multi-step tool loops", async () => {
+    const bodies: Array<{ messages: Array<Record<string, unknown>> }> = [];
+    const provider = new OpenAIChatCompletionsProvider({
+      apiKey: "test-key",
+      model: "gpt-test",
+      baseUrl: "https://api.test/v1",
+      fetch: async (_url, init) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        if (bodies.length === 1) {
+          return jsonResponse({
+            choices: [
+              {
+                message: {
+                  role: "assistant",
+                  content: null,
+                  tool_calls: [
+                    {
+                      id: "call-1",
+                      type: "function",
+                      function: { name: "echo", arguments: "{\"text\":\"first\"}" }
+                    }
+                  ]
+                }
+              }
+            ]
+          });
+        }
+        if (bodies.length === 2) {
+          return jsonResponse({
+            choices: [
+              {
+                message: {
+                  role: "assistant",
+                  content: null,
+                  tool_calls: [
+                    {
+                      id: "call-2",
+                      type: "function",
+                      function: { name: "echo", arguments: "{\"text\":\"second\"}" }
+                    }
+                  ]
+                }
+              }
+            ]
+          });
+        }
+        return jsonResponse({ choices: [{ message: { role: "assistant", content: "done" } }] });
+      }
+    });
+
+    await provider.createTurn(baseRequest());
+    await provider.createTurn({
+      ...baseRequest(),
+      toolResults: [{ callId: "call-1", toolName: "echo", ok: true, output: { text: "first" } }]
+    });
+    await provider.createTurn({
+      ...baseRequest(),
+      toolResults: [
+        { callId: "call-1", toolName: "echo", ok: true, output: { text: "first" } },
+        { callId: "call-2", toolName: "echo", ok: true, output: { text: "second" } }
+      ]
+    });
+
+    const thirdMessages = bodies[2]?.messages ?? [];
+    expect(thirdMessages.filter((message) => message.role === "tool" && message.tool_call_id === "call-1")).toHaveLength(1);
+    expect(thirdMessages.filter((message) => message.role === "tool" && message.tool_call_id === "call-2")).toHaveLength(1);
+    expect(thirdMessages).toMatchObject([
+      { role: "user", content: "hello" },
+      { role: "assistant", tool_calls: [{ id: "call-1" }] },
+      { role: "tool", tool_call_id: "call-1", content: "{\"text\":\"first\"}" },
+      { role: "assistant", tool_calls: [{ id: "call-2" }] },
+      { role: "tool", tool_call_id: "call-2", content: "{\"text\":\"second\"}" }
+    ]);
+  });
+
+  it("uses fresh session messages for a later user turn after a tool loop completes", async () => {
+    const bodies: Array<{ messages: Array<Record<string, unknown>> }> = [];
+    const provider = new OpenAIChatCompletionsProvider({
+      apiKey: "test-key",
+      model: "gpt-test",
+      baseUrl: "https://api.test/v1",
+      fetch: async (_url, init) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        if (bodies.length === 1) {
+          return jsonResponse({
+            choices: [
+              {
+                message: {
+                  role: "assistant",
+                  content: null,
+                  tool_calls: [
+                    {
+                      id: "call-1",
+                      type: "function",
+                      function: { name: "echo", arguments: "{\"text\":\"hi\"}" }
+                    }
+                  ]
+                }
+              }
+            ]
+          });
+        }
+        return jsonResponse({ choices: [{ message: { role: "assistant", content: "done" } }] });
+      }
+    });
+
+    await provider.createTurn(baseRequest());
+    await provider.createTurn({
+      ...baseRequest(),
+      toolResults: [{ callId: "call-1", toolName: "echo", ok: true, output: { text: "hi" } }]
+    });
+    await provider.createTurn({
+      ...baseRequest(),
+      session: {
+        ...baseRequest().session,
+        messages: [
+          { role: "user", content: "hello" },
+          { role: "assistant", content: "done" },
+          { role: "user", content: "next question" }
+        ]
+      }
+    });
+
+    expect(bodies[2]?.messages).toEqual([
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "done" },
+      { role: "user", content: "next question" }
+    ]);
+  });
+
   it("surfaces API errors", async () => {
     const provider = new OpenAIChatCompletionsProvider({
       apiKey: "test-key",

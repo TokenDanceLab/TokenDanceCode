@@ -111,12 +111,16 @@ export class AnthropicMessagesProvider implements ModelProvider {
   }
 
   private buildMessages(request: ModelTurnRequest): AnthropicMessage[] {
-    const priorMessages = this.conversationBySession.get(request.session.id);
-    const baseMessages = priorMessages ?? toAnthropicMessages(request.session.messages);
+    const sessionMessages = toAnthropicMessages(request.session.messages);
     if (request.toolResults.length === 0) {
+      return sessionMessages;
+    }
+    const baseMessages = this.conversationBySession.get(request.session.id) ?? sessionMessages;
+    const missingResults = request.toolResults.filter((result) => !hasAnthropicToolResult(baseMessages, result.callId));
+    if (missingResults.length === 0) {
       return baseMessages;
     }
-    return [...baseMessages, { role: "user", content: request.toolResults.map(toToolResultBlock) }];
+    return [...baseMessages, { role: "user", content: missingResults.map(toToolResultBlock) }];
   }
 }
 
@@ -152,6 +156,15 @@ function toToolResultBlock(result: ToolResult): AnthropicContentBlock {
     content: JSON.stringify(result.ok ? result.output ?? null : { error: result.error ?? "Tool failed" }),
     is_error: result.ok ? undefined : true
   };
+}
+
+function hasAnthropicToolResult(messages: AnthropicMessage[], callId: string): boolean {
+  return messages.some((message) => {
+    if (!Array.isArray(message.content)) {
+      return false;
+    }
+    return message.content.some((block) => block.type === "tool_result" && block.tool_use_id === callId);
+  });
 }
 
 function parseAssistantText(payload: AnthropicResponsePayload): string | undefined {

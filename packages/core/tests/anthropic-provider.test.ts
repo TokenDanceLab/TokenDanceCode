@@ -84,6 +84,96 @@ describe("AnthropicMessagesProvider", () => {
     expect(second.assistantMessage).toBe("done");
   });
 
+  it("does not duplicate prior tool_result blocks during multi-step tool loops", async () => {
+    const bodies: Array<{ messages: Array<{ role: string; content: unknown }> }> = [];
+    const provider = new AnthropicMessagesProvider({
+      apiKey: "test-key",
+      model: "claude-test",
+      baseUrl: "https://anthropic.test",
+      fetch: async (_url, init) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        if (bodies.length === 1) {
+          return jsonResponse({
+            content: [{ type: "tool_use", id: "toolu-1", name: "echo", input: { text: "first" } }]
+          });
+        }
+        if (bodies.length === 2) {
+          return jsonResponse({
+            content: [{ type: "tool_use", id: "toolu-2", name: "echo", input: { text: "second" } }]
+          });
+        }
+        return jsonResponse({ content: [{ type: "text", text: "done" }] });
+      }
+    });
+
+    await provider.createTurn(baseRequest());
+    await provider.createTurn({
+      ...baseRequest(),
+      toolResults: [{ callId: "toolu-1", toolName: "echo", ok: true, output: { text: "first" } }]
+    });
+    await provider.createTurn({
+      ...baseRequest(),
+      toolResults: [
+        { callId: "toolu-1", toolName: "echo", ok: true, output: { text: "first" } },
+        { callId: "toolu-2", toolName: "echo", ok: true, output: { text: "second" } }
+      ]
+    });
+
+    const thirdMessages = bodies[2]?.messages ?? [];
+    const toolResults = thirdMessages.flatMap((message) => (Array.isArray(message.content) ? message.content : []));
+    expect(toolResults.filter((block) => block.type === "tool_result" && block.tool_use_id === "toolu-1")).toHaveLength(1);
+    expect(toolResults.filter((block) => block.type === "tool_result" && block.tool_use_id === "toolu-2")).toHaveLength(1);
+    expect(thirdMessages).toMatchObject([
+      { role: "user", content: "hello" },
+      { role: "assistant", content: [{ type: "tool_use", id: "toolu-1", name: "echo", input: { text: "first" } }] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu-1", content: "{\"text\":\"first\"}" }] },
+      { role: "assistant", content: [{ type: "tool_use", id: "toolu-2", name: "echo", input: { text: "second" } }] },
+      { role: "user", content: [{ type: "tool_result", tool_use_id: "toolu-2", content: "{\"text\":\"second\"}" }] }
+    ]);
+  });
+
+  it("uses fresh session messages for a later user turn after a tool loop completes", async () => {
+    const bodies: Array<{ messages: Array<Record<string, unknown>> }> = [];
+    const provider = new AnthropicMessagesProvider({
+      apiKey: "test-key",
+      model: "claude-test",
+      baseUrl: "https://anthropic.test",
+      fetch: async (_url, init) => {
+        bodies.push(JSON.parse(String(init?.body)));
+        if (bodies.length === 1) {
+          return jsonResponse({
+            content: [{ type: "tool_use", id: "toolu-1", name: "echo", input: { text: "hi" } }]
+          });
+        }
+        return jsonResponse({ content: [{ type: "text", text: "done" }] });
+      }
+    });
+
+    await provider.createTurn(baseRequest());
+    await provider.createTurn({
+      ...baseRequest(),
+      toolResults: [{ callId: "toolu-1", toolName: "echo", ok: true, output: { text: "hi" } }]
+    });
+    await provider.createTurn({
+      ...baseRequest(),
+      session: {
+        ...baseRequest().session,
+        messages: [
+          { role: "system", content: "system prompt" },
+          { role: "user", content: "hello" },
+          { role: "assistant", content: "done" },
+          { role: "user", content: "next question" }
+        ]
+      }
+    });
+
+    expect(bodies[2]?.messages).toEqual([
+      { role: "user", content: "hello" },
+      { role: "assistant", content: "done" },
+      { role: "user", content: "next question" }
+    ]);
+  });
+
   it("surfaces API errors", async () => {
     const provider = new AnthropicMessagesProvider({
       apiKey: "test-key",

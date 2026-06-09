@@ -106,6 +106,23 @@ describe("OpenAIResponsesProvider", () => {
       message: "[openai-responses] HTTP 502: bad gateway"
     });
   });
+
+  it("rejects successful Responses payloads without assistant output or tool calls", async () => {
+    const provider = new OpenAIResponsesProvider({
+      apiKey: "test-key",
+      model: "gpt-test",
+      fetch: async () => jsonResponse({})
+    });
+
+    await expect(provider.createTurn(baseRequest())).rejects.toMatchObject({
+      name: "ProviderApiError",
+      provider: "openai-responses",
+      protocol: "openai-responses",
+      status: 200,
+      type: "invalid_provider_response",
+      message: "[openai-responses] HTTP 200 invalid_provider_response: OpenAI Responses API response did not include assistant output or tool calls"
+    });
+  });
 });
 
 function baseRequest(): ModelTurnRequest {

@@ -1,5 +1,5 @@
 import type { JsonSchemaObject, ModelProvider, ModelTurnRequest, ModelTurnResponse, TDMessage, ToolResult, ToolSpec } from "./types.js";
-import { createProviderApiError, readProviderJson } from "./provider-errors.js";
+import { createInvalidProviderResponseError, createProviderApiError, readProviderJson } from "./provider-errors.js";
 
 type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
@@ -84,8 +84,14 @@ export class OpenAIChatCompletionsProvider implements ModelProvider {
     }
 
     const message = payload.choices?.[0]?.message;
+    if (!message) {
+      throw createInvalidProviderResponseError("openai-chat-completions", "OpenAI Chat Completions API response did not include an assistant message");
+    }
     const assistantMessage = typeof message?.content === "string" ? message.content : undefined;
     const toolCalls = parseToolCalls(message?.tool_calls);
+    if (!assistantMessage && toolCalls.length === 0) {
+      throw createInvalidProviderResponseError("openai-chat-completions", "OpenAI Chat Completions API response did not include assistant output or tool calls");
+    }
     this.conversationBySession.set(request.session.id, [...messages, toConversationAssistantMessage(message)]);
 
     return {

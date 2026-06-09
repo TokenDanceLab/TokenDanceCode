@@ -58,13 +58,28 @@ export function createProviderApiError(input: {
   });
 }
 
+export function createInvalidProviderResponseError(provider: ProviderProtocol, message: string): ProviderApiError {
+  return new ProviderApiError({
+    provider,
+    protocol: provider,
+    status: 200,
+    type: "invalid_provider_response",
+    message
+  });
+}
+
 function extractProviderError(payload: unknown): { message?: string; type?: string; code?: string } {
   if (typeof payload !== "object" || payload === null) {
     return {};
   }
   const error = (payload as { error?: unknown }).error;
+  if (typeof error === "string") {
+    const message = error.trim();
+    return message ? { message } : {};
+  }
   if (typeof error !== "object" || error === null) {
-    return {};
+    const message = readStringField(payload, "message");
+    return message ? { message } : {};
   }
   const raw = error as Record<string, unknown>;
   return {
@@ -72,6 +87,14 @@ function extractProviderError(payload: unknown): { message?: string; type?: stri
     type: typeof raw.type === "string" && raw.type.trim() ? raw.type.trim() : undefined,
     code: typeof raw.code === "string" && raw.code.trim() ? raw.code.trim() : undefined
   };
+}
+
+function readStringField(value: unknown, key: string): string | undefined {
+  if (typeof value !== "object" || value === null) {
+    return undefined;
+  }
+  const field = (value as Record<string, unknown>)[key];
+  return typeof field === "string" && field.trim() ? field.trim() : undefined;
 }
 
 function formatProviderErrorMessage(options: ProviderApiErrorOptions): string {

@@ -7,8 +7,8 @@
 - 分支：`codex/ts-refactor`
 - worktree：`D:\Code\TokenDance\TokenDanceCode\.worktrees\ts-refactor`
 - 目标：把 TokenDanceCode 从 Python v0.1 参考实现重构为 TypeScript monorepo，并给 AgentHub 暴露稳定 SDK。
-- 当前可验证命令：`pnpm verify`、`pnpm pack:check`、`pnpm release:next:check`
-- 最近验证结果：`pnpm release:next:check` 通过，覆盖 typecheck、Vitest 26 个测试文件 213 个测试、core/sdk/cli dry-run pack 和增强 tarball install smoke。
+- 当前可验证命令：`pnpm verify`、`pnpm contract:check`、`pnpm pack:check`、`pnpm release:next:check`
+- 最近验证结果：`pnpm release:next:check` 通过，覆盖只读 release contract drift gate、typecheck、Vitest 26 个测试文件 213 个测试、core/sdk/cli dry-run pack 和增强 tarball install smoke。
 
 旧 `src/tokendance` 和 `tests/` 暂时保留为功能迁移参考。新增 TS 能力默认写入 `packages/*`，不要继续扩展 Python 运行时，除非明确是在补迁移对照或保护旧行为。
 
@@ -73,16 +73,17 @@
 
 ```powershell
 pnpm verify
+pnpm contract:check
 pnpm pack:check
 pnpm pack:smoke
 pnpm release:next:check
 ```
 
-`pnpm pack:smoke` 会把 `@tokendance/code-core`、`@tokendance/code-sdk`、`@tokendance/code-cli` 的真实 tarball 安装到临时项目中，验证 SDK import、mock turn、CLI bin 启动、`doctor --json` 的 AgentHub readiness / `provider-ready`，以及 `quality --json` 的结构化输出。`pnpm release:next:check` 是 npm `next` 预发布前的本地门禁，覆盖 `pnpm verify && pnpm pack:check`。不要在检查脚本中执行 npm publish；`npm publish --tag next` 只作为 release owner 审核后的人工发布动作。
+`pnpm contract:check` 是只读 release contract drift gate，覆盖 SDK package manifest、AgentHub event/fixture readiness、pack smoke 入口和检查脚本不得执行 npm publish。`pnpm pack:smoke` 会把 `@tokendance/code-core`、`@tokendance/code-sdk`、`@tokendance/code-cli` 的真实 tarball 安装到临时项目中，验证 SDK import、mock turn、CLI bin 启动、`doctor --json` 的 AgentHub readiness / `provider-ready`，以及 `quality --json` 的结构化输出。`pnpm release:next:check` 是 npm `next` 预发布前的本地门禁，覆盖 `pnpm contract:check && pnpm verify && pnpm pack:check`。不要在检查脚本中执行 npm publish；`npm publish --tag next` 只作为 release owner 审核后的人工发布动作。
 
 ### Release owner 检查清单
 
-Manual approval gate：本地 release gate 只运行 `pnpm release:next:check`、`pnpm pack:check` 和 `pnpm pack:smoke`，不执行 npm 写操作。release owner 在批准 `npm publish --tag next` 前，需要确认版本一致、`publishConfig.tag=next`、包内容只包含发布所需文件、package-local README 与根 README 一致、npm 登录和 2FA 状态由本人可控。
+Manual approval gate：本地 release gate 只运行 `pnpm contract:check`、`pnpm release:next:check`、`pnpm pack:check` 和 `pnpm pack:smoke`，不执行 npm 写操作。release owner 在批准 `npm publish --tag next` 前，需要确认版本一致、`publishConfig.tag=next`、SDK/AgentHub contract 未漂移、包内容只包含发布所需文件、package-local README 与根 README 一致、npm 登录和 2FA 状态由本人可控。
 
 AgentHub consumption story：AgentHub 消费 `@tokendance/code-sdk`，读取 `TOKEN_DANCE_CODE_PACKAGE` 做启动检查，使用 thread API、event sink、approval bridge、config 和 doctor facade。`@tokendance/code-core` 继续作为 SDK/CLI runtime 依赖，`@tokendance/code-cli` 提供本地 `tokendance` bin，`@tokendance/code-agenthub-example` 只作为私有复制样例，不发布到 npm。
 
@@ -90,7 +91,7 @@ Residual risk matrix：
 
 | 风险 | 当前状态 | 后续处理 |
 |---|---|---|
-| npm 发布动作不可由本地检查证明 | 检查脚本明确不发布 | Manual approval gate 后由 release owner 逐包执行 |
+| npm 发布动作不可由本地检查证明 | `pnpm contract:check` 和其他检查脚本明确不发布 | Manual approval gate 后由 release owner 逐包执行 |
 | 真实 provider smoke 依赖外部 key | 默认测试不读取项目 `.env`，真实集成测试显式 opt-in | 需要时由 release owner 在受控 shell 注入 |
 | AgentHub 生产接入仍需产品侧替换样例存储 | SDK 和 example 覆盖 contract 与事件形态 | Hub/Edge 合并时替换为自己的 event bus、approval store 和 session 生命周期 |
 | Python v0.1 验收项仍在文档后半段 | TS 权威验收已前置 | 后续迁移切片继续替换旧项 |
@@ -169,7 +170,7 @@ node packages/cli/dist/main.js run "hello"
 - [x] 增加 AgentHub 侧最小集成样例包，覆盖 SDK 事件映射、Hub/Edge emitter 形态、package manifest 和 doctor 启动诊断。
 - [x] 增加发布前 `pack:check`：构建后 dry-run 打包 core/sdk/cli，保护 AgentHub SDK/CLI 包只发布 `dist` 和 `package.json`。
 - [x] 增加 SDK `TOKEN_DANCE_CODE_PACKAGE` manifest，供 AgentHub 读取包名、入口、CLI bin 和推荐验证命令。
-- [x] 增加 npm `next` 预发布包基线：public 包 manifest 写入 license/repository/publishConfig/README，根 LICENSE 落地，`pack:smoke` 执行本地 tarball install smoke，并覆盖 SDK mock turn、CLI `doctor --json` / `quality --json` contract；`release:next:check` 串联 verify 与 pack gate。不要在检查脚本中执行 npm publish；`npm publish --tag next` 保持人工审核步骤。
+- [x] 增加 npm `next` 预发布包基线：public 包 manifest 写入 license/repository/publishConfig/README，根 LICENSE 落地，`contract:check` 只读检查 SDK package manifest、AgentHub event/fixture readiness 和 pack smoke 入口，`pack:smoke` 执行本地 tarball install smoke，并覆盖 SDK mock turn、CLI `doctor --json` / `quality --json` contract；`release:next:check` 串联 contract、verify 与 pack gate。不要在检查脚本中执行 npm publish；`npm publish --tag next` 保持人工审核步骤。
 
 ### P4：CLI 体验
 
@@ -206,7 +207,7 @@ node packages/cli/dist/main.js run "hello"
 - [ ] Codex contract/schema drift gate：把 SDK manifest、AgentHub event envelope、transcript schema、provider schema 和 CLI JSON 输出的漂移纳入 package metadata / focused tests。
 - [ ] OpenCode command metadata registry：吸收 id/category/title/aliases/usage/JSON contract 的 registry 形态，继续拒绝 full-screen palette 和 provider tree。
 - [ ] 拒绝 app-server daemon、拒绝 OpenTUI、拒绝 plugin marketplace、拒绝 native installer：这些都不是 Wave 5 或首版 CLI harness 的实现目标。
-- [ ] Release/npm baseline：保持 `pnpm release:next:check` 和 tarball smoke 作为发布前本地 gate；`npm publish --tag next` 继续只允许 release owner 人工执行。
+- [ ] Release/npm baseline：保持 `pnpm contract:check`、`pnpm release:next:check` 和 tarball smoke 作为发布前本地 gate；`npm publish --tag next` 继续只允许 release owner 人工执行。
 - [ ] AgentHub SDK contract：继续强化 `agenthub-sdk.v1` manifest、event envelope、approval bridge、doctor readiness 和生产接入边界。
 - [ ] Gateway/OIDC onboarding：把 `gateway init`、`doctor`、`config validate`、TokenDanceID OIDC login URL helper 串成可读 quickstart；继续区分 TokenDance API key 与 TokenDanceID session token。
 - [ ] Provider protocol hardening：OpenAI Responses、OpenAI-compatible Chat/Gateway、Anthropic Messages 保持统一错误和工具调用结果形态；真实 smoke 继续显式 opt-in。

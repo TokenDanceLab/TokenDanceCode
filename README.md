@@ -83,11 +83,12 @@ pnpm install
 
 ```powershell
 pnpm verify
+pnpm contract:check
 pnpm pack:check
 pnpm release:next:check
 ```
 
-`pnpm pack:check` 会先构建全部 TS 包，再对 `@tokendance/code-core`、`@tokendance/code-sdk`、`@tokendance/code-cli` 执行 dry-run 打包检查，随后运行 `pnpm pack:smoke`。`pnpm pack:smoke` 会把三个真实 tarball 安装到临时项目中，验证 SDK import、mock turn、CLI bin 启动、`doctor --json` 的 AgentHub readiness / `provider-ready`，以及 `quality --json` 的结构化输出，确认 AgentHub 可消费包只包含发布所需内容。
+`pnpm contract:check` 是只读 release contract drift gate，会检查 SDK package manifest、AgentHub event/fixture readiness、pack smoke 入口和检查脚本不得执行 npm publish。`pnpm pack:check` 会先构建全部 TS 包，再对 `@tokendance/code-core`、`@tokendance/code-sdk`、`@tokendance/code-cli` 执行 dry-run 打包检查，随后运行 `pnpm pack:smoke`。`pnpm pack:smoke` 会把三个真实 tarball 安装到临时项目中，验证 SDK import、mock turn、CLI bin 启动、`doctor --json` 的 AgentHub readiness / `provider-ready`，以及 `quality --json` 的结构化输出，确认 AgentHub 可消费包只包含发布所需内容。
 
 确认命令可用：
 
@@ -548,21 +549,22 @@ TokenDanceCode 的 public npm 包当前是 `@tokendance/code-core`、`@tokendanc
 预发布前检查：
 
 ```powershell
+pnpm contract:check
 pnpm release:next:check
 pnpm pack:smoke
 ```
 
-`pnpm release:next:check` 等价于 `pnpm verify && pnpm pack:check`。它覆盖 typecheck、Vitest、构建、dry-run pack 和本地 tarball install smoke。不要在检查脚本中执行 npm publish；`npm publish --tag next` 只作为人工审核后的单包发布动作，由 release owner 在确认版本、dist-tag、包内容和 npm 登录状态后执行。
+`pnpm release:next:check` 等价于 `pnpm contract:check && pnpm verify && pnpm pack:check`。它先运行只读 contract drift gate，再覆盖 typecheck、Vitest、构建、dry-run pack 和本地 tarball install smoke。不要在检查脚本中执行 npm publish；`npm publish --tag next` 只作为人工审核后的单包发布动作，由 release owner 在确认版本、dist-tag、包内容和 npm 登录状态后执行。
 
 ### Release owner 检查清单
 
-Manual approval gate：`pnpm release:next:check` 和 `pnpm pack:smoke` 只证明本地源码、构建产物、dry-run pack 和临时项目安装闭环可用；它们不会登录 npm、不会改 dist-tag、不会发布任何包。真正执行 `npm publish --tag next` 前，release owner 需要逐包确认以下事项。
+Manual approval gate：`pnpm contract:check`、`pnpm release:next:check` 和 `pnpm pack:smoke` 只证明本地源码、SDK/AgentHub contract、构建产物、dry-run pack 和临时项目安装闭环可用；它们不会登录 npm、不会改 dist-tag、不会发布任何包。真正执行 `npm publish --tag next` 前，release owner 需要逐包确认以下事项。
 
 | 检查项 | 期望证据 |
 |---|---|
 | 版本与 dist-tag | 根包和三个 public 包版本一致，`publishConfig.tag` 为 `next` |
 | 包内容 | `pnpm pack:smoke` 已安装真实 tarball，验证 SDK mock turn、CLI `doctor --json` / `quality --json`，且包内只包含 `dist`、`README.md` 和 npm 必需 manifest 文件 |
-| README 一致性 | 根 README 与 package-local README 都说明包职责、AgentHub 消费方式、pack smoke 和手动发布边界 |
+| README 一致性 | 根 README 与 package-local README 都说明包职责、AgentHub 消费方式、contract drift gate、pack smoke 和手动发布边界 |
 | 凭据边界 | 发布检查不读取或打印 provider key；npm 登录状态只由 release owner 在本机确认 |
 | 人工发布 | `npm publish --tag next` 只能在显式批准后对 `@tokendance/code-core`、`@tokendance/code-sdk`、`@tokendance/code-cli` 逐包执行 |
 
@@ -607,4 +609,4 @@ tokendance doctor
 
 TokenDanceCode TS 版目前还是早期本地 Agent 实现，适合开发、测试和自用验证。
 
-它还不是正式发布到 npm 的包。当前已有发布前 `release:next:check`、`pack:check` 和 `pack:smoke` 检查；后续会继续补充正式发布流程、首次运行向导、完整 TUI、更多 slash commands、更细的事件 renderer 和更完整的 AgentHub 端到端示例。
+它还不是正式发布到 npm 的包。当前已有发布前 `contract:check`、`release:next:check`、`pack:check` 和 `pack:smoke` 检查；后续会继续补充正式发布流程、首次运行向导、完整 TUI、更多 slash commands、更细的事件 renderer 和更完整的 AgentHub 端到端示例。

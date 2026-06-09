@@ -59,7 +59,7 @@ describe("CLI event renderer", () => {
     expect(output.text()).toContain('[tool] run_powershell started [status=running] command="pnpm verify"\n');
     expect(output.text()).toContain('[tool] read_file started [status=running] path="packages/cli/README.md"\n');
     expect(output.text()).toMatch(
-      /\[ok\] read_file completed \[output=text chars=23 lines=2\]: first line second line duration=\d+ms\n/
+      /\[done\] read_file completed \[output=text chars=23 lines=2\]: first line second line duration=\d+ms\n/
     );
     expect(output.text()).toMatch(
       /\[error\] run_powershell failed \[risk=shell source=permission_engine action=approval_required mode=default\] duration=\d+ms\n  reason: default mode requires approval\n  evidence: rule=approval_required matched="pnpm verify" command="pnpm verify"\n/
@@ -198,7 +198,7 @@ describe("CLI event renderer", () => {
     }
 
     expect(output.text()).toContain("\u001B[36m[tool]\u001B[0m read_file started");
-    expect(output.text()).toContain("\u001B[32m[ok]\u001B[0m read_file completed");
+    expect(output.text()).toContain("\u001B[32m[done]\u001B[0m read_file completed");
     expect(output.text()).toContain("\u001B[36m[usage]\u001B[0m usage input=\u001B[36m2\u001B[0m output=\u001B[36m3\u001B[0m total=\u001B[36m5\u001B[0m");
   });
 

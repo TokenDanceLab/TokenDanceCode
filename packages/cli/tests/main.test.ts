@@ -140,6 +140,14 @@ describe("TokenDanceCode CLI", () => {
 
     expect(topLevelExitCode).toBe(0);
     expect(interactiveExitCode).toBe(0);
+    expect(topLevel.stdoutText()).toMatch(
+      /^TokenDanceCode 0\.2\.0-ts\.0\nTD CODE\nlocal coding agent \| scrollback-first CLI\n\n/
+    );
+    expect(interactive.stdoutText()).toContain(
+      "TokenDanceCode 0.2.0-ts.0\nTD CODE\nlocal coding agent | scrollback-first CLI\n\n"
+    );
+    expect(topLevel.stdoutText()).not.toContain("\u001B[");
+    expect(interactive.stdoutText()).not.toContain("\u001B[");
     expect(topLevel.stdoutText()).toContain("Core:");
     expect(topLevel.stdoutText()).toContain("Session:");
     expect(topLevel.stdoutText()).toContain("Work:");
@@ -162,8 +170,8 @@ describe("TokenDanceCode CLI", () => {
 
     expect(exitCode).toBe(0);
     expect(output).toContain("TokenDanceCode 0.2.0-ts.0");
-    expect(output).toContain("Status");
-    expect(output).toContain("permissionMode: default");
+    expect(output).toContain("== Status ==\n  sessionId: ");
+    expect(output).toContain("  permissionMode: default");
     expect(output).toContain("permissionMode: safe");
     expect(output).toContain("Mock response: hello cli");
     expect(output).toContain("bye");
@@ -1030,7 +1038,7 @@ describe("TokenDanceCode CLI", () => {
     expect(exitCode).toBe(0);
     expect(output).toContain("[tool] echo started [status=running]");
     expect(output).toContain("[permission] echo allowed");
-    expect(output).toContain("[ok] echo completed [output=json]");
+    expect(output).toContain("[done] echo completed [output=json]");
     expect(output).toContain("[usage] usage input=1 output=10");
     expect(output).toContain("echo started");
     expect(output).toContain("echo allowed");
@@ -1067,7 +1075,7 @@ describe("TokenDanceCode CLI", () => {
 
     const exitCode = await runCli([], io);
     const output = io.stdoutText();
-    const summaryLine = output.split("\n").find((line) => line.startsWith("[ok] echo completed [output=json]:"));
+    const summaryLine = output.split("\n").find((line) => line.startsWith("[done] echo completed [output=json]:"));
 
     expect(exitCode).toBe(0);
     expect(summaryLine).toBeDefined();

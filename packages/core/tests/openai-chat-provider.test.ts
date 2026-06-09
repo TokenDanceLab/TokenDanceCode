@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { OpenAIChatCompletionsProvider, type ModelTurnRequest, type ToolSpec } from "../src/index.js";
 
 describe("OpenAIChatCompletionsProvider", () => {
+  it("explains Chat Completions and Gateway key requirements when apiKey is missing", () => {
+    expect(() => new OpenAIChatCompletionsProvider({ apiKey: "", model: "deepseek-v4-pro" })).toThrow(
+      "OPENAI_API_KEY is not configured; set TOKENDANCE_GATEWAY_API_KEY for TokenDance Gateway or OPENAI_API_KEY for OpenAI-compatible Chat Completions."
+    );
+  });
+
   it("creates a Chat Completions request and parses assistant text", async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const provider = new OpenAIChatCompletionsProvider({

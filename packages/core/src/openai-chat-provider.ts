@@ -50,7 +50,9 @@ export class OpenAIChatCompletionsProvider implements ModelProvider {
 
   constructor(private readonly options: OpenAIChatCompletionsProviderOptions) {
     if (!options.apiKey) {
-      throw new Error("OPENAI_API_KEY is not configured");
+      throw new Error(
+        "OPENAI_API_KEY is not configured; set TOKENDANCE_GATEWAY_API_KEY for TokenDance Gateway or OPENAI_API_KEY for OpenAI-compatible Chat Completions."
+      );
     }
     this.baseUrl = options.baseUrl ?? "https://api.openai.com/v1";
     this.fetchImpl = options.fetch ?? fetch;

@@ -51,6 +51,18 @@ export interface ProviderIntegrationGate {
   missing: string[];
 }
 
+export interface ProviderSmokePreflight extends ProviderIntegrationGate {
+  provider: ConfigProvider;
+  status: "ready" | "skip";
+  message: string;
+  requiredApiKeyEnvs: ProviderApiKeyEnv[];
+  apiKeyEnv?: ProviderApiKeyEnv;
+  baseUrl?: string;
+  baseUrlEnv?: ProviderBaseUrlEnv;
+  modelEnv?: string;
+  model?: string;
+}
+
 export interface ProviderConfigValidation {
   ready: boolean;
   provider: ConfigProvider;
@@ -73,6 +85,7 @@ const defaultConfig: TokenDanceConfig = {
 };
 const tokendanceGatewayDefaultBaseUrl = "https://api.vectorcontrol.tech/v1";
 const openaiDefaultBaseUrl = "https://api.openai.com/v1";
+const realProviderSmokeOptInEnv = "TOKENDANCE_RUN_REAL_PROVIDER_SMOKE";
 
 export async function readTokenDanceConfig(options: ConfigReadOptions): Promise<ConfigInfo> {
   const homeDir = options.homeDir ?? process.env.USERPROFILE ?? process.env.HOME ?? options.projectRoot;
@@ -199,27 +212,53 @@ export function resolveProviderRuntimeEnv(provider: ConfigProvider, env: Record<
 }
 
 export function shouldRunProviderIntegration(provider: ConfigProvider, env: Record<string, string | undefined> = process.env): ProviderIntegrationGate {
+  const preflight = preflightProviderSmoke(provider, env);
+  return {
+    enabled: preflight.enabled,
+    missing: preflight.missing
+  };
+}
+
+export function preflightProviderSmoke(provider: ConfigProvider, env: Record<string, string | undefined> = process.env): ProviderSmokePreflight {
   if (provider === "mock") {
-    return { enabled: false, missing: ["real provider"] };
+    return {
+      provider,
+      status: "skip",
+      enabled: false,
+      missing: ["real provider"],
+      message: "Skipping mock real provider smoke; choose openai-responses, openai-chat-completions, or anthropic-messages.",
+      requiredApiKeyEnvs: []
+    };
   }
 
   const missing: string[] = [];
-  if (env.TOKENDANCE_RUN_MODEL_INTEGRATION !== "1") {
-    missing.push("TOKENDANCE_RUN_MODEL_INTEGRATION=1");
+  if (env[realProviderSmokeOptInEnv] !== "1") {
+    missing.push(`${realProviderSmokeOptInEnv}=1`);
   }
 
   const runtimeEnv = resolveProviderRuntimeEnv(provider, env);
   const modelEnv = integrationModelEnv(provider);
   if (!runtimeEnv.apiKey) {
-    missing.push(provider === "openai-chat-completions" ? "TOKENDANCE_GATEWAY_API_KEY or OPENAI_API_KEY" : requiredApiKeyEnv(provider));
+    missing.push(apiKeyMissingLabel(provider));
   }
-  if (!envValue(env[modelEnv])) {
+  const model = envValue(env[modelEnv]);
+  if (!model) {
     missing.push(modelEnv);
   }
+  const enabled = missing.length === 0;
 
   return {
-    enabled: missing.length === 0,
-    missing
+    provider,
+    status: enabled ? "ready" : "skip",
+    enabled,
+    missing,
+    message: enabled ? readyProviderSmokeMessage(provider, runtimeEnv.apiKeyEnv, modelEnv) : skipProviderSmokeMessage(provider, missing),
+    requiredApiKeyEnvs: requiredRuntimeApiKeyEnvs(provider),
+    apiKeyEnv: runtimeEnv.apiKeyEnv,
+    baseUrlEnv: runtimeEnv.baseUrlEnv,
+    baseUrl: runtimeEnv.baseUrl ?? defaultBaseUrl(provider, runtimeEnv.apiKeyEnv),
+    modelEnv,
+    model
   };
 }
 
@@ -326,6 +365,10 @@ function requiredRuntimeApiKeyEnvs(provider: Exclude<ConfigProvider, "mock">): P
   return [requiredApiKeyEnv(provider)];
 }
 
+function apiKeyMissingLabel(provider: Exclude<ConfigProvider, "mock">): string {
+  return provider === "openai-chat-completions" ? "TOKENDANCE_GATEWAY_API_KEY or OPENAI_API_KEY" : requiredApiKeyEnv(provider);
+}
+
 function defaultBaseUrl(provider: Exclude<ConfigProvider, "mock">, apiKeyEnv?: ProviderApiKeyEnv): string {
   if (provider === "anthropic-messages") {
     return "https://api.anthropic.com";
@@ -334,6 +377,19 @@ function defaultBaseUrl(provider: Exclude<ConfigProvider, "mock">, apiKeyEnv?: P
     return tokendanceGatewayDefaultBaseUrl;
   }
   return openaiDefaultBaseUrl;
+}
+
+function readyProviderSmokeMessage(provider: Exclude<ConfigProvider, "mock">, apiKeyEnv: ProviderApiKeyEnv | undefined, modelEnv: string): string {
+  const label = provider === "openai-chat-completions" && apiKeyEnv === "TOKENDANCE_GATEWAY_API_KEY" ? "TokenDance Gateway smoke" : `${provider} real provider smoke`;
+  return `${label} is explicitly enabled for ${provider} using ${apiKeyEnv ?? apiKeyMissingLabel(provider)} and ${modelEnv}.`;
+}
+
+function skipProviderSmokeMessage(provider: Exclude<ConfigProvider, "mock">, missing: string[]): string {
+  const hint = `Skipping ${provider} real provider smoke; set ${missing.join(", ")} in a controlled shell or global ~/.tokendance/.env to opt in.`;
+  if (provider === "openai-chat-completions" && missing.includes("TOKENDANCE_GATEWAY_API_KEY or OPENAI_API_KEY")) {
+    return `${hint} TokenDance Gateway smoke requires a TokenDance API key, not a TokenDanceID/OIDC token.`;
+  }
+  return hint;
 }
 
 function integrationModelEnv(provider: Exclude<ConfigProvider, "mock">): string {

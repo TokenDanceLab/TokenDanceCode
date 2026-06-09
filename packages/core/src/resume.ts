@@ -10,6 +10,17 @@ export interface ResumeResult {
   recent: TranscriptEnvelope[];
 }
 
+export interface SessionListItem {
+  sessionId: string;
+  sessionDir: string;
+  transcriptPath: string;
+  createdAt: string;
+  updatedAt: string;
+  eventCount: number;
+  lastEventTimestamp?: string;
+  latest: boolean;
+}
+
 export class ResumeService {
   constructor(private readonly projectRoot: string) {}
 
@@ -30,19 +41,55 @@ export class ResumeService {
     return { session, sessionDir, recent: recoverRecentTranscript(transcript, recentLimit) };
   }
 
+  async listSessions(): Promise<SessionListItem[]> {
+    const rows = await this.listSessionRowsByMtime();
+    const store = new FileTranscriptStore({ rootDir: this.projectRoot });
+    const sessions = await Promise.all(
+      rows.map(async (row, index) => {
+        const session = await store.loadSession(row.id);
+        const sessionDir = store.sessionDir(row.id);
+        const transcriptPath = join(sessionDir, "transcript.jsonl");
+        const transcript = await readTranscript(transcriptPath);
+        return {
+          sessionId: session.id,
+          sessionDir,
+          transcriptPath,
+          createdAt: session.createdAt,
+          updatedAt: session.updatedAt,
+          eventCount: transcript.length,
+          lastEventTimestamp: transcript.at(-1)?.timestamp,
+          latest: index === 0
+        };
+      })
+    );
+    return sessions;
+  }
+
   private async listSessionIdsByMtime(): Promise<string[]> {
+    return (await this.listSessionRowsByMtime()).map((row) => row.id);
+  }
+
+  private async listSessionRowsByMtime(): Promise<Array<{ id: string; mtimeMs: number }>> {
     const sessionsDir = join(this.projectRoot, ".tokendance", "sessions");
     try {
       const entries = await readdir(sessionsDir, { withFileTypes: true });
       const rows = await Promise.all(
         entries
           .filter((entry) => entry.isDirectory())
-          .map(async (entry) => ({
-            id: entry.name,
-            mtimeMs: (await stat(join(sessionsDir, entry.name, "session.json"))).mtimeMs
-          }))
+          .map(async (entry) => {
+            try {
+              return {
+                id: entry.name,
+                mtimeMs: (await stat(join(sessionsDir, entry.name, "session.json"))).mtimeMs
+              };
+            } catch {
+              return undefined;
+            }
+          })
       );
-      return rows.sort((a, b) => b.mtimeMs - a.mtimeMs).map((row) => row.id);
+      return rows
+        .filter((row): row is { id: string; mtimeMs: number } => row !== undefined)
+        .sort((a, b) => b.mtimeMs - a.mtimeMs);
     } catch {
       return [];
     }

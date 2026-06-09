@@ -217,6 +217,32 @@ describe("TokenDanceCode SDK", () => {
     expect(transcript.transcriptPath).toBe(join(root, ".tokendance", "sessions", thread.id, "transcript.jsonl"));
   });
 
+  it("lists available sessions with transcript metadata for AgentHub callers", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-sessions-"));
+    const client = new TokenDanceCode({ storageRoot: root });
+    const first = client.startThread({ id: "session-first", workingDirectory: root });
+    await first.run("first session");
+    const second = client.startThread({ id: "session-second", workingDirectory: root });
+    await second.run("second session");
+
+    const sessions = await client.sessions().list();
+
+    expect(sessions.map((session) => session.sessionId)).toEqual(["session-second", "session-first"]);
+    expect(sessions[0]).toMatchObject({
+      sessionId: "session-second",
+      sessionDir: join(root, ".tokendance", "sessions", "session-second"),
+      transcriptPath: join(root, ".tokendance", "sessions", "session-second", "transcript.jsonl"),
+      eventCount: 4,
+      latest: true
+    });
+    expect(sessions[0]?.lastEventTimestamp).toBeDefined();
+    expect(sessions[1]).toMatchObject({
+      sessionId: "session-first",
+      eventCount: 4,
+      latest: false
+    });
+  });
+
   it("searches transcript envelopes for AgentHub callers", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
     const client = new TokenDanceCode({ storageRoot: root });

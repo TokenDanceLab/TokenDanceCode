@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
-import { classifyPowerShellCommand } from "./powershell.js";
-import type { ToolSpec } from "./types.js";
+import { classifyPowerShellCommandWithReason } from "./powershell.js";
+import type { ToolSafetyEvidence, ToolSpec } from "./types.js";
 
 interface RunPowerShellInput {
   command: string;
@@ -22,6 +22,7 @@ export function createRunPowerShellTool(): ToolSpec<RunPowerShellInput, CommandR
     description: "Run a PowerShell command in the workspace.",
     risk: "shell",
     concurrency: "exclusive",
+    safetyNotes: ["PowerShell classifier hard-denies destructive commands before execution."],
     parse(input) {
       if (typeof input !== "object" || input === null || typeof (input as { command?: unknown }).command !== "string") {
         throw new Error("run_powershell input requires a string command field");
@@ -36,15 +37,13 @@ export function createRunPowerShellTool(): ToolSpec<RunPowerShellInput, CommandR
       };
     },
     async execute(input, context) {
-      if (classifyPowerShellCommand(input.command) === "deny") {
-        throw new Error("Permission denied by PowerShell risk classifier");
-      }
       return runPowerShell(input.command, context.cwd, input.timeoutMs);
     }
   };
 }
 
 export async function runPowerShell(command: string, cwd: string, timeoutMs: number): Promise<CommandResult> {
+  assertPowerShellCommandAllowed(command);
   const started = Date.now();
   const executable = process.platform === "win32" ? "powershell.exe" : "pwsh";
 
@@ -101,4 +100,20 @@ function truncate(value: string, maxLength = 12_000): string {
     return value;
   }
   return `${value.slice(0, maxLength)}\n...[truncated ${value.length - maxLength} chars]`;
+}
+
+function assertPowerShellCommandAllowed(command: string): void {
+  const classification = classifyPowerShellCommandWithReason(command);
+  if (classification.level !== "deny") {
+    return;
+  }
+  const error = new Error(`Tool execution denied by PowerShell risk classifier: ${classification.reason}`) as Error & {
+    safetySource: ToolSafetyEvidence["source"];
+    safetyStatus: ToolSafetyEvidence["status"];
+    safetyReason: string;
+  };
+  error.safetySource = "powershell_classifier";
+  error.safetyStatus = "denied";
+  error.safetyReason = classification.reason;
+  throw error;
 }

@@ -2,7 +2,24 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { AgentRuntime, FileTranscriptStore, MockProvider, type ModelProvider, type TDMessage } from "../src/index.js";
+import { AgentRuntime, FileTranscriptStore, MockProvider, type ModelProvider, type ModelTurnRequest, type ModelTurnResponse, type TDMessage } from "../src/index.js";
+
+class WriteFileOnceProvider implements ModelProvider {
+  async createTurn(request: ModelTurnRequest): Promise<ModelTurnResponse> {
+    if (request.toolResults.length > 0) {
+      return { assistantMessage: "done", toolCalls: [] };
+    }
+    return {
+      toolCalls: [
+        {
+          id: "write-denied",
+          name: "write_file",
+          input: { path: "denied.txt", content: "should not write" }
+        }
+      ]
+    };
+  }
+}
 
 describe("AgentRuntime", () => {
   it("runs a mock turn and emits a final response", async () => {
@@ -136,5 +153,46 @@ describe("AgentRuntime", () => {
 
     const secondEnvelope = JSON.parse(content.trim().split("\n")[1] ?? "{}");
     expect(secondEnvelope.parentUuid).toBe(envelope.uuid);
+  });
+
+  it("persists denial evidence in the tool completed transcript event", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-core-"));
+    const runtime = new AgentRuntime({
+      cwd: root,
+      provider: new WriteFileOnceProvider(),
+      session: {
+        id: "safe-denial-session",
+        cwd: root,
+        createdAt: "2026-06-09T00:00:00.000Z",
+        updatedAt: "2026-06-09T00:00:00.000Z",
+        permissionMode: "safe",
+        messages: []
+      },
+      store: new FileTranscriptStore({ rootDir: root })
+    });
+
+    await runtime.initialize();
+    for await (const _event of runtime.runTurn("try write")) {
+      // Drain the event stream to force transcript writes.
+    }
+
+    const content = await readFile(
+      join(root, ".tokendance", "sessions", runtime.state.id, "transcript.jsonl"),
+      "utf8"
+    );
+    const toolCompleted = content
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line))
+      .find((envelope) => envelope.event.type === "tool.completed");
+
+    expect(toolCompleted.event.result).toMatchObject({
+      ok: false,
+      safetyEvidence: {
+        source: "permission_engine",
+        status: "denied",
+        reason: "mode=safe tool=write_file risk=write action=denied: safe mode only allows read-only tools"
+      }
+    });
   });
 });

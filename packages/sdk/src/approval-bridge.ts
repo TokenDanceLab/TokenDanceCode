@@ -4,6 +4,7 @@ export type AgentHubApprovalDecision = "allow" | "deny";
 
 export interface AgentHubApprovalRequest {
   requestId: string;
+  callId: string;
   sessionId: string;
   turnId: string;
   toolName: string;
@@ -36,11 +37,17 @@ export function createAgentHubApprovalBridge(options: AgentHubApprovalBridgeOpti
 
   return {
     async approvalCallback(request: PermissionApprovalRequest): Promise<PermissionDecision> {
-      const approvalRequest = toAgentHubApprovalRequest(request, clock());
+      const requestId = allocateRequestId(request.call.id, pending);
+      const approvalRequest = toAgentHubApprovalRequest(request, requestId, clock());
       const decisionPromise = new Promise<PermissionDecision>((resolve) => {
         pending.set(approvalRequest.requestId, { request: approvalRequest, resolve });
       });
-      await options.onRequest(approvalRequest);
+      try {
+        await options.onRequest(approvalRequest);
+      } catch (error) {
+        pending.delete(approvalRequest.requestId);
+        return { status: "denied", reason: `AgentHub approval request failed: ${errorMessage(error)}` };
+      }
       return decisionPromise;
     },
 
@@ -60,9 +67,10 @@ export function createAgentHubApprovalBridge(options: AgentHubApprovalBridgeOpti
   };
 }
 
-function toAgentHubApprovalRequest(request: PermissionApprovalRequest, createdAt: string): AgentHubApprovalRequest {
+function toAgentHubApprovalRequest(request: PermissionApprovalRequest, requestId: string, createdAt: string): AgentHubApprovalRequest {
   return {
-    requestId: request.call.id,
+    requestId,
+    callId: request.call.id,
     sessionId: request.session.id,
     turnId: request.turnId,
     toolName: request.tool.name,
@@ -74,9 +82,25 @@ function toAgentHubApprovalRequest(request: PermissionApprovalRequest, createdAt
   };
 }
 
+function allocateRequestId(callId: string, pending: Map<string, PendingApproval>): string {
+  if (!pending.has(callId)) {
+    return callId;
+  }
+  for (let counter = 2; ; counter += 1) {
+    const candidate = `${callId}#${counter}`;
+    if (!pending.has(candidate)) {
+      return candidate;
+    }
+  }
+}
+
 function toPermissionDecision(decision: AgentHubApprovalDecision, reason?: string): PermissionDecision {
   if (decision === "allow") {
     return { status: "allowed", reason: reason ?? "approved by AgentHub" };
   }
   return { status: "denied", reason: reason ?? "denied by AgentHub" };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

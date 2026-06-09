@@ -116,6 +116,7 @@ export function createQualityGateTool(): ToolSpec<{ command?: string; timeoutMs:
     description: "Run a PowerShell quality command in the workspace and report pass/fail. Omitting command auto-discovers package verify scripts.",
     risk: "shell",
     concurrency: "exclusive",
+    safetyNotes: ["PowerShell classifier hard-denies destructive override commands before execution."],
     parse(input) {
       if (input !== undefined && input !== null && typeof input !== "object") {
         throw new Error("quality_gate input must be an object");

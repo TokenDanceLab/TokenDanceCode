@@ -5,13 +5,15 @@ import { buildGitTools } from "./git-tools.js";
 import { createApplyPatchTool } from "./patch-tools.js";
 import { createRunPowerShellTool } from "./shell-tools.js";
 import { buildWorktreeTools } from "./worktrees.js";
-import type { PermissionDecision, SessionState, ToolCall, ToolResult, ToolSpec, ToolRisk } from "./types.js";
+import type { PermissionDecision, PermissionMode, SessionState, ToolCall, ToolResult, ToolSafetyEvidence, ToolSpec, ToolRisk } from "./types.js";
 
 export interface ToolMetadata {
   name: string;
   description: string;
   risk: ToolRisk;
   concurrency: ToolSpec["concurrency"];
+  permission: Record<PermissionMode, PermissionDecision["status"]>;
+  safetyNotes: string[];
 }
 
 export class ToolRegistry {
@@ -38,7 +40,9 @@ export class ToolRegistry {
       name: tool.name,
       description: tool.description,
       risk: tool.risk,
-      concurrency: tool.concurrency
+      concurrency: tool.concurrency,
+      permission: permissionMetadata(tool),
+      safetyNotes: tool.safetyNotes ?? []
     }));
   }
 }
@@ -54,7 +58,13 @@ export class ToolOrchestrator {
 
     const decision = permissionDecision ?? new PermissionEngine(session.permissionMode).decide(tool);
     if (decision.status !== "allowed") {
-      return { callId: call.id, toolName: call.name, ok: false, error: decision.reason };
+      return {
+        callId: call.id,
+        toolName: call.name,
+        ok: false,
+        error: decision.reason,
+        safetyEvidence: permissionSafetyEvidence(call.name, decision)
+      };
     }
 
     try {
@@ -63,7 +73,8 @@ export class ToolOrchestrator {
       return { callId: call.id, toolName: call.name, ok: true, output };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      return { callId: call.id, toolName: call.name, ok: false, error: message };
+      const safetyEvidence = toolSafetyEvidence(call.name, error);
+      return { callId: call.id, toolName: call.name, ok: false, error: message, safetyEvidence };
     }
   }
 }
@@ -84,6 +95,49 @@ export function createEchoTool(): ToolSpec<{ text: string }, { text: string }> {
       return input;
     }
   };
+}
+
+function permissionMetadata(tool: ToolSpec): Record<PermissionMode, PermissionDecision["status"]> {
+  return {
+    default: new PermissionEngine("default").decide(tool).status,
+    safe: new PermissionEngine("safe").decide(tool).status,
+    auto: new PermissionEngine("auto").decide(tool).status,
+    yolo: new PermissionEngine("yolo").decide(tool).status
+  };
+}
+
+function permissionSafetyEvidence(toolName: string, decision: Exclude<PermissionDecision, { status: "allowed" }>): ToolSafetyEvidence {
+  return {
+    toolName,
+    source: "permission_engine",
+    status: decision.status,
+    reason: decision.reason,
+    decision
+  };
+}
+
+function toolSafetyEvidence(toolName: string, error: unknown): ToolSafetyEvidence | undefined {
+  if (!isToolSafetyDenial(error)) {
+    return undefined;
+  }
+  return {
+    toolName,
+    source: error.safetySource,
+    status: error.safetyStatus,
+    reason: error.safetyReason
+  };
+}
+
+function isToolSafetyDenial(error: unknown): error is Error & {
+  safetySource: ToolSafetyEvidence["source"];
+  safetyStatus: ToolSafetyEvidence["status"];
+  safetyReason: string;
+} {
+  return error instanceof Error
+    && "safetySource" in error
+    && "safetyStatus" in error
+    && "safetyReason" in error
+    && typeof (error as { safetyReason?: unknown }).safetyReason === "string";
 }
 
 export function createDefaultToolRegistry(): ToolRegistry {

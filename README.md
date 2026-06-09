@@ -206,6 +206,7 @@ node packages/cli/dist/main.js auth tokendanceid login-url --client-id agenthub-
 node packages/cli/dist/main.js gateway init --model deepseek-v4-pro
 node packages/cli/dist/main.js resume
 node packages/cli/dist/main.js resume <session-id>
+node packages/cli/dist/main.js sessions
 node packages/cli/dist/main.js transcript
 node packages/cli/dist/main.js transcript <session-id>
 node packages/cli/dist/main.js transcript search <query>
@@ -259,6 +260,7 @@ node packages/cli/dist/main.js
 /status
 /quickstart
 /permissions safe
+/sessions
 /agents
 /tasks create Stage 15 E2E
 /todo add Run unittest --task task-1

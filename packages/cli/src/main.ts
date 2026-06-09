@@ -11,6 +11,7 @@ import {
   type AgentRunRecord,
   type MemoryScope,
   type PermissionMode,
+  type SessionListItem,
   type Thread,
   type ThreadContext,
   type TokenDanceTools,
@@ -70,6 +71,10 @@ export async function runCli(argv: string[], io: CliIO = defaultIO()): Promise<n
 
   if (command === "resume") {
     return resumeCommand(rest, io);
+  }
+
+  if (command === "sessions") {
+    return sessionsCommand(io);
   }
 
   if (command === "memory") {
@@ -193,6 +198,11 @@ async function runInteractive(io: CliIO): Promise<void> {
 
     if (line === "/resume") {
       thread = await handleResume(io, client);
+      continue;
+    }
+
+    if (line === "/sessions") {
+      await sessionsCommand(io);
       continue;
     }
 
@@ -695,6 +705,17 @@ async function transcriptCommand(args: string[], io: CliIO): Promise<number> {
   }
 }
 
+async function sessionsCommand(io: CliIO): Promise<number> {
+  try {
+    await printSessions(io, await new TokenDanceCode().sessions({ storageRoot: io.cwd() }).list());
+    return 0;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await write(io.stderr, `${message}\n`);
+    return 1;
+  }
+}
+
 async function contextCommand(args: string[], io: CliIO): Promise<number> {
   const parsed = parseContextArgs(args);
   if (!parsed.prompt) {
@@ -812,6 +833,20 @@ async function printTranscriptSearchResults(io: CliIO, results: TranscriptSearch
 
   for (const result of results) {
     await write(io.stdout, `seq ${result.seq} ${result.eventType} ${result.preview}\n`);
+  }
+}
+
+async function printSessions(io: CliIO, sessions: SessionListItem[]): Promise<void> {
+  if (sessions.length === 0) {
+    await write(io.stdout, "No sessions.\n");
+    return;
+  }
+
+  await writeSection(io, "Sessions", styleFromEnv(await readCliEnv(io)));
+  for (const session of sessions) {
+    const marker = session.latest ? "latest" : "session";
+    const lastEvent = session.lastEventTimestamp ? ` lastEvent=${session.lastEventTimestamp}` : "";
+    await write(io.stdout, `${marker} ${session.sessionId} events=${session.eventCount}${lastEvent} transcript=${session.transcriptPath}\n`);
   }
 }
 
@@ -982,6 +1017,7 @@ ${heading("Core:", style)}
 
 ${heading("Session:", style)}
   tokendance resume [session-id]
+  tokendance sessions
   tokendance transcript [session-id]
   tokendance transcript search <query>
   tokendance transcript <session-id> search <query>
@@ -1025,6 +1061,7 @@ ${heading("Session:", style)}
   /quickstart
   /permissions [default|safe|auto|yolo]
   /resume
+  /sessions
   /memory [add|delete] [project|global] [value]
   /auth tokendanceid login-url --client-id <id> --redirect-uri <uri> [--json]
   /transcript [search <query>]

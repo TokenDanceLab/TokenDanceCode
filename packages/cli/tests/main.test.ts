@@ -94,6 +94,32 @@ describe("TokenDanceCode CLI", () => {
     expect(output).toContain("Events: ");
   });
 
+  it("lists recoverable sessions in top-level and interactive commands", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-sessions-"));
+    const interactive = createTestIO("/status\nfirst session\n/new\n/status\nsecond session\n/sessions\n/exit\n", root);
+
+    const interactiveExitCode = await runCli([], interactive);
+    const output = interactive.stdoutText();
+    const sessionIds = [...output.matchAll(/sessionId: ([^\n]+)/g)].map((match) => match[1]);
+    const topLevel = createTestIO("", root);
+    const topLevelExitCode = await runCli(["sessions"], topLevel);
+
+    expect(interactiveExitCode).toBe(0);
+    expect(topLevelExitCode).toBe(0);
+    expect(sessionIds).toHaveLength(2);
+    for (const sessionId of sessionIds) {
+      expect(output).toContain(sessionId);
+      expect(topLevel.stdoutText()).toContain(sessionId);
+    }
+    expect(output).toContain("Sessions");
+    expect(output).toContain("latest ");
+    expect(output).toContain("events=4");
+    expect(output).toContain("transcript=");
+    expect(topLevel.stdoutText()).toContain("Sessions");
+    expect(topLevel.stdoutText()).toContain("latest ");
+    expect(topLevel.stdoutText()).toContain("events=4");
+  });
+
   it("manages project memory in interactive and top-level commands", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-cli-"));
     const interactive = createTestIO("/memory\n/memory add project Keep SDK stable\n/memory\n/exit\n", root);

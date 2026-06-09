@@ -47,6 +47,7 @@ export * from "./approval-bridge.js";
 export * from "./doctor.js";
 export * from "./package-info.js";
 export * from "./tokendance-id.js";
+export type { SessionListItem } from "@tokendance/code-core";
 
 export type ThreadInput = string | Array<{ type: "text"; text: string }>;
 

@@ -26,6 +26,8 @@ export interface WorktreeRecord {
   branch?: string;
   head?: string;
   dirty: boolean;
+  dirtyFiles: string[];
+  dirtyFileCount: number;
   detached: boolean;
 }
 
@@ -34,6 +36,16 @@ interface PorcelainWorktree {
   head?: string;
   branch?: string;
   detached: boolean;
+}
+
+export class DirtyWorktreeError extends Error {
+  readonly dirtyFiles: string[];
+
+  constructor(message: string, dirtyFiles: string[]) {
+    super(message);
+    this.name = "DirtyWorktreeError";
+    this.dirtyFiles = dirtyFiles;
+  }
 }
 
 export class WorktreeManager {
@@ -49,14 +61,7 @@ export class WorktreeManager {
     const output = await this.git(["worktree", "list", "--porcelain"]);
     const managed = parseWorktreePorcelain(output.stdout).filter((worktree) => this.isManagedPath(worktree.path));
     return Promise.all(
-      managed.map(async (worktree) => ({
-        name: basename(worktree.path),
-        path: resolve(worktree.path),
-        branch: worktree.branch,
-        head: worktree.head,
-        dirty: (await this.git(["-C", worktree.path, "status", "--porcelain"])).stdout.trim().length > 0,
-        detached: worktree.detached
-      }))
+      managed.map(async (worktree) => this.recordFor(worktree))
     );
   }
 
@@ -73,6 +78,15 @@ export class WorktreeManager {
     return created;
   }
 
+  async status(name: string): Promise<WorktreeRecord> {
+    const safeName = validateWorktreeName(name);
+    const worktree = (await this.list()).find((candidate) => candidate.name === safeName);
+    if (!worktree) {
+      throw new Error(`Worktree ${safeName} was not found.`);
+    }
+    return worktree;
+  }
+
   async remove(name: string, options: RemoveWorktreeOptions = {}): Promise<void> {
     const safeName = validateWorktreeName(name);
     const worktree = (await this.list()).find((candidate) => candidate.name === safeName);
@@ -80,10 +94,26 @@ export class WorktreeManager {
       throw new Error(`Worktree ${safeName} was not found.`);
     }
     const status = await this.git(["-C", worktree.path, "status", "--porcelain"]);
-    if (status.stdout.trim() && !options.discard) {
-      throw new Error(`Worktree ${safeName} has uncommitted changes.`);
+    const dirtyFiles = parseGitStatusFiles(status.stdout);
+    if (dirtyFiles.length > 0 && !options.discard) {
+      throw new DirtyWorktreeError(`Worktree ${safeName} has uncommitted changes: ${dirtyFiles.join(", ")}`, dirtyFiles);
     }
     await this.git(options.discard ? ["worktree", "remove", "--force", worktree.path] : ["worktree", "remove", worktree.path]);
+  }
+
+  private async recordFor(worktree: PorcelainWorktree): Promise<WorktreeRecord> {
+    const status = await this.git(["-C", worktree.path, "status", "--porcelain"]);
+    const dirtyFiles = parseGitStatusFiles(status.stdout);
+    return {
+      name: basename(worktree.path),
+      path: resolve(worktree.path),
+      branch: worktree.branch,
+      head: worktree.head,
+      dirty: dirtyFiles.length > 0,
+      dirtyFiles,
+      dirtyFileCount: dirtyFiles.length,
+      detached: worktree.detached
+    };
   }
 
   private pathForName(name: string): string {
@@ -110,6 +140,16 @@ export class WorktreeManager {
       throw new Error(message);
     }
   }
+}
+
+export function parseGitStatusFiles(status: string): string[] {
+  return status.split(/\r?\n/).flatMap((line) => {
+    if (!line.trim()) {
+      return [];
+    }
+    const path = line.slice(3).trim();
+    return [path.includes(" -> ") ? path.split(" -> ").at(-1) ?? path : path];
+  });
 }
 
 export function buildWorktreeTools(): ToolSpec[] {

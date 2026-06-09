@@ -22,6 +22,7 @@ import {
   readTranscript,
   searchTranscript as searchTranscriptFile,
   type AgentRunRecord,
+  type AgentManagerMetadata,
   type AgentType,
   type ModelProvider,
   type PermissionApprovalCallback,
@@ -41,8 +42,10 @@ import {
   type ConfigWriteScope,
   type BuiltContext,
   type TaskRecord,
+  type TaskStoreMetadata,
   type TaskStatus,
   type TodoRecord,
+  type TodoStoreMetadata,
   type TodoStatus,
   type TranscriptEnvelope,
   type TranscriptSearchResult as CoreTranscriptSearchResult,
@@ -58,7 +61,16 @@ export * from "./approval-bridge.js";
 export * from "./doctor.js";
 export * from "./package-info.js";
 export * from "./tokendance-id.js";
-export type { ResumeDiagnostic, SessionExport, SessionListItem, SessionPruneCandidate, SessionPruneOptions } from "@tokendance/code-core";
+export type {
+  AgentManagerMetadata,
+  ResumeDiagnostic,
+  SessionExport,
+  SessionListItem,
+  SessionPruneCandidate,
+  SessionPruneOptions,
+  TaskStoreMetadata,
+  TodoStoreMetadata
+} from "@tokendance/code-core";
 
 export type ThreadInput = string | Array<{ type: "text"; text: string }>;
 
@@ -520,6 +532,10 @@ export class TokenDanceTasks {
     return this.store.get(id);
   }
 
+  metadata(): Promise<TaskStoreMetadata> {
+    return this.store.metadata();
+  }
+
   updateStatus(id: string, status: TaskStatus): Promise<TaskRecord> {
     return this.store.updateStatus(id, status);
   }
@@ -548,6 +564,10 @@ export class TokenDanceTodos {
     return this.store.list();
   }
 
+  metadata(): Promise<TodoStoreMetadata> {
+    return this.store.metadata();
+  }
+
   updateStatus(id: string, status: TodoStatus): Promise<TodoRecord> {
     return this.store.updateStatus(id, status);
   }
@@ -564,6 +584,10 @@ export class TokenDanceWorktrees {
     return this.manager.create(input);
   }
 
+  status(name: string): Promise<WorktreeRecord> {
+    return this.manager.status(name);
+  }
+
   remove(name: string, options: { discard?: boolean } = {}): Promise<void> {
     return this.manager.remove(name, options);
   }
@@ -578,6 +602,10 @@ export class TokenDanceSubagents {
 
   get(id: string): Promise<AgentRunRecord | undefined> {
     return this.manager.get(id);
+  }
+
+  metadata(): Promise<AgentManagerMetadata> {
+    return this.manager.metadata();
   }
 
   runReadonly(input: { prompt: string; agentType?: Exclude<AgentType, "coding"> }): Promise<AgentRunRecord> {

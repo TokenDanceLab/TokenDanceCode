@@ -25,8 +25,12 @@ describe("worktree manager", () => {
 
     await writeFile(join(created.path, "dirty.txt"), "dirty\n", "utf8");
 
-    expect(await manager.list()).toEqual([expect.objectContaining({ name: "stage15-wt", dirty: true })]);
-    await expect(manager.remove("stage15-wt")).rejects.toThrow("Worktree stage15-wt has uncommitted changes.");
+    expect(await manager.list()).toEqual([expect.objectContaining({ name: "stage15-wt", dirty: true, dirtyFiles: ["dirty.txt"], dirtyFileCount: 1 })]);
+    await expect(manager.status("stage15-wt")).resolves.toMatchObject({ dirty: true, dirtyFiles: ["dirty.txt"], dirtyFileCount: 1 });
+    await expect(manager.remove("stage15-wt")).rejects.toMatchObject({
+      message: "Worktree stage15-wt has uncommitted changes: dirty.txt",
+      dirtyFiles: ["dirty.txt"]
+    });
 
     await manager.remove("stage15-wt", { discard: true });
 
@@ -63,7 +67,8 @@ describe("worktree manager", () => {
     expect(JSON.stringify(created.output)).toContain("codex/tool-wt");
     expect(listed).toMatchObject({ ok: true });
     expect(JSON.stringify(listed.output)).toContain("tool-wt");
-    expect(dirtyRemove).toMatchObject({ ok: false, error: "Worktree tool-wt has uncommitted changes." });
+    expect(JSON.stringify(listed.output)).toContain("dirtyFileCount");
+    expect(dirtyRemove).toMatchObject({ ok: false, error: "Worktree tool-wt has uncommitted changes: dirty.txt" });
     expect(removed).toMatchObject({ ok: true });
   });
 });

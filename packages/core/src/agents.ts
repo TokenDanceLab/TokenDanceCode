@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import type { ToolSpec } from "./types.js";
-import { WorktreeManager } from "./worktrees.js";
+import { DirtyWorktreeError, WorktreeManager, parseGitStatusFiles } from "./worktrees.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -39,6 +39,8 @@ export interface AgentRunRecord {
   changedFiles: string[];
   diff: string;
   validationResult: string;
+  worktreeDirty: boolean;
+  worktreeDirtyFiles: string[];
   taskId?: string;
   worktree?: string;
   worktreePath?: string;
@@ -52,6 +54,19 @@ export interface AgentManagerOptions {
   projectRoot: string;
   runner?: SubagentRunner;
   worktreeManager?: WorktreeManager;
+}
+
+export interface AgentManagerMetadata {
+  projectRoot: string;
+  runCount: number;
+  readonlyCount: number;
+  codingCount: number;
+  completedCount: number;
+  acceptedCount: number;
+  discardedCount: number;
+  dirtyWorktreeCount: number;
+  linkedTaskCount: number;
+  latestAgentId?: string;
 }
 
 export interface AcceptSubagentOptions {
@@ -93,7 +108,7 @@ export class AgentManager {
   async list(): Promise<AgentRunRecord[]> {
     try {
       const data = JSON.parse(await readFile(this.indexPath(), "utf8")) as { agents?: AgentRunRecord[] };
-      return data.agents ?? [];
+      return Promise.all((data.agents ?? []).map((agent) => this.enrichAgent(agent)));
     } catch {
       return [];
     }
@@ -102,6 +117,22 @@ export class AgentManager {
   async get(id: string): Promise<AgentRunRecord | undefined> {
     const agentId = requiredText(id, "agent id");
     return (await this.list()).find((agent) => agent.id === agentId);
+  }
+
+  async metadata(): Promise<AgentManagerMetadata> {
+    const agents = await this.list();
+    return {
+      projectRoot: this.options.projectRoot,
+      runCount: agents.length,
+      readonlyCount: agents.filter((agent) => agent.readonly).length,
+      codingCount: agents.filter((agent) => agent.agentType === "coding").length,
+      completedCount: agents.filter((agent) => agent.status === "completed").length,
+      acceptedCount: agents.filter((agent) => agent.status === "accepted").length,
+      discardedCount: agents.filter((agent) => agent.status === "discarded").length,
+      dirtyWorktreeCount: agents.filter((agent) => agent.worktreeDirty).length,
+      linkedTaskCount: agents.filter((agent) => Boolean(agent.taskId)).length,
+      latestAgentId: agents.at(-1)?.id
+    };
   }
 
   async discard(id: string, options: { discard?: boolean } = {}): Promise<AgentRunRecord> {
@@ -117,7 +148,7 @@ export class AgentManager {
     }
 
     await this.worktreeManager.remove(agent.worktree, { discard: options.discard });
-    const updated: AgentRunRecord = { ...agent, status: "discarded", updatedAt: new Date().toISOString() };
+    const updated: AgentRunRecord = { ...agent, status: "discarded", worktreeDirty: false, worktreeDirtyFiles: [], updatedAt: new Date().toISOString() };
     agents[index] = updated;
     await appendJsonl(agent.transcriptPath, { type: "subagent_discarded", payload: updated });
     await this.writeIndex(agents);
@@ -137,8 +168,9 @@ export class AgentManager {
     }
 
     const targetStatus = await git(this.options.projectRoot, ["status", "--short"]);
-    if (hasUserVisibleChanges(targetStatus) && !options.allowDirtyTarget) {
-      throw new Error("Target repository has uncommitted changes.");
+    const targetDirtyFiles = userVisibleFiles(targetStatus);
+    if (targetDirtyFiles.length > 0 && !options.allowDirtyTarget) {
+      throw new DirtyWorktreeError(`Target repository has uncommitted changes: ${targetDirtyFiles.join(", ")}`, targetDirtyFiles);
     }
 
     const changes = await collectChanges(agent.worktreePath);
@@ -157,6 +189,8 @@ export class AgentManager {
       status: "accepted",
       changedFiles: changes.changedFiles,
       diff: changes.diff,
+      worktreeDirty: !options.discardWorktree && changes.changedFiles.length > 0,
+      worktreeDirtyFiles: options.discardWorktree ? [] : changes.changedFiles,
       updatedAt: new Date().toISOString()
     };
     agents[index] = updated;
@@ -204,6 +238,8 @@ export class AgentManager {
       changedFiles: output.changedFiles ?? changes.changedFiles,
       diff: output.diff ?? changes.diff,
       validationResult: output.validationResult ?? "",
+      worktreeDirty: !input.readonly && (output.changedFiles ?? changes.changedFiles).length > 0,
+      worktreeDirtyFiles: input.readonly ? [] : (output.changedFiles ?? changes.changedFiles),
       taskId: input.taskId,
       worktree: input.worktree,
       worktreePath: input.worktreePath,
@@ -235,6 +271,26 @@ export class AgentManager {
 
   private indexPath(): string {
     return join(this.stateDir(), "agents.json");
+  }
+
+  private async enrichAgent(agent: AgentRunRecord): Promise<AgentRunRecord> {
+    if (!agent.worktree || agent.status === "discarded") {
+      return { ...agent, worktreeDirty: false, worktreeDirtyFiles: [] };
+    }
+    try {
+      const status = await this.worktreeManager.status(agent.worktree);
+      return {
+        ...agent,
+        worktreeDirty: status.dirty,
+        worktreeDirtyFiles: status.dirtyFiles
+      };
+    } catch {
+      return {
+        ...agent,
+        worktreeDirty: false,
+        worktreeDirtyFiles: []
+      };
+    }
   }
 }
 
@@ -379,17 +435,11 @@ async function collectChanges(cwd: string): Promise<{ changedFiles: string[]; di
 }
 
 function parseStatusFiles(status: string): string[] {
-  return status.split(/\r?\n/).flatMap((line) => {
-    if (!line.trim()) {
-      return [];
-    }
-    const path = line.slice(3).trim();
-    return [path.includes(" -> ") ? path.split(" -> ").at(-1) ?? path : path];
-  });
+  return parseGitStatusFiles(status);
 }
 
-function hasUserVisibleChanges(status: string): boolean {
-  return parseStatusFiles(status).some((path) => !path.startsWith(".tokendance/") && !path.startsWith(".worktrees/"));
+function userVisibleFiles(status: string): string[] {
+  return parseStatusFiles(status).filter((path) => !path.startsWith(".tokendance/") && !path.startsWith(".worktrees/"));
 }
 
 async function untrackedDiff(cwd: string, file: string): Promise<string> {

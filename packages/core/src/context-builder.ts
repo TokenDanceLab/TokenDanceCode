@@ -19,6 +19,19 @@ export interface BuildContextInput {
 export interface BuiltContext {
   messages: TDMessage[];
   includedFiles: string[];
+  metadata: ContextPreviewMetadata;
+}
+
+export interface ContextPreviewMetadata {
+  workspaceRoot: string;
+  maxRecentMessages: number;
+  sessionMessageCount: number;
+  includedRecentMessageCount: number;
+  includedFiles: string[];
+  hasCompactSummary: boolean;
+  memoryEntryCount: number;
+  systemMessageCharacters: number;
+  totalMessageCharacters: number;
 }
 
 export class ContextBuilder {
@@ -46,14 +59,29 @@ export class ContextBuilder {
     if (memoryEntries.length > 0) {
       systemParts.push(`## Memory\n${memoryEntries.map((entry) => `- ${entry}`).join("\n")}`);
     }
+    const maxRecentMessages = this.options.maxRecentMessages ?? 20;
+    const includedRecentMessages = recentMessages(input.session, maxRecentMessages);
+    const systemContent = systemParts.join("\n\n");
+    const messages = [
+      { role: "system" as const, content: systemContent },
+      ...includedRecentMessages,
+      { role: "user" as const, content: input.userMessage }
+    ];
 
     return {
       includedFiles,
-      messages: [
-        { role: "system", content: systemParts.join("\n\n") },
-        ...recentMessages(input.session, this.options.maxRecentMessages ?? 20),
-        { role: "user", content: input.userMessage }
-      ]
+      messages,
+      metadata: {
+        workspaceRoot,
+        maxRecentMessages,
+        sessionMessageCount: input.session.messages.length,
+        includedRecentMessageCount: includedRecentMessages.length,
+        includedFiles: [...includedFiles],
+        hasCompactSummary: Boolean(input.session.compactSummary),
+        memoryEntryCount: memoryEntries.length,
+        systemMessageCharacters: systemContent.length,
+        totalMessageCharacters: messages.reduce((total, message) => total + message.content.length, 0)
+      }
     };
   }
 }

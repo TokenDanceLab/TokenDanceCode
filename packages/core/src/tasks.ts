@@ -29,9 +29,31 @@ export interface TaskStoreOptions {
   projectRoot: string;
 }
 
+export interface TaskStoreMetadata {
+  projectRoot: string;
+  taskCount: number;
+  openCount: number;
+  inProgressCount: number;
+  completedCount: number;
+  linkedSessionCount: number;
+  linkedWorktreeCount: number;
+  dependencyEdgeCount: number;
+  latestTaskId?: string;
+}
+
 export interface TodoStoreOptions {
   projectRoot: string;
   sessionId?: string;
+}
+
+export interface TodoStoreMetadata {
+  projectRoot: string;
+  sessionId?: string;
+  todoCount: number;
+  pendingCount: number;
+  inProgressCount: number;
+  completedCount: number;
+  linkedTaskCount: number;
 }
 
 type TaskEvent =
@@ -70,6 +92,21 @@ export class TaskStore {
 
   async get(id: string): Promise<TaskRecord | undefined> {
     return (await this.readIndex()).get(id);
+  }
+
+  async metadata(): Promise<TaskStoreMetadata> {
+    const tasks = await this.list();
+    return {
+      projectRoot: this.options.projectRoot,
+      taskCount: tasks.length,
+      openCount: tasks.filter((task) => task.status === "open").length,
+      inProgressCount: tasks.filter((task) => task.status === "in_progress").length,
+      completedCount: tasks.filter((task) => task.status === "completed").length,
+      linkedSessionCount: tasks.filter((task) => Boolean(task.linkedSessionId)).length,
+      linkedWorktreeCount: tasks.filter((task) => Boolean(task.linkedWorktree)).length,
+      dependencyEdgeCount: tasks.reduce((total, task) => total + task.dependencies.length, 0),
+      latestTaskId: tasks.at(-1)?.id
+    };
   }
 
   async updateStatus(id: string, status: TaskStatus): Promise<TaskRecord> {
@@ -173,6 +210,19 @@ export class TodoStore {
     } catch {
       return [];
     }
+  }
+
+  async metadata(): Promise<TodoStoreMetadata> {
+    const todos = await this.list();
+    return {
+      projectRoot: this.options.projectRoot,
+      sessionId: this.options.sessionId,
+      todoCount: todos.length,
+      pendingCount: todos.filter((todo) => todo.status === "pending").length,
+      inProgressCount: todos.filter((todo) => todo.status === "in_progress").length,
+      completedCount: todos.filter((todo) => todo.status === "completed").length,
+      linkedTaskCount: todos.filter((todo) => Boolean(todo.taskId)).length
+    };
   }
 
   async updateStatus(id: string, status: TodoStatus): Promise<TodoRecord> {

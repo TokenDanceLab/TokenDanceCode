@@ -57,9 +57,21 @@ describe("agent manager", () => {
       taskId: "task-1",
       summary: "created agent file",
       changedFiles: ["agent.txt"],
+      worktreeDirty: true,
+      worktreeDirtyFiles: ["agent.txt"],
       validationResult: "manual validation"
     });
-    await expect(manager.get(result.id)).resolves.toMatchObject({ taskId: "task-1" });
+    await expect(manager.get(result.id)).resolves.toMatchObject({ taskId: "task-1", worktreeDirty: true, worktreeDirtyFiles: ["agent.txt"] });
+    await expect(manager.metadata()).resolves.toMatchObject({
+      projectRoot: root,
+      runCount: 1,
+      codingCount: 1,
+      readonlyCount: 0,
+      completedCount: 1,
+      dirtyWorktreeCount: 1,
+      linkedTaskCount: 1,
+      latestAgentId: result.id
+    });
     expect(result.diff).toContain("+hello from subagent");
     await expect(readFile(join(root, "agent.txt"), "utf8")).rejects.toThrow();
   });
@@ -80,7 +92,10 @@ describe("agent manager", () => {
       worktree: "dirty-agent",
       status: "completed"
     });
-    await expect(manager.discard(result.id)).rejects.toThrow("uncommitted changes");
+    await expect(manager.discard(result.id)).rejects.toMatchObject({
+      message: "Worktree dirty-agent has uncommitted changes: agent.txt",
+      dirtyFiles: ["agent.txt"]
+    });
 
     const discarded = await manager.discard(result.id, { discard: true });
 
@@ -105,7 +120,10 @@ describe("agent manager", () => {
     const result = await manager.runCoding("Create accepted file", { worktree: "accepted-agent" });
     await writeFile(join(root, "target-dirty.txt"), "dirty target\n", "utf8");
 
-    await expect(manager.accept(result.id)).rejects.toThrow("Target repository has uncommitted changes");
+    await expect(manager.accept(result.id)).rejects.toMatchObject({
+      message: "Target repository has uncommitted changes: target-dirty.txt",
+      dirtyFiles: ["target-dirty.txt"]
+    });
 
     await rm(join(root, "target-dirty.txt"));
     const accepted = await manager.accept(result.id, { discardWorktree: true });

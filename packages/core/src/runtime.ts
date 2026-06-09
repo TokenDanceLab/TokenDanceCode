@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { ContextBuilder } from "./context-builder.js";
-import { PermissionEngine } from "./permissions.js";
+import { normalizeApprovalDecision, PermissionEngine } from "./permissions.js";
 import { appendMessage, createSession } from "./session.js";
 import { createDefaultToolRegistry, ToolOrchestrator, ToolRegistry } from "./tools.js";
 import type {
@@ -115,13 +115,7 @@ export class AgentRuntime {
       decision: baseDecision
     });
 
-    if (typeof response === "boolean") {
-      return response
-        ? { status: "allowed", reason: `approved by callback: ${baseDecision.reason}` }
-        : { status: "denied", reason: `denied by callback: ${baseDecision.reason}` };
-    }
-
-    return response;
+    return normalizeApprovalDecision(baseDecision, response);
   }
 
   private async *emit(event: TDCodeEvent): AsyncGenerator<TDCodeEvent> {

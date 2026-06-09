@@ -1,4 +1,4 @@
-import { PermissionEngine } from "./permissions.js";
+import { PermissionEngine, reconcilePermissionDecision } from "./permissions.js";
 import { buildSubagentTools } from "./agents.js";
 import { buildFileTools } from "./file-tools.js";
 import { buildGitTools } from "./git-tools.js";
@@ -62,7 +62,8 @@ export class ToolOrchestrator {
       return { callId: call.id, toolName: call.name, ok: false, error: `Unknown tool: ${call.name}` };
     }
 
-    const decision = permissionDecision ?? new PermissionEngine(session.permissionMode).decide(tool);
+    const baseDecision = new PermissionEngine(session.permissionMode).decide(tool);
+    const decision = reconcilePermissionDecision(baseDecision, permissionDecision);
     if (decision.status !== "allowed") {
       return {
         callId: call.id,

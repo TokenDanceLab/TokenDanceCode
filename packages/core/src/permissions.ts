@@ -1,4 +1,4 @@
-import type { PermissionDecision, PermissionDecisionAction, PermissionMode, PermissionRiskMetadata, ToolSpec } from "./types.js";
+import type { PermissionApprovalResponse, PermissionDecision, PermissionDecisionAction, PermissionMode, PermissionRiskMetadata, ToolSpec } from "./types.js";
 
 export class PermissionEngine {
   constructor(private readonly mode: PermissionMode) {}
@@ -24,6 +24,32 @@ export class PermissionEngine {
       ? allowed(this.mode, tool, "default mode allows read-only tools")
       : requiresApproval(this.mode, tool, `default mode requires approval before running ${tool.risk} tools`);
   }
+}
+
+export function normalizeApprovalDecision(
+  baseDecision: Extract<PermissionDecision, { status: "requires_approval" }>,
+  response: PermissionApprovalResponse
+): PermissionDecision {
+  if (typeof response === "boolean") {
+    return response
+      ? approvalDecision(baseDecision, "allowed", `approved by callback: ${baseDecision.reason}`)
+      : approvalDecision(baseDecision, "denied", `denied by callback: ${baseDecision.reason}`);
+  }
+
+  if (response.status === "allowed") {
+    return approvalDecision(baseDecision, "allowed", response.reason);
+  }
+  if (response.status === "denied") {
+    return approvalDecision(baseDecision, "denied", response.reason);
+  }
+  return approvalDecision(baseDecision, "denied", `denied by callback: unresolved approval response: ${response.reason}`);
+}
+
+export function reconcilePermissionDecision(baseDecision: PermissionDecision, overrideDecision?: PermissionDecision): PermissionDecision {
+  if (baseDecision.status !== "requires_approval") {
+    return baseDecision;
+  }
+  return overrideDecision ?? baseDecision;
 }
 
 function allowed(mode: PermissionMode, tool: ToolSpec, detail: string): PermissionDecision {
@@ -52,7 +78,26 @@ function riskMetadata(mode: PermissionMode, tool: ToolSpec, action: PermissionDe
     toolName: tool.name,
     toolRisk: tool.risk,
     action,
+    approvalScope: action === "approval_required" ? "tool_call" : "none",
     concurrency: tool.concurrency,
     safetyNotes: [...(tool.safetyNotes ?? [])]
+  };
+}
+
+function approvalDecision(
+  baseDecision: Extract<PermissionDecision, { status: "requires_approval" }>,
+  status: "allowed" | "denied",
+  reason: string
+): PermissionDecision {
+  return {
+    status,
+    reason,
+    riskMetadata: baseDecision.riskMetadata
+      ? {
+          ...baseDecision.riskMetadata,
+          action: status,
+          approvalScope: "none"
+        }
+      : undefined
   };
 }

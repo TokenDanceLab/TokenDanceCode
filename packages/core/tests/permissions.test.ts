@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PermissionEngine, type ToolSpec } from "../src/index.js";
+import { PermissionEngine, normalizeApprovalDecision, type ToolRisk, type ToolSpec } from "../src/index.js";
 
 const shellTool: ToolSpec = {
   name: "shell",
@@ -21,6 +21,22 @@ const annotatedWriteTool: ToolSpec = {
 };
 
 describe("PermissionEngine", () => {
+  it("keeps default/safe/auto/yolo mode decisions stable across risk levels", () => {
+    const risks: ToolRisk[] = ["read", "write", "shell", "network", "dangerous"];
+    const expected = {
+      default: ["allowed", "requires_approval", "requires_approval", "requires_approval", "requires_approval"],
+      safe: ["allowed", "denied", "denied", "denied", "denied"],
+      auto: ["allowed", "allowed", "allowed", "allowed", "requires_approval"],
+      yolo: ["allowed", "allowed", "allowed", "allowed", "allowed"]
+    } as const;
+
+    for (const mode of ["default", "safe", "auto", "yolo"] as const) {
+      const decisions = risks.map((risk) => new PermissionEngine(mode).decide(toolWithRisk(risk)).status);
+
+      expect(decisions).toEqual(expected[mode]);
+    }
+  });
+
   it("requires approval for shell tools in default mode", () => {
     expect(new PermissionEngine("default").decide(shellTool).status).toBe("requires_approval");
   });
@@ -36,6 +52,7 @@ describe("PermissionEngine", () => {
         toolName: "shell",
         toolRisk: "shell",
         action: "approval_required",
+        approvalScope: "tool_call",
         concurrency: "exclusive",
         safetyNotes: []
       }
@@ -50,7 +67,8 @@ describe("PermissionEngine", () => {
         mode: "safe",
         toolName: "shell",
         toolRisk: "shell",
-        action: "denied"
+        action: "denied",
+        approvalScope: "none"
       }
     });
   });
@@ -64,4 +82,48 @@ describe("PermissionEngine", () => {
       "mode=default tool=write_file risk=write action=approval_required: default mode requires approval before running write tools; concurrency=exclusive; safety=Workspace-relative paths only."
     );
   });
+
+  it("normalizes approval callback decisions against the base risk metadata", () => {
+    const baseDecision = new PermissionEngine("default").decide(shellTool);
+    expect(baseDecision.status).toBe("requires_approval");
+
+    const decision = normalizeApprovalDecision(baseDecision, {
+      status: "allowed",
+      reason: "external bridge approved",
+      riskMetadata: {
+        mode: "yolo",
+        toolName: "forged",
+        toolRisk: "read",
+        action: "allowed",
+        approvalScope: "none",
+        concurrency: "parallel_safe",
+        safetyNotes: ["forged metadata"]
+      }
+    });
+
+    expect(decision).toMatchObject({
+      status: "allowed",
+      reason: "external bridge approved",
+      riskMetadata: {
+        mode: "default",
+        toolName: "shell",
+        toolRisk: "shell",
+        action: "allowed",
+        approvalScope: "none",
+        concurrency: "exclusive",
+        safetyNotes: []
+      }
+    });
+  });
 });
+
+function toolWithRisk(risk: ToolRisk): ToolSpec {
+  return {
+    name: `${risk}_tool`,
+    description: `${risk} fixture`,
+    risk,
+    concurrency: risk === "read" ? "parallel_safe" : "exclusive",
+    parse: (input) => input,
+    execute: async () => "ok"
+  };
+}

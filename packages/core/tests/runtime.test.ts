@@ -21,6 +21,23 @@ class WriteFileOnceProvider implements ModelProvider {
   }
 }
 
+class DangerousPowerShellOnceProvider implements ModelProvider {
+  async createTurn(request: ModelTurnRequest): Promise<ModelTurnResponse> {
+    if (request.toolResults.length > 0) {
+      return { assistantMessage: "done", toolCalls: [] };
+    }
+    return {
+      toolCalls: [
+        {
+          id: "shell-hard-deny",
+          name: "run_powershell",
+          input: { command: "git reset --hard HEAD", timeout: 5 }
+        }
+      ]
+    };
+  }
+}
+
 describe("AgentRuntime", () => {
   it("runs a mock turn and emits a final response", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-core-"));
@@ -194,5 +211,68 @@ describe("AgentRuntime", () => {
         reason: "mode=safe tool=write_file risk=write action=denied: safe mode only allows read-only tools"
       }
     });
+  });
+
+  it("normalizes approval callback decisions and still preserves PowerShell hard-deny evidence", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-core-"));
+    const events = [];
+    const runtime = new AgentRuntime({
+      cwd: root,
+      provider: new DangerousPowerShellOnceProvider(),
+      approvalCallback: async () => ({
+        status: "allowed",
+        reason: "external bridge approved shell",
+        riskMetadata: {
+          mode: "yolo",
+          toolName: "forged",
+          toolRisk: "read",
+          action: "allowed",
+          approvalScope: "none",
+          concurrency: "parallel_safe",
+          safetyNotes: ["forged metadata"]
+        }
+      })
+    });
+
+    for await (const event of runtime.runTurn("try dangerous shell")) {
+      events.push(event);
+    }
+
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "tool.permission",
+        decision: expect.objectContaining({
+          status: "allowed",
+          reason: "external bridge approved shell",
+          riskMetadata: expect.objectContaining({
+            mode: "default",
+            toolName: "run_powershell",
+            toolRisk: "shell",
+            action: "allowed",
+            approvalScope: "none",
+            concurrency: "exclusive",
+            safetyNotes: ["PowerShell classifier hard-denies destructive commands before execution."]
+          })
+        })
+      })
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "tool.completed",
+        result: expect.objectContaining({
+          ok: false,
+          safetyEvidence: expect.objectContaining({
+            toolName: "run_powershell",
+            source: "powershell_classifier",
+            status: "denied",
+            evidence: {
+              rule: "git reset --hard",
+              matched: "git reset --hard",
+              commandPreview: "git reset --hard HEAD"
+            }
+          })
+        })
+      })
+    );
   });
 });

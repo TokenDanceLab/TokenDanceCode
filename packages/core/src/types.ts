@@ -48,6 +48,7 @@ export interface PermissionRiskMetadata {
   toolName: string;
   toolRisk: ToolRisk;
   action: PermissionDecisionAction;
+  approvalScope: "none" | "tool_call";
   concurrency: ToolSpec["concurrency"];
   safetyNotes: string[];
 }

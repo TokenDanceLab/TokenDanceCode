@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { AgentHubAgentStreamPayload, ModelProvider } from "@tokendance/code-sdk";
-import { createAgentHubTokenDanceRunner } from "../src/index.js";
+import { createAgentHubTokenDanceE2EFixture, createAgentHubTokenDanceRunner } from "../src/index.js";
 
 class WriteFileProvider implements ModelProvider {
   async createTurn(request: Parameters<ModelProvider["createTurn"]>[0]) {
@@ -340,6 +340,81 @@ describe("AgentHub TokenDanceCode runner example", () => {
       "run.agent.result"
     ]);
     expect(runner.decideApproval("runner-write-remote", "deny")).toBe(false);
+  });
+
+  it("provides a copyable AgentHub e2e fixture for startup, login, events, and approvals", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-agenthub-fixture-"));
+    let releaseRequest!: () => void;
+    const requestSeen = new Promise<void>((resolve) => {
+      releaseRequest = resolve;
+    });
+    const fixture = createAgentHubTokenDanceE2EFixture({
+      storageRoot: root,
+      provider: new WriteFileProvider(),
+      clock: () => "2026-06-09T00:00:00.000Z",
+      defaultRun: {
+        workingDirectory: root,
+        taskId: "task-fixture",
+        edgeRunId: "edge-fixture",
+        sessionId: "hub-session-fixture",
+        agentInstanceId: "agent-fixture"
+      },
+      defaultLogin: {
+        clientId: "agenthub-local",
+        redirectUri: "http://127.0.0.1:48731/callback",
+        deviceType: "desktop",
+        deviceId: "00000000-0000-4000-8000-000000000002"
+      },
+      onApprovalRequest() {
+        releaseRequest();
+      }
+    });
+
+    const startup = await fixture.bootstrap({ workingDirectory: root });
+    const login = fixture.createTokenDanceIdLogin({
+      state: "fixture-state",
+      codeVerifier: "fixture-verifier"
+    });
+    const callback = fixture.verifyTokenDanceIdCallback("http://127.0.0.1:48731/callback?code=fixture-code&state=fixture-state", login);
+    const turnPromise = fixture.run({
+      prompt: "write through copyable fixture",
+      permissionMode: "default"
+    });
+    await requestSeen;
+
+    expect(startup.packageInfo.packages.sdk.name).toBe("@tokendance/code-sdk");
+    expect(startup.doctor.startup.hub.ok).toBe(true);
+    expect(new URL(login.authorizationUrl).searchParams.get("device_id")).toBe("00000000-0000-4000-8000-000000000002");
+    expect(callback.code).toBe("fixture-code");
+    expect(fixture.approvalRequests).toEqual([
+      expect.objectContaining({
+        requestId: "runner-write-remote",
+        sessionId: "hub-session-fixture",
+        toolName: "write_file"
+      })
+    ]);
+    expect(fixture.pendingApprovals()).toHaveLength(1);
+    expect(fixture.decideApproval("runner-write-remote", "allow", "approved by fixture")).toBe(true);
+
+    const turn = await turnPromise;
+
+    expect(turn.finalResponse).toBe("write ok");
+    await expect(readFile(join(root, "runner-approved.txt"), "utf8")).resolves.toBe("approved through AgentHub runner");
+    expect(fixture.agentStream.map((frame) => frame.event_type)).toEqual([
+      "run.agent.tool_call",
+      "run.agent.permission_requested",
+      "run.agent.permission_decided",
+      "run.agent.tool_result",
+      "run.agent.text_delta",
+      "run.agent.text_block",
+      "run.agent.result"
+    ]);
+    expect(fixture.agentStream[0]).toMatchObject({
+      task_id: "task-fixture",
+      edge_run_id: "edge-fixture",
+      session_id: "hub-session-fixture",
+      agent_instance_id: "agent-fixture"
+    });
   });
 
   it("exposes package metadata and doctor diagnostics for AgentHub startup checks", async () => {

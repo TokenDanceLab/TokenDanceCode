@@ -345,7 +345,7 @@ approvalBridge.decide("tool-call-id", "deny", "rejected in AgentHub");
 
 ## 9. AgentHub 最小集成样例包
 
-`packages/agenthub-example` 是私有 workspace 示例包，用来展示 AgentHub Hub/Edge 侧如何把 SDK、`agent.stream` emitter 和远程审批桥接拼起来。它不是新的稳定边界；正式集成仍应依赖 `@tokendance/code-sdk`。
+`packages/agenthub-example` 是私有 workspace 示例包，用来展示 AgentHub Hub/Edge 侧如何把 SDK、`agent.stream` emitter、远程审批、启动检查和 TokenDanceID 登录 facade 拼起来。它不是新的稳定边界；正式集成仍应依赖 `@tokendance/code-sdk`，并把样例里的数组收集器替换成自己的 Hub event bus、审批存储和 session 生命周期。
 
 ```ts
 import { createAgentHubTokenDanceRunner } from "@tokendance/code-agenthub-example";
@@ -418,11 +418,62 @@ await hub.exchangeTokenDanceIdCode({
 });
 ```
 
+需要写 AgentHub 集成测试或本地 demo 时，可以使用同一私有包里的 e2e fixture。它仍然只组合样例 runner，不复制 SDK runtime 内部逻辑：
+
+```ts
+import { createAgentHubTokenDanceE2EFixture } from "@tokendance/code-agenthub-example";
+
+const fixture = createAgentHubTokenDanceE2EFixture({
+  storageRoot: "D:/Code/TokenDance/AgentHub/.tokendance-code",
+  defaultRun: {
+    workingDirectory: "D:/Code/TokenDance/AgentHub",
+    taskId: "task_01HX...",
+    edgeRunId: "edge_run_01HX...",
+    sessionId: "sess_01HX...",
+    agentInstanceId: "agent_01HX..."
+  },
+  defaultLogin: {
+    clientId: "agenthub-local",
+    redirectUri: "http://127.0.0.1:48731/callback",
+    deviceType: "desktop"
+  },
+  async onAgentStream(payload) {
+    await hubClient.postAgentStream(payload);
+  },
+  async onApprovalRequest(request) {
+    await hubClient.createApproval(request);
+  }
+});
+
+const startup = await fixture.bootstrap({
+  workingDirectory: "D:/Code/TokenDance/AgentHub"
+});
+const login = fixture.createTokenDanceIdLogin({
+  state: "state-from-agenthub-shell"
+});
+
+const turnPromise = fixture.run({
+  prompt: "summarize this repo",
+  permissionMode: "default"
+});
+
+console.log(startup.packageInfo.agentHub.sdkContractVersion);
+console.log(startup.doctor.startup.hub.ok);
+console.log(login.authorizationUrl);
+console.log(fixture.agentStream);
+console.log(fixture.approvalRequests);
+
+fixture.decideApproval("tool-call-id", "allow", "approved in AgentHub");
+await turnPromise;
+```
+
 样例 runner 每次 `run()` 都会创建一个新的 `TokenDanceCode` client，并用同一套 AgentHub stream envelope helper 把 runtime events 投递为递增 `event_seq` 的 `agent.stream` payload。传入的 AgentHub `sessionId` 会同时作为 TokenDanceCode thread id 使用；runner 会先按该 id `resume()`，没有现存 session 时才 `startThread()`，保证 Hub 事件、SDK `TurnResult.threadId`、provider 可见的消息历史和 transcript 目录使用同一个 session 标识。`defaultPermissionMode` 只作用于新建 thread；已存在 session 继续使用 session 内保存的权限模式。`streamIdFactory` 可接管 `agent.stream.id` 生成，`contextMaxRecentMessages` 可作为 runner 级 preview 历史上限，单次 `runner.context({ maxRecentMessages })` 可以覆盖该默认值。`runner.context()` 复用同一条按 Hub `sessionId` resume-or-start 的路径，返回下一轮 transient provider context preview；它不会发出 `agent.stream` 事件，也不会把 preview prompt 或 system context 追加进 transcript。`packageInfo()` 和 `doctor()` 只是把 SDK manifest/doctor facade 暴露给 Hub/Edge 启动检查，真实 AgentHub 集成可以直接复制这个组合方式，再替换为自己的 Hub client、任务状态和 session 生命周期。
 
 当 runner 配置了 `onApprovalRequest` 时，远程审批请求会先发出 `run.agent.permission_requested` envelope，再等待 Hub/Edge 调用 `runner.decideApproval()`。决策返回后，runtime 会继续发出 `run.agent.permission_decided`、`run.agent.tool_result` 和最终结果事件。`pendingApprovals()` 返回待处理请求快照；`decideApproval()` 对重复、过期或未知 request id 返回 `false`。
 
 `createTokenDanceIdLogin()` 和 `verifyTokenDanceIdCallback()` 是对 SDK TokenDanceID helper 的样例层封装，便于 AgentHub Desktop/Web shell 或调试面板复用同一套 PKCE S256 URL 生成与 callback `state` 校验。runner 只返回 `code`、`codeVerifier` 和 `redirectUri` 给 Hub；Hub Server 仍拥有 authorization code exchange、JWKS/issuer/audience/expiration 验证、`tokendance_sub` 映射和 Hub-local session 签发。不要在 runner 或 shell 中保存 TokenDanceID access/refresh token，也不要把 TokenDanceID token 当作 TokenDance Gateway 模型 API key。
+
+`createAgentHubTokenDanceE2EFixture()` 适合复制到 AgentHub 测试夹具：`defaultRun` 提供 `workingDirectory/taskId/edgeRunId/sessionId/agentInstanceId` 默认值，`run()` 和 `context()` 可按单次调用覆盖；`defaultLogin` 提供 TokenDanceID shell 默认参数；`agentStream` 和 `approvalRequests` 保存已捕获 payload，便于断言事件顺序和远程审批状态；`bootstrap()` 一次返回 `packageInfo()` 和 `doctor()`，用于 Hub/Edge 启动检查。生产代码应把这些收集器替换为真实落库和广播，不应把 `@tokendance/code-agenthub-example` 发布或作为 public npm contract。
 
 ## 10. Resume
 
@@ -681,7 +732,7 @@ const quality = await tools.execute(
 - `packages/sdk/tests/package-metadata.test.ts` 覆盖 public package metadata、`pack:check` 脚本、tarball ignore 规则和 SDK 导出的 AgentHub-readable package manifest。
 - `packages/sdk/tests/approval-bridge.test.ts` 覆盖 AgentHub 远程审批 bridge、pending 快照、allow/deny 决策回填。
 - `packages/sdk/tests/agenthub-events.test.ts` 覆盖 `TDCodeEvent` 到 AgentHub `run.agent.*` 的映射、sink 包装和 `agent.stream` payload fixture。
-- `packages/agenthub-example/tests/agenthub-runner.test.ts` 覆盖 AgentHub runner 示例、runner options、context preview history limit、远程审批桥接、`agent.stream` payload 序列、emitter 形态、runner package manifest 和 doctor 启动诊断。
+- `packages/agenthub-example/tests/agenthub-runner.test.ts` 覆盖 AgentHub runner 示例、e2e fixture、runner options、context preview history limit、远程审批桥接、`agent.stream` payload 序列、emitter 形态、runner package manifest 和 doctor 启动诊断。
 - `packages/core/tests/*` 覆盖 runtime、permission、provider adapter、file/shell/patch/git/subagent/worktree/tool metadata/context/resume/config/memory/task/todo。
 
 完整验证命令：

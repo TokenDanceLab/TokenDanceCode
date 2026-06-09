@@ -7,6 +7,7 @@ import {
   createTokenDanceIdLoginRequest,
   verifyTokenDanceIdCallback,
   type AgentHubAgentStreamEmitter,
+  type AgentHubAgentStreamPayload,
   type AgentHubApprovalDecision,
   type AgentHubApprovalRequest,
   type AgentHubRuntimeEvent,
@@ -74,6 +75,40 @@ export interface AgentHubTokenDanceRunner {
   packageInfo(): TokenDanceCodePackageInfo;
   doctor(options?: AgentHubTokenDanceDoctorOptions): Promise<DoctorInfo>;
   createTokenDanceIdLogin(options: AgentHubTokenDanceIdLoginOptions): TokenDanceIdLoginRequest;
+  verifyTokenDanceIdCallback(callbackUrl: string | URL | URLSearchParams, request: TokenDanceIdLoginRequest): TokenDanceIdCallbackResult;
+  decideApproval(requestId: string, decision: AgentHubApprovalDecision, reason?: string): boolean;
+  pendingApprovals(): AgentHubApprovalRequest[];
+}
+
+export type AgentHubTokenDanceFixtureRunDefaults = Omit<AgentHubTokenDanceRunOptions, "prompt" | "permissionMode"> &
+  Partial<Pick<AgentHubTokenDanceRunOptions, "permissionMode">>;
+
+export type AgentHubTokenDanceFixtureRunOptions = Pick<AgentHubTokenDanceRunOptions, "prompt"> &
+  Partial<Omit<AgentHubTokenDanceRunOptions, "prompt">>;
+
+export type AgentHubTokenDanceFixtureContextOptions = Pick<AgentHubTokenDanceContextOptions, "prompt"> &
+  Partial<Omit<AgentHubTokenDanceContextOptions, "prompt">>;
+
+export interface AgentHubTokenDanceE2EFixtureOptions extends Omit<AgentHubTokenDanceRunnerOptions, "emitAgentStream" | "onApprovalRequest"> {
+  defaultRun: AgentHubTokenDanceFixtureRunDefaults;
+  defaultLogin?: Partial<AgentHubTokenDanceIdLoginOptions>;
+  onAgentStream?: AgentHubAgentStreamEmitter;
+  onApprovalRequest?: (request: AgentHubApprovalRequest) => void | Promise<void>;
+}
+
+export interface AgentHubTokenDanceBootstrapResult {
+  packageInfo: TokenDanceCodePackageInfo;
+  doctor: DoctorInfo;
+}
+
+export interface AgentHubTokenDanceE2EFixture {
+  runner: AgentHubTokenDanceRunner;
+  agentStream: AgentHubAgentStreamPayload[];
+  approvalRequests: AgentHubApprovalRequest[];
+  bootstrap(options?: AgentHubTokenDanceDoctorOptions): Promise<AgentHubTokenDanceBootstrapResult>;
+  run(options: AgentHubTokenDanceFixtureRunOptions): Promise<TurnResult>;
+  context(options: AgentHubTokenDanceFixtureContextOptions): Promise<ThreadContext>;
+  createTokenDanceIdLogin(options?: Partial<AgentHubTokenDanceIdLoginOptions>): TokenDanceIdLoginRequest;
   verifyTokenDanceIdCallback(callbackUrl: string | URL | URLSearchParams, request: TokenDanceIdLoginRequest): TokenDanceIdCallbackResult;
   decideApproval(requestId: string, decision: AgentHubApprovalDecision, reason?: string): boolean;
   pendingApprovals(): AgentHubApprovalRequest[];
@@ -175,6 +210,76 @@ export function createAgentHubTokenDanceRunner(options: AgentHubTokenDanceRunner
 
     pendingApprovals() {
       return approvalBridge?.pending() ?? [];
+    }
+  };
+}
+
+export function createAgentHubTokenDanceE2EFixture(options: AgentHubTokenDanceE2EFixtureOptions): AgentHubTokenDanceE2EFixture {
+  const agentStream: AgentHubAgentStreamPayload[] = [];
+  const approvalRequests: AgentHubApprovalRequest[] = [];
+  const runner = createAgentHubTokenDanceRunner({
+    provider: options.provider,
+    storageRoot: options.storageRoot,
+    env: options.env,
+    defaultPermissionMode: options.defaultPermissionMode,
+    contextMaxRecentMessages: options.contextMaxRecentMessages,
+    streamIdFactory: options.streamIdFactory,
+    clock: options.clock,
+    async emitAgentStream(payload) {
+      agentStream.push(payload);
+      await options.onAgentStream?.(payload);
+    },
+    async onApprovalRequest(request) {
+      approvalRequests.push(request);
+      await options.onApprovalRequest?.(request);
+    }
+  });
+
+  return {
+    runner,
+    agentStream,
+    approvalRequests,
+
+    async bootstrap(doctorOptions) {
+      return {
+        packageInfo: runner.packageInfo(),
+        doctor: await runner.doctor(doctorOptions)
+      };
+    },
+
+    run(runOptions) {
+      return runner.run({
+        ...options.defaultRun,
+        ...runOptions
+      });
+    },
+
+    context(contextOptions) {
+      return runner.context({
+        workingDirectory: options.defaultRun.workingDirectory,
+        sessionId: options.defaultRun.sessionId,
+        permissionMode: options.defaultRun.permissionMode,
+        ...contextOptions
+      });
+    },
+
+    createTokenDanceIdLogin(loginOptions = {}) {
+      return runner.createTokenDanceIdLogin({
+        ...options.defaultLogin,
+        ...loginOptions
+      } as AgentHubTokenDanceIdLoginOptions);
+    },
+
+    verifyTokenDanceIdCallback(callbackUrl, request) {
+      return runner.verifyTokenDanceIdCallback(callbackUrl, request);
+    },
+
+    decideApproval(requestId, decision, reason) {
+      return runner.decideApproval(requestId, decision, reason);
+    },
+
+    pendingApprovals() {
+      return runner.pendingApprovals();
     }
   };
 }

@@ -88,6 +88,7 @@ describe("package metadata", () => {
           "doctor-readiness",
           "runner-bootstrap",
           "session-resume",
+          "session-lifecycle-metadata",
           "context-preview",
           "remote-approval",
           "tokendanceid-oidc-login",

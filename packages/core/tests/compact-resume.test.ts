@@ -96,6 +96,82 @@ describe("ResumeService", () => {
     });
   });
 
+  it("exports a selected session without mutating transcript state", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-resume-export-"));
+    const session = createSession(root, "session-export");
+    const store = new FileTranscriptStore({ rootDir: root });
+    await store.initialize(session);
+    await store.append({ type: "user.message", sessionId: session.id, turnId: "turn-1", message: { role: "user", content: "export me" } });
+    await store.append({
+      type: "turn.completed",
+      sessionId: session.id,
+      turnId: "turn-1",
+      finalResponse: "done"
+    });
+
+    const service = new ResumeService(root);
+    const exported = await service.exportSession(session.id);
+    const after = await service.listSessions();
+
+    expect(exported).toMatchObject({
+      sessionId: session.id,
+      eventCount: 2,
+      transcriptPath: join(root, ".tokendance", "sessions", session.id, "transcript.jsonl")
+    });
+    expect(exported.session).toMatchObject({ id: session.id, cwd: root });
+    expect(exported.transcriptJsonl).toContain("\"seq\":1");
+    expect(exported.transcriptJsonl).toContain("\"export me\"");
+    expect(exported.transcript).toHaveLength(2);
+    expect(after[0]).toMatchObject({ sessionId: session.id, eventCount: 2 });
+  });
+
+  it("returns read-only prune candidates without deleting sessions", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-resume-prune-"));
+    const oldSession = createSession(root, "old-session");
+    const middleSession = createSession(root, "middle-session");
+    const latestSession = createSession(root, "latest-session");
+    const store = new FileTranscriptStore({ rootDir: root });
+    await store.initialize(oldSession);
+    await store.append({ type: "user.message", sessionId: oldSession.id, turnId: "turn-1", message: { role: "user", content: "old" } });
+    await store.initialize(middleSession);
+    await store.append({ type: "user.message", sessionId: middleSession.id, turnId: "turn-1", message: { role: "user", content: "middle" } });
+    await store.initialize(latestSession);
+    await store.append({ type: "user.message", sessionId: latestSession.id, turnId: "turn-1", message: { role: "user", content: "latest" } });
+
+    const service = new ResumeService(root);
+    const candidates = await service.pruneCandidates({ keepLatest: 1 });
+    const sessions = await service.listSessions();
+
+    expect(candidates.map((candidate) => candidate.sessionId)).toEqual(["middle-session", "old-session"]);
+    expect(candidates).toEqual([
+      expect.objectContaining({ sessionId: "middle-session", reason: "exceeds_keep_latest" }),
+      expect.objectContaining({ sessionId: "old-session", reason: "exceeds_keep_latest" })
+    ]);
+    expect(sessions.map((session) => session.sessionId)).toEqual(["latest-session", "middle-session", "old-session"]);
+  });
+
+  it("diagnoses missing selected session resume failures", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-resume-diagnose-"));
+    const session = createSession(root, "session-present");
+    const store = new FileTranscriptStore({ rootDir: root });
+    await store.initialize(session);
+
+    const service = new ResumeService(root);
+    const diagnostic = await service.diagnose("session-missing");
+
+    expect(diagnostic).toMatchObject({
+      ok: false,
+      reason: "session_not_found",
+      requestedSessionId: "session-missing",
+      availableSessionIds: ["session-present"],
+      sessionsDir: join(root, ".tokendance", "sessions")
+    });
+    await expect(service.byId("session-missing")).rejects.toMatchObject({
+      name: "ResumeError",
+      diagnostic: expect.objectContaining({ reason: "session_not_found" })
+    });
+  });
+
   it("filters unrecoverable in-flight tool events", () => {
     const recoverable = recoverRecentTranscript(
       [

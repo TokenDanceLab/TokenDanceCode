@@ -22,6 +22,8 @@ import {
 import { TokenDanceCode, type DoctorInfo, type ThreadContext, type TokenDanceProviderConfig, type TurnResult } from "./index.js";
 
 const approvalEmitterStorage = new AsyncLocalStorage<(request: AgentHubApprovalRequest) => void | Promise<void>>();
+export const AGENTHUB_SESSION_RUN_IN_PROGRESS_CODE = "AGENTHUB_SESSION_RUN_IN_PROGRESS" as const;
+const activeRunsBySession = new Map<string, AgentHubActiveRun>();
 
 export interface AgentHubTokenDanceRunnerOptions {
   provider?: ModelProvider | TokenDanceProviderConfig;
@@ -44,6 +46,39 @@ export interface AgentHubTokenDanceRunOptions {
   sessionId: string;
   agentInstanceId: string;
   contextBudget?: ContextBudget;
+}
+
+export interface AgentHubActiveRun {
+  taskId: string;
+  edgeRunId: string;
+  agentInstanceId: string;
+  startedAt: string;
+}
+
+export class AgentHubSessionRunInProgressError extends Error {
+  readonly code = AGENTHUB_SESSION_RUN_IN_PROGRESS_CODE;
+  readonly reason = "same_session_run_in_progress";
+  readonly sessionId: string;
+  readonly taskId: string;
+  readonly edgeRunId: string;
+  readonly agentInstanceId: string;
+  readonly activeTaskId: string;
+  readonly activeEdgeRunId: string;
+  readonly activeAgentInstanceId: string;
+  readonly activeStartedAt: string;
+
+  constructor(request: AgentHubTokenDanceRunOptions, activeRun: AgentHubActiveRun) {
+    super(`AgentHub session ${request.sessionId} already has an active runner.run call.`);
+    this.name = "AgentHubSessionRunInProgressError";
+    this.sessionId = request.sessionId;
+    this.taskId = request.taskId;
+    this.edgeRunId = request.edgeRunId;
+    this.agentInstanceId = request.agentInstanceId;
+    this.activeTaskId = activeRun.taskId;
+    this.activeEdgeRunId = activeRun.edgeRunId;
+    this.activeAgentInstanceId = activeRun.agentInstanceId;
+    this.activeStartedAt = activeRun.startedAt;
+  }
 }
 
 export interface AgentHubTokenDanceContextOptions {
@@ -200,6 +235,21 @@ export function createAgentHubTokenDanceRunner(options: AgentHubTokenDanceRunner
         },
         options.emitAgentStream
       );
+      const sessionRunKey = toSessionRunKey(storageRoot, runOptions.sessionId);
+      const activeRun = activeRunsBySession.get(sessionRunKey);
+      if (activeRun) {
+        const error = new AgentHubSessionRunInProgressError(runOptions, activeRun);
+        await emitAgentStream(toSameSessionRunRejectedRuntimeEvent(runOptions, error));
+        throw error;
+      }
+
+      const currentRun: AgentHubActiveRun = {
+        taskId: runOptions.taskId,
+        edgeRunId: runOptions.edgeRunId,
+        agentInstanceId: runOptions.agentInstanceId,
+        startedAt: options.clock?.() ?? new Date().toISOString()
+      };
+      activeRunsBySession.set(sessionRunKey, currentRun);
       const client = new TokenDanceCode({
         provider: options.provider,
         storageRoot,
@@ -208,10 +258,16 @@ export function createAgentHubTokenDanceRunner(options: AgentHubTokenDanceRunner
         eventSink: createAgentHubEventSink(emitAgentStream),
         contextBudget: runOptions.contextBudget
       });
-      return approvalEmitterStorage.run((request) => emitAgentStream(toPermissionRequestedRuntimeEvent(request)), async () => {
-        const thread = await resumeOrStartThread(client, runOptions, storageRoot, options.defaultPermissionMode);
-        return await thread.run(runOptions.prompt);
-      });
+      try {
+        return await approvalEmitterStorage.run((request) => emitAgentStream(toPermissionRequestedRuntimeEvent(request)), async () => {
+          const thread = await resumeOrStartThread(client, runOptions, storageRoot, options.defaultPermissionMode);
+          return await thread.run(runOptions.prompt);
+        });
+      } finally {
+        if (activeRunsBySession.get(sessionRunKey) === currentRun) {
+          activeRunsBySession.delete(sessionRunKey);
+        }
+      }
     },
 
     async context(contextOptions) {
@@ -234,6 +290,39 @@ export function createAgentHubTokenDanceRunner(options: AgentHubTokenDanceRunner
 
     pendingApprovals() {
       return approvalBridge?.pending() ?? [];
+    }
+  };
+}
+
+function toSessionRunKey(storageRoot: string, sessionId: string): string {
+  return `${storageRoot}\0${sessionId}`;
+}
+
+function toSameSessionRunRejectedRuntimeEvent(
+  request: AgentHubTokenDanceRunOptions,
+  error: AgentHubSessionRunInProgressError
+): AgentHubRuntimeEvent {
+  const turnId = `agenthub-rejected:${request.edgeRunId}`;
+  return {
+    eventType: "run.agent.result",
+    sourceEventType: "turn.failed",
+    sessionId: request.sessionId,
+    turnId,
+    payload: {
+      sessionId: request.sessionId,
+      turnId,
+      success: false,
+      summary: error.message,
+      error: error.message,
+      errorCode: error.code,
+      reason: error.reason,
+      activeTaskId: error.activeTaskId,
+      activeEdgeRunId: error.activeEdgeRunId,
+      activeAgentInstanceId: error.activeAgentInstanceId,
+      activeStartedAt: error.activeStartedAt,
+      requestedTaskId: request.taskId,
+      requestedEdgeRunId: request.edgeRunId,
+      requestedAgentInstanceId: request.agentInstanceId
     }
   };
 }

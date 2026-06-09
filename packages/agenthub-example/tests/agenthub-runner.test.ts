@@ -104,6 +104,31 @@ class ConcurrentApprovalProvider implements ModelProvider {
   }
 }
 
+class SameSessionConcurrencyProvider implements ModelProvider {
+  readonly firstProviderEntered = deferred<void>();
+  readonly releaseFirstTurn = deferred<void>();
+  readonly prompts: string[] = [];
+
+  async createTurn(request: Parameters<ModelProvider["createTurn"]>[0]) {
+    const prompt = request.session.messages.at(-1)?.content ?? "";
+    this.prompts.push(prompt);
+
+    if (prompt.includes("first")) {
+      this.firstProviderEntered.resolve();
+      await this.releaseFirstTurn.promise;
+      return {
+        assistantMessage: "first same-session run completed",
+        toolCalls: []
+      };
+    }
+
+    return {
+      assistantMessage: "second same-session run should not enter provider",
+      toolCalls: []
+    };
+  }
+}
+
 class FailingAgentHubProvider implements ModelProvider {
   async createTurn() {
     throw new Error("provider unavailable");
@@ -592,6 +617,76 @@ describe("AgentHub TokenDanceCode runner example", () => {
     await expect(firstRun).resolves.toMatchObject({ threadId: "hub-session-first", finalResponse: "done:hub-session-first" });
     await expect(readFile(join(root, "second-approved.txt"), "utf8")).resolves.toBe("second approved");
     await expect(readFile(join(root, "first-approved.txt"), "utf8")).resolves.toBe("first approved");
+  });
+
+  it("rejects concurrent runner calls for the same AgentHub session before touching the transcript", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-agenthub-same-session-concurrency-"));
+    const frames: AgentHubAgentStreamPayload[] = [];
+    const provider = new SameSessionConcurrencyProvider();
+    const runner = createAgentHubTokenDanceRunner({
+      storageRoot: root,
+      provider,
+      emitAgentStream(payload) {
+        frames.push(payload);
+      },
+      clock: () => "2026-06-09T00:00:00.000Z"
+    });
+
+    const firstRun = runner.run({
+      prompt: "first same-session turn",
+      workingDirectory: root,
+      permissionMode: "default",
+      taskId: "task-same-session-first",
+      edgeRunId: "edge-same-session-first",
+      sessionId: "hub-session-same-session",
+      agentInstanceId: "agent-same-session"
+    });
+    await provider.firstProviderEntered.promise;
+
+    const secondRun = runner.run({
+      prompt: "second same-session turn",
+      workingDirectory: root,
+      permissionMode: "default",
+      taskId: "task-same-session-second",
+      edgeRunId: "edge-same-session-second",
+      sessionId: "hub-session-same-session",
+      agentInstanceId: "agent-same-session"
+    });
+
+    const rejection = await secondRun.catch((error: unknown) => error);
+    expect(rejection).toMatchObject({
+      name: "AgentHubSessionRunInProgressError",
+      code: "AGENTHUB_SESSION_RUN_IN_PROGRESS",
+      sessionId: "hub-session-same-session",
+      edgeRunId: "edge-same-session-second",
+      activeEdgeRunId: "edge-same-session-first"
+    });
+    expect(provider.prompts).toEqual(["first same-session turn"]);
+    expect(frames.filter((frame) => frame.edge_run_id === "edge-same-session-second")).toEqual([
+      expect.objectContaining({
+        event_seq: 1,
+        event_type: "run.agent.result",
+        source_event_type: "turn.failed",
+        task_id: "task-same-session-second",
+        edge_run_id: "edge-same-session-second",
+        session_id: "hub-session-same-session",
+        agent_instance_id: "agent-same-session",
+        payload: expect.objectContaining({
+          success: false,
+          errorCode: "AGENTHUB_SESSION_RUN_IN_PROGRESS",
+          reason: "same_session_run_in_progress",
+          activeEdgeRunId: "edge-same-session-first",
+          requestedEdgeRunId: "edge-same-session-second"
+        })
+      })
+    ]);
+
+    provider.releaseFirstTurn.resolve();
+    await expect(firstRun).resolves.toMatchObject({
+      threadId: "hub-session-same-session",
+      finalResponse: "first same-session run completed"
+    });
+    await expect(readTranscriptSeqs(root, "hub-session-same-session")).resolves.toEqual([1, 2, 3, 4]);
   });
 
   it("provides a copyable AgentHub e2e fixture for startup, login, events, and approvals", async () => {

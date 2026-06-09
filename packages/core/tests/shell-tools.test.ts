@@ -110,6 +110,38 @@ describe("run_powershell tool", () => {
       }
     });
   });
+
+  it("does not let a supplied approval decision override a safe-mode denial", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-shell-"));
+    const orchestrator = new ToolOrchestrator(createDefaultToolRegistry());
+
+    const result = await orchestrator.execute(
+      { id: "shell-safe-override", name: "run_powershell", input: { command: "Get-ChildItem -Name" } },
+      createSession(root, "safe"),
+      {
+        status: "allowed",
+        reason: "external bridge attempted to allow safe-mode shell"
+      }
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: "mode=safe tool=run_powershell risk=shell action=denied: safe mode only allows read-only tools; concurrency=exclusive; safety=PowerShell classifier hard-denies destructive commands before execution.",
+      safetyEvidence: {
+        source: "permission_engine",
+        status: "denied",
+        decision: expect.objectContaining({
+          riskMetadata: expect.objectContaining({
+            mode: "safe",
+            toolName: "run_powershell",
+            toolRisk: "shell",
+            action: "denied",
+            approvalScope: "none"
+          })
+        })
+      }
+    });
+  });
 });
 
 function createSession(cwd: string, permissionMode: SessionState["permissionMode"]): SessionState {

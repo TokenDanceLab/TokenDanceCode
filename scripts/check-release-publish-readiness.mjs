@@ -21,18 +21,20 @@ async function main() {
   const failures = [];
 
   assertPublishPreconditions();
-  await collect(failures, "registry next state", () => run("pnpm", ["registry:next:check"]));
-  await collect(failures, "contract gate", () => run("pnpm", ["contract:check"]));
-  await collect(failures, "verify gate", () => run("pnpm", ["verify"]));
-  await collect(failures, "build gate", () => run("pnpm", ["build"]));
-  await collect(failures, "pack dry-run gate", () => run("pnpm", ["pack:dry-run"]));
-  throwIfFailures(rootPackage.version, failures);
-
-  await collect(failures, "reviewed tarball smoke", () => packReviewedTarballs(rootPackage.version));
-  throwIfFailures(rootPackage.version, failures);
+  await runGate(rootPackage.version, failures, "registry next state", () => run("pnpm", ["registry:next:check"]));
+  await runGate(rootPackage.version, failures, "contract gate", () => run("pnpm", ["contract:check"]));
+  await runGate(rootPackage.version, failures, "verify gate", () => run("pnpm", ["verify"]));
+  await runGate(rootPackage.version, failures, "build gate", () => run("pnpm", ["build"]));
+  await runGate(rootPackage.version, failures, "pack dry-run gate", () => run("pnpm", ["pack:dry-run"]));
+  await runGate(rootPackage.version, failures, "reviewed tarball smoke", () => packReviewedTarballs(rootPackage.version));
 
   const currentBranch = currentGitBranch();
   console.log(`Release publish readiness passed for ${rootPackage.version} at ${releaseBranch} tip; current branch is ${currentBranch}.`);
+}
+
+async function runGate(version, failures, label, check) {
+  await collect(failures, label, check);
+  throwIfFailures(version, failures);
 }
 
 function throwIfFailures(version, failures) {

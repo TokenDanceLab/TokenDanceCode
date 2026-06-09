@@ -12,6 +12,8 @@ import {
   type MemoryScope,
   type PermissionMode,
   type SessionListItem,
+  type ConfigPatch,
+  type ConfigWriteScope,
   type Thread,
   type ThreadContext,
   type TokenDanceTools,
@@ -24,6 +26,7 @@ import { heading, styleFromEnv, type CliStyle } from "./format.js";
 
 const version = "0.2.0-ts.0";
 const permissionModes = new Set<PermissionMode>(["default", "safe", "auto", "yolo"]);
+const configProviders = new Set(["mock", "openai-responses", "openai-chat-completions", "anthropic-messages"]);
 
 export interface CliIO {
   stdin: Readable;
@@ -58,7 +61,7 @@ export async function runCli(argv: string[], io: CliIO = defaultIO()): Promise<n
   }
 
   if (command === "config") {
-    return configCommand(io);
+    return configCommand(rest, io);
   }
 
   if (command === "gateway") {
@@ -181,8 +184,8 @@ async function runInteractive(io: CliIO): Promise<void> {
       continue;
     }
 
-    if (line === "/config") {
-      await configCommand(io);
+    if (line === "/config" || line.startsWith("/config ")) {
+      await configCommand(line.split(/\s+/).slice(1), io);
       continue;
     }
 
@@ -351,10 +354,33 @@ async function memoryCommand(args: string[], io: CliIO): Promise<number> {
   return 1;
 }
 
-async function configCommand(io: CliIO): Promise<number> {
+async function configCommand(args: string[], io: CliIO): Promise<number> {
   const env = await readCliEnv(io);
   const style = styleFromEnv(env);
-  const info = await new TokenDanceCode({ env }).config({ projectRoot: io.cwd(), homeDir: homeDirFor(io) });
+  const client = new TokenDanceCode({ env });
+  if (args[0] === "set") {
+    const parsed = parseConfigSetArgs(args.slice(1));
+    if ("error" in parsed) {
+      await write(io.stderr, `${parsed.error}\n`);
+      await write(io.stderr, configSetUsage());
+      return 1;
+    }
+
+    const info = await client.setConfig(parsed.config, { projectRoot: io.cwd(), homeDir: homeDirFor(io), scope: parsed.scope });
+    const savedPath = parsed.scope === "global" ? info.globalConfigPath : info.projectConfigPath;
+    await write(io.stdout, `Saved ${parsed.scope} config in ${savedPath}\n`);
+    await writeField(io, "provider", info.config.provider);
+    await writeField(io, "model", info.config.model);
+    await writeField(io, "permissionMode", info.config.permissionMode);
+    return 0;
+  }
+
+  if (args.length > 0) {
+    await write(io.stderr, "Usage: tokendance config [set [--project|--global] provider <provider> model <model> permission-mode <mode>]\n");
+    return 1;
+  }
+
+  const info = await client.config({ projectRoot: io.cwd(), homeDir: homeDirFor(io) });
   await writeSection(io, "Configuration", style);
   await writeField(io, "provider", info.config.provider);
   await writeField(io, "model", info.config.model);
@@ -1085,6 +1111,7 @@ ${heading("Work:", style)}
 ${heading("Diagnostics:", style)}
   /doctor [json]
   /config
+  /config set [--project|--global] provider <provider> model <model> permission-mode <mode>
 
 ${heading("Gateway:", style)}
   tokendance gateway init [--model model] [--base-url url]
@@ -1291,6 +1318,67 @@ function parseGatewayInitArgs(args: string[]): { model: string; baseUrl: string 
     return undefined;
   }
   return { model, baseUrl };
+}
+
+function parseConfigSetArgs(args: string[]): { scope: ConfigWriteScope; config: ConfigPatch } | { error: string } {
+  let scope: ConfigWriteScope = "project";
+  const config: ConfigPatch = {};
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--global") {
+      scope = "global";
+      continue;
+    }
+    if (arg === "--project") {
+      scope = "project";
+      continue;
+    }
+
+    const field = normalizeConfigField(arg);
+    if (!field) {
+      return { error: `Refusing to write unsafe config field: ${arg}` };
+    }
+
+    const value = args[index + 1]?.trim();
+    if (!value) {
+      return { error: `Missing value for config field: ${arg}` };
+    }
+
+    if (field === "provider") {
+      if (!configProviders.has(value)) {
+        return { error: `Invalid provider: ${value}` };
+      }
+      config.provider = value as ConfigPatch["provider"];
+    } else if (field === "model") {
+      config.model = value;
+    } else if (field === "permissionMode") {
+      if (!permissionModes.has(value as PermissionMode)) {
+        return { error: `Invalid permission mode: ${value}` };
+      }
+      config.permissionMode = value as PermissionMode;
+    }
+    index += 1;
+  }
+
+  if (Object.keys(config).length === 0) {
+    return { error: "No config fields provided." };
+  }
+  return { scope, config };
+}
+
+function normalizeConfigField(value: string | undefined): keyof ConfigPatch | undefined {
+  if (value === "provider" || value === "model") {
+    return value;
+  }
+  if (value === "permissionMode" || value === "permission-mode" || value === "permission_mode") {
+    return "permissionMode";
+  }
+  return undefined;
+}
+
+function configSetUsage(): string {
+  return "Usage: tokendance config set [--project|--global] provider <provider> model <model> permission-mode <default|safe|auto|yolo>\n";
 }
 
 function parseTokenDanceIdLoginArgs(args: string[]):

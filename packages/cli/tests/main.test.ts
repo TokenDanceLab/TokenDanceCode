@@ -169,6 +169,37 @@ describe("TokenDanceCode CLI", () => {
     expect(topLevel.stdoutText()).toContain("model: claude-test");
   });
 
+  it("sets safe config fields in top-level and interactive commands", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-config-set-"));
+    const topLevel = createTestIO("", root);
+    const interactive = createTestIO("/config set provider anthropic-messages model claude-test permission-mode auto\n/config\n/exit\n", root);
+    const secret = createTestIO("", root);
+
+    const topLevelExitCode = await runCli(["config", "set", "provider", "openai-chat-completions", "model", "deepseek-v4-pro", "permission-mode", "safe"], topLevel);
+    const interactiveExitCode = await runCli([], interactive);
+    const secretExitCode = await runCli(["config", "set", "apiKey", "secret"], secret);
+    const written = await readFile(join(root, ".tokendance", "config.json"), "utf8");
+
+    expect(topLevelExitCode).toBe(0);
+    expect(topLevel.stdoutText()).toContain("Saved project config");
+    expect(topLevel.stdoutText()).toContain("provider: openai-chat-completions");
+    expect(topLevel.stdoutText()).toContain("model: deepseek-v4-pro");
+    expect(topLevel.stdoutText()).toContain("permissionMode: safe");
+    expect(interactiveExitCode).toBe(0);
+    expect(interactive.stdoutText()).toContain("Saved project config");
+    expect(interactive.stdoutText()).toContain("provider: anthropic-messages");
+    expect(interactive.stdoutText()).toContain("model: claude-test");
+    expect(interactive.stdoutText()).toContain("permissionMode: auto");
+    expect(JSON.parse(written)).toEqual({
+      provider: "anthropic-messages",
+      model: "claude-test",
+      permissionMode: "auto"
+    });
+    expect(secretExitCode).toBe(1);
+    expect(secret.stderrText()).toContain("Refusing to write unsafe config field: apiKey");
+    expect(written).not.toContain("secret");
+  });
+
   it("uses global env files for provider keys without reading project env by default", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-cli-env-"));
     const home = await mkdtemp(join(tmpdir(), "tdcode-cli-home-"));

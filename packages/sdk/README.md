@@ -21,6 +21,12 @@ const client = new TokenDanceCode();
 const thread = client.startThread({ workingDirectory: process.cwd() });
 const turn = await thread.run("hello");
 console.log(turn.finalResponse);
+
+const config = await client.setConfig(
+  { provider: "openai-chat-completions", model: "deepseek-v4-pro", permissionMode: "safe" },
+  { projectRoot: process.cwd() }
+);
+console.log(config.config.provider, config.projectConfigPath);
 ```
 
 ## Release Baseline

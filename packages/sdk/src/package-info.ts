@@ -10,7 +10,8 @@ export interface TokenDanceCodePackageInfo {
       "session-resume",
       "context-preview",
       "remote-approval",
-      "tokendanceid-oidc-login"
+      "tokendanceid-oidc-login",
+      "config-writer"
     ];
   };
   packages: {
@@ -53,7 +54,8 @@ export const TOKEN_DANCE_CODE_PACKAGE: TokenDanceCodePackageInfo = {
       "session-resume",
       "context-preview",
       "remote-approval",
-      "tokendanceid-oidc-login"
+      "tokendanceid-oidc-login",
+      "config-writer"
     ]
   },
   packages: {

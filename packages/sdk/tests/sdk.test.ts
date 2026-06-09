@@ -436,6 +436,30 @@ describe("TokenDanceCode SDK", () => {
     expect(info.sources.map((source) => source.kind)).toEqual(["defaults", "project"]);
   });
 
+  it("writes safe config through the SDK boundary for AgentHub callers", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-config-"));
+    const projectRoot = join(root, "repo");
+    const homeDir = join(root, "home");
+    const client = new TokenDanceCode();
+
+    const info = await client.setConfig(
+      {
+        provider: "openai-chat-completions",
+        model: "deepseek-v4-pro",
+        permissionMode: "safe"
+      },
+      { projectRoot, homeDir }
+    );
+
+    expect(info.config).toEqual({
+      provider: "openai-chat-completions",
+      model: "deepseek-v4-pro",
+      permissionMode: "safe"
+    });
+    expect(info.sources.map((source) => source.kind)).toEqual(["defaults", "project"]);
+    await expect(readFile(join(projectRoot, ".tokendance", "config.json"), "utf8")).resolves.toContain("deepseek-v4-pro");
+  });
+
   it("applies SDK env provider hints when reading effective config", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-config-"));
     const client = new TokenDanceCode({
@@ -507,7 +531,8 @@ describe("TokenDanceCode SDK", () => {
         "startup-doctor",
         "session-resume",
         "context-preview",
-        "remote-approval"
+        "remote-approval",
+        "config-writer"
       ])
     });
     expect(doctor.packageInfo).toMatchObject({

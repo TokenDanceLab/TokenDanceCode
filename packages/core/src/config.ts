@@ -1,5 +1,5 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import type { PermissionMode } from "./types.js";
 
 export type ConfigProvider = "mock" | "openai-responses" | "openai-chat-completions" | "anthropic-messages";
@@ -28,6 +28,15 @@ export interface ConfigReadOptions {
   projectRoot: string;
   homeDir?: string;
   env?: Record<string, string | undefined>;
+}
+
+export type ConfigWriteScope = "project" | "global";
+
+export type ConfigPatch = Partial<TokenDanceConfig>;
+
+export interface ConfigWriteOptions extends ConfigReadOptions {
+  scope?: ConfigWriteScope;
+  config: ConfigPatch;
 }
 
 export interface ProviderRuntimeEnv {
@@ -79,6 +88,18 @@ export async function readTokenDanceConfig(options: ConfigReadOptions): Promise<
     globalConfigPath,
     projectConfigPath
   };
+}
+
+export async function writeTokenDanceConfig(options: ConfigWriteOptions): Promise<ConfigInfo> {
+  const homeDir = options.homeDir ?? process.env.USERPROFILE ?? process.env.HOME ?? options.projectRoot;
+  const targetPath = options.scope === "global" ? join(homeDir, ".tokendance", "config.json") : join(options.projectRoot, ".tokendance", "config.json");
+  const current = (await readPartialConfig(targetPath)) ?? {};
+  const next = sanitizeConfig({ ...current, ...sanitizeConfig(options.config) });
+
+  await mkdir(dirname(targetPath), { recursive: true });
+  await writeFile(targetPath, `${JSON.stringify(next, null, 2)}\n`, "utf8");
+
+  return readTokenDanceConfig(options);
 }
 
 async function readPartialConfig(path: string): Promise<Partial<TokenDanceConfig> | undefined> {

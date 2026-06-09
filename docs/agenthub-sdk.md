@@ -554,12 +554,31 @@ console.log(info.config.model);
 console.log(info.config.permissionMode);
 ```
 
+AgentHub 需要从设置页或启动向导写入本地 project/global 配置时，使用同一个 SDK facade：
+
+```ts
+const saved = await client.setConfig(
+  {
+    provider: "openai-chat-completions",
+    model: "deepseek-v4-pro",
+    permissionMode: "safe"
+  },
+  {
+    projectRoot: "D:/Code/TokenDance/AgentHub",
+    homeDir: "D:/Users/operator",
+    scope: "project"
+  }
+);
+
+console.log(saved.projectConfigPath);
+```
+
 配置来源按 `defaults -> global -> project -> env` 合并。当前支持 JSON 文件：
 
 - global：`<homeDir>/.tokendance/config.json`
 - project：`<projectRoot>/.tokendance/config.json`
 
-首版只读取 `provider`、`model`、`permissionMode` 三个白名单字段，忽略 `apiKey`、`token` 等 secret 字段，避免把密钥带入 CLI 输出、文档或 AgentHub 调试事件。调用方通过 SDK `env` 显式注入环境时，`MODEL_ID` / `TOKENDANCE_MODEL` 可设置模型，`TOKENDANCE_PROVIDER` 可显式设置 provider；未显式设置 provider 但存在 `MODEL_ID` 和对应 API key 时，SDK config facade 会把 `ANTHROPIC_API_KEY` 推断为 `anthropic-messages`、把 `OPENAI_API_KEY` 推断为 `openai-responses`。存在 `TOKENDANCE_GATEWAY_API_KEY` 和模型时会推断为 `openai-chat-completions`。需要 OpenAI-compatible `/v1/chat/completions` 时显式设置 `TOKENDANCE_PROVIDER=openai-chat-completions`。密钥只参与 present/missing 和 provider 推断，不会进入 `config()` 输出。
+Config facade 只读写 `provider`、`model`、`permissionMode` 三个白名单字段，忽略并清理 `apiKey`、`token` 等 secret 字段，避免把密钥带入 CLI 输出、文档或 AgentHub 调试事件。调用方通过 SDK `env` 显式注入环境时，`MODEL_ID` / `TOKENDANCE_MODEL` 可设置模型，`TOKENDANCE_PROVIDER` 可显式设置 provider；未显式设置 provider 但存在 `MODEL_ID` 和对应 API key 时，SDK config facade 会把 `ANTHROPIC_API_KEY` 推断为 `anthropic-messages`、把 `OPENAI_API_KEY` 推断为 `openai-responses`。存在 `TOKENDANCE_GATEWAY_API_KEY` 和模型时会推断为 `openai-chat-completions`。需要 OpenAI-compatible `/v1/chat/completions` 时显式设置 `TOKENDANCE_PROVIDER=openai-chat-completions`。密钥只参与 present/missing 和 provider 推断，不会进入 `config()` / `setConfig()` 输出，也不应写入 JSON 配置。
 
 ## 12. Doctor
 

@@ -84,7 +84,8 @@ describe("package metadata", () => {
           "session-resume",
           "context-preview",
           "remote-approval",
-          "tokendanceid-oidc-login"
+          "tokendanceid-oidc-login",
+          "config-writer"
         ]
       },
       packages: {

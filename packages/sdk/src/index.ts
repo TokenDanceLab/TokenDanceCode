@@ -16,6 +16,7 @@ import {
   ToolOrchestrator,
   createDefaultToolRegistry,
   readTokenDanceConfig,
+  writeTokenDanceConfig,
   resolveProviderRuntimeEnv,
   readTranscript,
   type AgentRunRecord,
@@ -29,6 +30,8 @@ import {
   type TDCodeEventSink,
   type CompactResult,
   type ConfigInfo,
+  type ConfigPatch,
+  type ConfigWriteScope,
   type BuiltContext,
   type TaskRecord,
   type TaskStatus,
@@ -124,6 +127,10 @@ export interface ToolExecuteOptions {
 export interface ConfigOptions {
   projectRoot?: string;
   homeDir?: string;
+}
+
+export interface ConfigSetOptions extends ConfigOptions {
+  scope?: ConfigWriteScope;
 }
 
 export interface DoctorFacadeOptions {
@@ -228,6 +235,16 @@ export class TokenDanceCode {
       projectRoot: options.projectRoot ?? this.options.storageRoot ?? process.cwd(),
       homeDir: options.homeDir,
       env: this.options.env
+    });
+  }
+
+  setConfig(config: ConfigPatch, options: ConfigSetOptions = {}): Promise<ConfigInfo> {
+    return writeTokenDanceConfig({
+      projectRoot: options.projectRoot ?? this.options.storageRoot ?? process.cwd(),
+      homeDir: options.homeDir,
+      env: this.options.env,
+      scope: options.scope,
+      config
     });
   }
 
@@ -597,4 +614,16 @@ function cloneSession(session: SessionState): SessionState {
   };
 }
 
-export type { AgentRunRecord, CompactResult, ModelProvider, PermissionApprovalCallback, PermissionMode, SessionState, TDCodeEvent, TDCodeEventSink, TranscriptEnvelope };
+export type {
+  AgentRunRecord,
+  CompactResult,
+  ConfigPatch,
+  ConfigWriteScope,
+  ModelProvider,
+  PermissionApprovalCallback,
+  PermissionMode,
+  SessionState,
+  TDCodeEvent,
+  TDCodeEventSink,
+  TranscriptEnvelope
+};

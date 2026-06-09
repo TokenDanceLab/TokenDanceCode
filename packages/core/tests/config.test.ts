@@ -1,8 +1,8 @@
-import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { readTokenDanceConfig, resolveProviderRuntimeEnv, shouldRunProviderIntegration } from "../src/index.js";
+import { readTokenDanceConfig, resolveProviderRuntimeEnv, shouldRunProviderIntegration, writeTokenDanceConfig } from "../src/index.js";
 
 describe("TokenDance config", () => {
   it("merges defaults, global config, and project config without secrets", async () => {
@@ -153,5 +153,79 @@ describe("TokenDance config", () => {
         TOKENDANCE_ANTHROPIC_TEST_MODEL: "claude-test"
       })
     ).toEqual({ enabled: true, missing: [] });
+  });
+
+  it("writes only safe project config fields and strips stored secrets", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-config-write-"));
+    const projectRoot = join(root, "repo");
+    const homeDir = join(root, "home");
+    await mkdir(join(projectRoot, ".tokendance"), { recursive: true });
+    await writeFile(
+      join(projectRoot, ".tokendance", "config.json"),
+      JSON.stringify({
+        provider: "openai-responses",
+        model: "old-model",
+        permissionMode: "default",
+        apiKey: "must-be-removed"
+      }),
+      "utf8"
+    );
+
+    const info = await writeTokenDanceConfig({
+      projectRoot,
+      homeDir,
+      scope: "project",
+      config: {
+        provider: "anthropic-messages",
+        model: "claude-test",
+        permissionMode: "safe"
+      }
+    });
+
+    const written = await readFile(join(projectRoot, ".tokendance", "config.json"), "utf8");
+    expect(JSON.parse(written)).toEqual({
+      provider: "anthropic-messages",
+      model: "claude-test",
+      permissionMode: "safe"
+    });
+    expect(written).not.toContain("must-be-removed");
+    expect(info.config).toEqual({
+      provider: "anthropic-messages",
+      model: "claude-test",
+      permissionMode: "safe"
+    });
+    expect(info.sources.map((source) => source.kind)).toEqual(["defaults", "project"]);
+  });
+
+  it("can write global config without touching project config", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-config-write-"));
+    const projectRoot = join(root, "repo");
+    const homeDir = join(root, "home");
+    await mkdir(join(projectRoot, ".tokendance"), { recursive: true });
+    await writeFile(join(projectRoot, ".tokendance", "config.json"), JSON.stringify({ model: "project-model" }), "utf8");
+
+    const info = await writeTokenDanceConfig({
+      projectRoot,
+      homeDir,
+      scope: "global",
+      config: {
+        provider: "openai-chat-completions",
+        model: "global-model",
+        permissionMode: "auto"
+      }
+    });
+
+    expect(JSON.parse(await readFile(join(homeDir, ".tokendance", "config.json"), "utf8"))).toEqual({
+      provider: "openai-chat-completions",
+      model: "global-model",
+      permissionMode: "auto"
+    });
+    expect(JSON.parse(await readFile(join(projectRoot, ".tokendance", "config.json"), "utf8"))).toEqual({ model: "project-model" });
+    expect(info.config).toEqual({
+      provider: "openai-chat-completions",
+      model: "project-model",
+      permissionMode: "auto"
+    });
+    expect(info.sources.map((source) => source.kind)).toEqual(["defaults", "global", "project"]);
   });
 });

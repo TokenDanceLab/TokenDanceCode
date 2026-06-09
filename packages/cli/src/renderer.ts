@@ -88,24 +88,84 @@ function rendererStyle(io: EventRendererIO): CliStyle {
 }
 
 function formatPermission(decision: PermissionDecision, style: CliStyle): string {
-  const risk = riskFromReason(decision.reason);
-  const metadata = risk ? ` [risk=${formatRisk(risk, style)}]` : "";
-  return `permission ${permissionStatus(decision.status, style)}${metadata} ${decision.reason}`;
+  const reason = parsePermissionReason(decision.reason);
+  const metadata = formatPermissionMetadata(reason, style);
+  return `permission ${permissionStatus(decision.status, style)}${metadata} ${reason.detail}`;
 }
 
 function formatToolFailure(result: RendererToolResult, style: CliStyle): string {
-  const risk = riskFromReason(result.safetyEvidence?.reason ?? result.error ?? "");
-  const metadata = formatToolFailureMetadata(risk, result.safetyEvidence?.source, style);
-  return `tool ${result.toolName} ${error("failed", style)}${metadata}: ${result.error ?? "unknown error"}`;
+  const failureText = result.error ?? "unknown error";
+  const reason = parsePermissionReason(failureText);
+  const evidenceReason = result.safetyEvidence?.reason ? parsePermissionReason(result.safetyEvidence.reason) : undefined;
+  const metadata = formatToolFailureMetadata(reason, evidenceReason, result.safetyEvidence?.source, style);
+  return `tool ${result.toolName} ${error("failed", style)}${metadata}: ${reason.detail}`;
 }
 
-function formatToolFailureMetadata(risk: RendererToolRisk | undefined, source: string | undefined, style: CliStyle): string {
+interface ParsedPermissionReason {
+  detail: string;
+  mode?: string;
+  tool?: string;
+  risk?: RendererToolRisk;
+  action?: string;
+}
+
+function parsePermissionReason(reason: string): ParsedPermissionReason {
+  const match = /^mode=(\S+) tool=(\S+) risk=([a-z_]+) action=([a-z_]+): (.*)$/.exec(reason);
+  if (!match) {
+    return { detail: reason, risk: riskFromReason(reason) };
+  }
+  const mode = match[1] ?? "";
+  const tool = match[2] ?? "";
+  const risk = match[3] as RendererToolRisk;
+  const action = match[4] ?? "";
+  const detail = match[5] ?? "";
+  return {
+    detail,
+    mode,
+    tool,
+    risk: toolRisks.has(risk) ? risk : undefined,
+    action
+  };
+}
+
+function formatPermissionMetadata(reason: ParsedPermissionReason, style: CliStyle): string {
   const fields: string[] = [];
+  if (reason.risk) {
+    fields.push(`risk=${formatRisk(reason.risk, style)}`);
+  }
+  if (reason.action) {
+    fields.push(`action=${dim(reason.action, style)}`);
+  }
+  if (reason.mode) {
+    fields.push(`mode=${dim(reason.mode, style)}`);
+  }
+  if (reason.tool) {
+    fields.push(`tool=${dim(reason.tool, style)}`);
+  }
+  return fields.length === 0 ? "" : ` [${fields.join(" ")}]`;
+}
+
+function formatToolFailureMetadata(
+  reason: ParsedPermissionReason,
+  evidenceReason: ParsedPermissionReason | undefined,
+  source: string | undefined,
+  style: CliStyle
+): string {
+  const fields: string[] = [];
+  const risk = reason.risk ?? evidenceReason?.risk;
+  const action = reason.action ?? evidenceReason?.action;
+  const mode = reason.mode ?? evidenceReason?.mode;
   if (risk) {
     fields.push(`risk=${formatRisk(risk, style)}`);
   }
   if (source) {
     fields.push(`source=${dim(source, style)}`);
+  }
+  if (action) {
+    fields.push(`action=${dim(action, style)}`);
+  }
+  if (mode) {
+    fields.push(`mode=${dim(mode, style)}`);
   }
   return fields.length === 0 ? "" : ` [${fields.join(" ")}]`;
 }

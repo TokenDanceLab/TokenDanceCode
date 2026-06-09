@@ -1,4 +1,5 @@
 import type { ModelProvider, PermissionMode } from "@tokendance/code-core";
+import { AsyncLocalStorage } from "node:async_hooks";
 import {
   createAgentHubAgentStreamEmitter,
   createAgentHubEventSink,
@@ -19,6 +20,8 @@ import {
   type TokenDanceIdLoginRequest
 } from "./tokendance-id.js";
 import { TokenDanceCode, type DoctorInfo, type ThreadContext, type TokenDanceProviderConfig, type TurnResult } from "./index.js";
+
+const approvalEmitterStorage = new AsyncLocalStorage<(request: AgentHubApprovalRequest) => void | Promise<void>>();
 
 export interface AgentHubTokenDanceRunnerOptions {
   provider?: ModelProvider | TokenDanceProviderConfig;
@@ -129,12 +132,11 @@ export interface AgentHubTokenDanceConsumerFixture {
 }
 
 export function createAgentHubTokenDanceRunner(options: AgentHubTokenDanceRunnerOptions): AgentHubTokenDanceRunner {
-  let activeApprovalRequestEmitter: ((request: AgentHubApprovalRequest) => void | Promise<void>) | undefined;
   const approvalBridge = options.onApprovalRequest
     ? createAgentHubApprovalBridge({
         clock: options.clock,
         async onRequest(request) {
-          await activeApprovalRequestEmitter?.(request);
+          await approvalEmitterStorage.getStore()?.(request);
           await options.onApprovalRequest?.(request);
         }
       })
@@ -203,13 +205,10 @@ export function createAgentHubTokenDanceRunner(options: AgentHubTokenDanceRunner
         approvalCallback: approvalBridge?.approvalCallback,
         eventSink: createAgentHubEventSink(emitAgentStream)
       });
-      activeApprovalRequestEmitter = (request) => emitAgentStream(toPermissionRequestedRuntimeEvent(request));
-      try {
+      return approvalEmitterStorage.run((request) => emitAgentStream(toPermissionRequestedRuntimeEvent(request)), async () => {
         const thread = await resumeOrStartThread(client, runOptions, storageRoot, options.defaultPermissionMode);
         return await thread.run(runOptions.prompt);
-      } finally {
-        activeApprovalRequestEmitter = undefined;
-      }
+      });
     },
 
     async context(contextOptions) {

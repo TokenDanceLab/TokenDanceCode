@@ -1,6 +1,6 @@
 # Release Readiness
 
-Last updated: 2026-06-09 17:02 HKT.
+Last updated: 2026-06-09 18:55 HKT.
 
 TokenDanceCode has a local npm first-candidate commit, but the public registry does not show the packages yet. Treat this repository as ready for release review, not as published.
 
@@ -14,7 +14,7 @@ TokenDanceCode has a local npm first-candidate commit, but the public registry d
 
 ## Current Registry State
 
-These checks still return `E404` against npmjs as of 2026-06-09 17:02 HKT:
+These checks still return `E404` against npmjs as of 2026-06-09 18:52 HKT:
 
 ```powershell
 npm --userconfig "<npmUserConfig>" view @tokendance/code-core version dist-tags --json
@@ -29,6 +29,7 @@ Registry visibility must be checked again before claiming a publish succeeded.
 Run from the workspace root:
 
 ```powershell
+pnpm registry:next:check
 pnpm contract:check
 pnpm verify
 pnpm pack:smoke
@@ -36,32 +37,48 @@ pnpm release:next:check
 git diff --check
 ```
 
+Optional real Gateway smoke, only in a controlled local shell or ignored `.config/tokendance/gateway-smoke.env`:
+
+```powershell
+pnpm smoke:gateway
+```
+
+`pnpm smoke:gateway` requires `TOKENDANCE_RUN_REAL_PROVIDER_SMOKE=1`, `TOKENDANCE_GATEWAY_API_KEY`, `TOKENDANCE_GATEWAY_BASE_URL`, and one or more model names through `TOKENDANCE_REAL_SMOKE_MODELS` or the script defaults. It does not read project `.env`, does not run `npm publish`, and redacts configured provider key and base URL values from subprocess output.
+
 Latest known local result:
 
 - `pnpm release:next:check` passed.
-- `pnpm verify` passed inside that gate with TypeScript build and Vitest `26` files / `242` tests.
-- `pnpm pack:smoke` installed real packed core, SDK, and CLI tarballs into a temporary project.
+- `pnpm verify` passed inside that gate with TypeScript build and Vitest `26` files / `255` tests.
+- `pnpm pack:smoke` installed real packed core, SDK, and CLI tarballs into a temporary npm project, then imported the packed SDK AgentHub consumer fixture and ran a mock AgentHub turn.
+- `pnpm registry:next:check` returned `E404` for core, SDK, and CLI on npmjs; first publish can proceed after release-owner approval.
 - The tarball smoke privacy scan follows pnpm scoped-package symlinks and fails if it scans zero readable package files.
+- `pnpm smoke:gateway` passed locally against TokenDance Gateway for `deepseek-v4-pro`, `glm-5.1`, and `gpt-5.5` using an ignored local `.config/` env file; no provider key was written to tracked files.
 
 ## Publish Boundary
 
-The verification scripts must not run `npm publish`. Publishing is a separate release-owner action after package content review. When project docs say `npm publish --tag next`, they refer to this manual step, run with `--access public` for scoped packages.
+The verification scripts must not run `npm publish`. Publishing is a separate release-owner action after package content review. Do not run `npm publish` from package source directories; source manifests intentionally keep `workspace:*` dependencies for local development. Publish only the tarballs produced by `pnpm pack`, because those tarballs rewrite workspace dependencies to concrete versions.
 
 Before publishing:
 
 1. Confirm npm account and org access.
 2. Confirm registry is `https://registry.npmjs.org/`.
-3. Confirm each package name is still unavailable or intentionally being overwritten by a new version.
+3. Run `pnpm registry:next:check`; `E404` is allowed for first publish, but the current candidate version must not already exist.
 4. Run `pnpm release:next:check` on a clean worktree.
 5. Review packed contents from `pnpm pack:dry-run`.
+6. Create publish tarballs with `pnpm pack --pack-destination` and review each tarball path before publishing.
 
-Publish command shape:
+Tarball publish command shape:
 
 ```powershell
-npm --userconfig "<npmUserConfig>" publish --access public --tag next
+$tarballDir = ".tmp\npm-next-tarballs"
+New-Item -ItemType Directory -Force $tarballDir | Out-Null
+pnpm --filter @tokendance/code-core pack --pack-destination $tarballDir
+pnpm --filter @tokendance/code-sdk pack --pack-destination $tarballDir
+pnpm --filter @tokendance/code-cli pack --pack-destination $tarballDir
+npm publish "<tarballPath>" --access public --tag next --userconfig "<npmUserConfig>"
 ```
 
-Run it from each package directory only after checking the package manifest and tarball contents for that package.
+Run `npm publish "<tarballPath>" --access public --tag next` once per reviewed tarball. Keep `<npmUserConfig>` outside this repository, do not print token-bearing config, and delete local tarballs after the publish audit is complete.
 
 ## Post-Publish Smoke
 

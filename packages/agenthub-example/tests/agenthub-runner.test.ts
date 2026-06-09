@@ -65,6 +65,45 @@ class ConsumerFixtureProvider implements ModelProvider {
   }
 }
 
+class ConcurrentApprovalProvider implements ModelProvider {
+  readonly firstProviderEntered = deferred<void>();
+  readonly releaseFirstTool = deferred<void>();
+
+  async createTurn(request: Parameters<ModelProvider["createTurn"]>[0]) {
+    if (request.toolResults.length > 0) {
+      return {
+        assistantMessage: `done:${request.session.id}`,
+        toolCalls: []
+      };
+    }
+
+    const prompt = request.session.messages.at(-1)?.content ?? "";
+    if (prompt.includes("first")) {
+      this.firstProviderEntered.resolve();
+      await this.releaseFirstTool.promise;
+      return {
+        toolCalls: [
+          {
+            id: "write-first",
+            name: "write_file",
+            input: { path: "first-approved.txt", content: "first approved" }
+          }
+        ]
+      };
+    }
+
+    return {
+      toolCalls: [
+        {
+          id: "write-second",
+          name: "write_file",
+          input: { path: "second-approved.txt", content: "second approved" }
+        }
+      ]
+    };
+  }
+}
+
 describe("AgentHub TokenDanceCode runner example", () => {
   it("exposes TokenDanceID OIDC login helpers for AgentHub shells", () => {
     const runner = createAgentHubTokenDanceRunner({
@@ -380,6 +419,82 @@ describe("AgentHub TokenDanceCode runner example", () => {
     expect(runner.decideApproval("runner-write-remote", "deny")).toBe(false);
   });
 
+  it("keeps concurrent approval request frames scoped to the originating AgentHub run", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-agenthub-concurrent-approval-"));
+    const frames: AgentHubAgentStreamPayload[] = [];
+    const requests: unknown[] = [];
+    const provider = new ConcurrentApprovalProvider();
+    const firstApprovalSeen = deferred<void>();
+    const secondApprovalSeen = deferred<void>();
+    const runner = createAgentHubTokenDanceRunner({
+      storageRoot: root,
+      provider,
+      onApprovalRequest(request) {
+        requests.push(request);
+        if (request.requestId === "write-first") {
+          firstApprovalSeen.resolve();
+        }
+        if (request.requestId === "write-second") {
+          secondApprovalSeen.resolve();
+        }
+      },
+      emitAgentStream(payload) {
+        frames.push(payload);
+      },
+      clock: () => "2026-06-09T00:00:00.000Z"
+    });
+
+    const firstRun = runner.run({
+      prompt: "first concurrent approval",
+      workingDirectory: root,
+      permissionMode: "default",
+      taskId: "task-first",
+      edgeRunId: "edge-first",
+      sessionId: "hub-session-first",
+      agentInstanceId: "agent-first"
+    });
+    await provider.firstProviderEntered.promise;
+
+    const secondRun = runner.run({
+      prompt: "second concurrent approval",
+      workingDirectory: root,
+      permissionMode: "default",
+      taskId: "task-second",
+      edgeRunId: "edge-second",
+      sessionId: "hub-session-second",
+      agentInstanceId: "agent-second"
+    });
+    await secondApprovalSeen.promise;
+
+    provider.releaseFirstTool.resolve();
+    await firstApprovalSeen.promise;
+
+    expect(requests).toEqual([
+      expect.objectContaining({ requestId: "write-second", sessionId: "hub-session-second" }),
+      expect.objectContaining({ requestId: "write-first", sessionId: "hub-session-first" })
+    ]);
+    expect(frames.filter((frame) => frame.event_type === "run.agent.permission_requested")).toEqual([
+      expect.objectContaining({
+        edge_run_id: "edge-second",
+        session_id: "hub-session-second",
+        payload: expect.objectContaining({ requestId: "write-second", sessionId: "hub-session-second" })
+      }),
+      expect.objectContaining({
+        edge_run_id: "edge-first",
+        session_id: "hub-session-first",
+        payload: expect.objectContaining({ requestId: "write-first", sessionId: "hub-session-first" })
+      })
+    ]);
+
+    expect(runner.decideApproval("write-second", "allow", "second approved by AgentHub")).toBe(true);
+    expect(runner.decideApproval("write-first", "allow", "first approved by AgentHub")).toBe(true);
+
+    await expect(secondRun).resolves.toMatchObject({ threadId: "hub-session-second", finalResponse: "done:hub-session-second" });
+    await expect(firstRun).resolves.toMatchObject({ threadId: "hub-session-first", finalResponse: "done:hub-session-first" });
+    await expect(readFile(join(root, "second-approved.txt"), "utf8")).resolves.toBe("second approved");
+    await expect(readFile(join(root, "first-approved.txt"), "utf8")).resolves.toBe("first approved");
+  });
+
   it("provides a copyable AgentHub e2e fixture for startup, login, events, and approvals", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-agenthub-fixture-"));
     let releaseRequest!: () => void;
@@ -639,4 +754,14 @@ async function readTranscriptSeqs(root: string, sessionId: string): Promise<numb
     .split(/\r?\n/)
     .filter((line) => line.trim().length > 0)
     .map((line) => (JSON.parse(line) as { seq: number }).seq);
+}
+
+function deferred<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((innerResolve, innerReject) => {
+    resolve = innerResolve;
+    reject = innerReject;
+  });
+  return { promise, resolve, reject };
 }

@@ -18,6 +18,8 @@ describe("package metadata", () => {
       "pnpm --filter @tokendance/code-cli pack --dry-run"
     ].join(" && "));
     expect(rootPackage.scripts?.["pack:smoke"]).toBe("node scripts/smoke-tarball-install.mjs");
+    expect(rootPackage.scripts?.["smoke:gateway"]).toBe("node scripts/smoke-real-gateway.mjs");
+    expect(rootPackage.scripts?.["registry:next:check"]).toBe("node scripts/check-registry-next.mjs");
     expect(rootPackage.scripts?.["wave4:status"]).toBe("node scripts/verify-wave4-worktrees.mjs");
     expect(rootPackage.scripts?.["wave5:status"]).toBe("node scripts/verify-wave5-worktrees.mjs");
     expect(rootPackage.scripts?.["pack:check"]).toBe([
@@ -38,15 +40,24 @@ describe("package metadata", () => {
     expect(smokeScript).toContain("@tokendance/code-core");
     expect(smokeScript).toContain("@tokendance/code-sdk");
     expect(smokeScript).toContain("@tokendance/code-cli");
+    expect(smokeScript).toContain("createAgentHubTokenDanceConsumerFixture");
+    expect(smokeScript).toContain("agenthub tarball smoke");
     expect(smokeScript).toContain("doctor --json");
     expect(smokeScript).toContain("quality --json");
     expect(smokeScript).toContain("agentHub.ready");
     expect(smokeScript).toContain("provider-ready");
     expect(smokeScript).toContain("assertNoForbiddenPackageContent");
+    expect(smokeScript).toContain("assertPackedManifest");
+    expect(smokeScript).toContain("workspace:");
+    expect(smokeScript).toContain("bin.tokendance");
+    expect(smokeScript).toContain("assertNpmInstallSmoke");
+    expect(smokeScript).toContain("npm");
+    expect(smokeScript).toContain("package-lock-only=false");
     expect(smokeScript).toContain("Packed package privacy scan failed");
     expect(smokeScript).toContain("npm_[A-Za-z0-9]{20,}");
     expect(smokeScript).toContain("isSymbolicLink");
     expect(smokeScript).toContain("no scannable package files found");
+    expect(smokeScript).not.toContain("overrides");
 
     const contractScript = await readText("scripts/check-release-contract.mjs");
     expect(contractScript).toContain("assertPackageManifest");
@@ -55,6 +66,27 @@ describe("package metadata", () => {
     expect(contractScript).toContain("createAgentHubAgentStreamSink");
     expect(contractScript).toContain("createAgentHubTokenDanceConsumerFixture");
     expect(contractScript).toContain("pnpm pack:smoke");
+
+    const registryScript = await readText("scripts/check-registry-next.mjs");
+    expect(registryScript).toContain("npm");
+    expect(registryScript).toContain("view");
+    expect(registryScript).toContain("E404");
+    expect(registryScript).toContain("currentVersion");
+    expect(registryScript).toContain("already exists");
+    expect(registryScript).not.toContain("npm publish");
+
+    const gatewaySmokeScript = await readText("scripts/smoke-real-gateway.mjs");
+    expect(gatewaySmokeScript).toContain("TOKENDANCE_RUN_REAL_PROVIDER_SMOKE");
+    expect(gatewaySmokeScript).toContain("TOKENDANCE_GATEWAY_API_KEY");
+    expect(gatewaySmokeScript).toContain("TOKENDANCE_GATEWAY_BASE_URL");
+    expect(gatewaySmokeScript).toContain("TOKENDANCE_REAL_SMOKE_MODELS");
+    expect(gatewaySmokeScript).toContain("doctor");
+    expect(gatewaySmokeScript).toContain("config");
+    expect(gatewaySmokeScript).toContain("validate");
+    expect(gatewaySmokeScript).toContain("run");
+    expect(gatewaySmokeScript).toContain("redact");
+    expect(gatewaySmokeScript).toMatch(/env\.TOKENDANCE_GATEWAY_API_KEY,\s+env\.TOKENDANCE_GATEWAY_BASE_URL,\s+env\.OPENAI_API_KEY/s);
+    expect(gatewaySmokeScript).not.toContain("npm publish");
 
     const wave4Script = await readText("scripts/verify-wave4-worktrees.mjs");
     expect(wave4Script).toContain("codex/wave4-cli-command-architecture");
@@ -216,7 +248,6 @@ describe("package metadata", () => {
       expect(text).toContain("pnpm contract:check");
       expect(text).toContain("pnpm release:next:check");
       expect(text).toContain("pnpm pack:smoke");
-      expect(text).toContain("npm publish --tag next");
     }
 
     for (const text of [readme, roadmap, acceptance]) {
@@ -235,6 +266,10 @@ describe("package metadata", () => {
     expect(readme).not.toContain("E404");
     expect(releaseReadiness).toContain("Publish Boundary");
     expect(releaseReadiness).toContain("Post-Publish Smoke");
+    expect(releaseReadiness).toContain("pnpm registry:next:check");
+    expect(releaseReadiness).toContain("npm publish \"<tarballPath>\" --access public --tag next");
+    expect(releaseReadiness).toContain("Do not run `npm publish` from package source directories");
+    expect(releaseReadiness).not.toContain("Run it from each package directory");
 
     for (const text of packageReadmes) {
       expect(text).toContain("pnpm contract:check");

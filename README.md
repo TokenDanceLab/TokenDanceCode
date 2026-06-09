@@ -1,172 +1,171 @@
 # TokenDanceCode
 
-> Rust rewrite branch for a local command-line Coding Agent. Windows / PowerShell first, AgentHub SDK surface preserved.
+> 本地 Coding Agent Runtime — TypeScript + Rust 双引擎并行
+> Local Coding Agent Runtime — TypeScript & Rust dual-engine
 
-[English](README.en.md) · [AgentHub SDK](docs/agenthub-sdk.md) · [发布准备](docs/release-readiness.md) · [TS 路线图](docs/TS重构路线图.md)
+![TokenDanceCode CLI](docs/images/tokendance-cli-hero.svg)
 
-![TokenDanceCode CLI overview](docs/images/tokendance-cli-hero.svg)
+[English](README.en.md) · [AgentHub SDK](docs/agenthub-sdk.md) · [发布准备](docs/release-readiness.md)
 
-上图展示当前 TypeScript/npm 版本的 CLI 启动界面和常用运行方式。
+---
 
-## Rust Rewrite
+## 什么是 TokenDanceCode
 
-TokenDanceCode is being rewritten in Rust for performance and reliability. The Rust branch (`codex/rust-rewrite`) coexists with the TypeScript implementation.
+TokenDanceCode 是一个**本地命令行 Coding Agent**。在代码仓库里运行 `tokendance`，它能：
 
-### Quick Start (Rust)
+- 📖 **阅读代码** — 搜索文件、正则匹配、Glob 模式
+- ✏️ **修改文件** — 精确字符串替换、整文件写入
+- ⚡ **执行命令** — PowerShell 工具，受权限系统保护
+- 🔄 **管理会话** — JSONL transcript、session resume、上下文压缩
+- 🤖 **扩展能力** — MCP 工具协议、Subagent 编排
 
-```powershell
-git clone https://github.com/TokenDanceLab/TokenDanceCode.git
-cd TokenDanceCode
-git checkout codex/rust-rewrite
-cargo run -p tokendance-cli -- --version
-cargo run -p tokendance-cli -- doctor --json
-```
+面向**个人仓库**、**Windows / PowerShell 优先**，同时为 AgentHub 提供**可嵌入 SDK**。
 
-### Current Status
+## 双引擎架构
 
-- **204 tests** passing across 3 crates (CLI: 12, Core: 185, SDK: 7)
-- **7 built-in tools**: echo, read_file, write_file, edit_file, glob, grep, run_powershell
-- **3 provider transports**: OpenAI Chat Completions, OpenAI Responses, Anthropic Messages
-- **Interactive REPL** with streaming output
-- **MCP client** for tool extensibility (stdio JSON-RPC, tool discovery, namespaced tools)
-- **Subagent spawning** for multi-agent orchestration (isolated sessions, filtered tools, recursion prevention)
-- **Context compaction** for long-running sessions (threshold-based, heuristic summary)
-- **Memory system** with markdown files and frontmatter (CRUD operations, scoped types)
-- **Hooks system** for lifecycle customization (PreToolUse, PostToolUse, TurnCompleted, TurnFailed)
-- **Streaming architecture** with SSE parser and mpsc channels
-- **Instruction discovery** for AGENTS.md/CLAUDE.md with scope hierarchy
+TokenDanceCode 同时维护 TypeScript 和 Rust 两套实现，功能对齐，API 兼容：
 
-See [docs/rust-rewrite-architecture.md](docs/rust-rewrite-architecture.md) for ownership, migration order, and release gates.
-
-### Release Readiness
-
-```powershell
-# Full release readiness check
-node scripts/smoke-rust-release.mjs
-
-# Provider smoke (opt-in, requires API keys)
-TOKENDANCE_SMOKE_PROVIDERS=1 node scripts/smoke-providers.mjs
-```
-
-See [docs/rust-release-checklist.md](docs/rust-release-checklist.md) for the full release checklist.
-
-## 项目定位
-
-TokenDanceCode 是一个本地 CLI Agent。你可以在代码仓库里运行 `tokendance`，让它阅读代码、修改文件、执行受权限系统保护的 PowerShell 工具、检查 Git diff、管理任务，并把每轮运行写入 JSONL transcript。
-
-当前代码库已经重构为 TypeScript monorepo。它参考 Claude Code、Codex CLI 和 OpenCode 的可取设计，但只保留适合自用框架的部分：薄 CLI、SDK、结构化事件、transcript、provider adapter、权限管线和可测试的发布门禁。
-
-TokenDanceCode 聚焦本地 coding-agent runtime 和 AgentHub 可调用的 SDK surface。团队协作、多 Agent 编排和产品侧工作流由 AgentHub 承担。
-
-## 当前状态
-
-| 模块 | 状态 | 说明 |
+| | TypeScript | Rust |
 |---|---|---|
-| CLI | 可用 | `tokendance`、`run`、`doctor`、`config`、`resume`、`quality`、`transcript` |
-| Runtime | 可用 | session、event stream、tool orchestration、permission engine、JSONL transcript |
-| Provider | 可用 | OpenAI Responses API、OpenAI Chat Completions API 与 Anthropic-compatible Messages API |
-| TokenDance Gateway | 可用 | 通过 OpenAI-compatible Chat Completions adapter 接入，API key 平面与 TokenDanceID 登录平面分离 |
-| AgentHub SDK | 可用 | thread run/context、event sink、approval bridge、doctor/config、task/todo/subagent/worktree facade |
-| Subagent / worktree | 早期可用 | 适合隔离修改型任务，还不是常驻团队系统 |
-| npm 发布 | next 准备中 | 发布门禁已文档化；真实发布前重新运行 `pnpm release:next:check`，registry 状态见 [发布准备](docs/release-readiness.md) |
+| **位置** | `packages/` | `crates/` |
+| **测试** | Vitest (pnpm verify) | cargo test (204 tests) |
+| **运行时** | Node.js | Native binary |
+| **npm 包** | `@tokendance/code-*` | 通过 wrapper shim 转发 |
+| **状态** | ✅ 生产可用 | ✅ 核心功能对齐 |
 
-当前 public npm 包计划为：
-
-- `@tokendance/code-core`
-- `@tokendance/code-sdk`
-- `@tokendance/code-cli`
-
-`@tokendance/code-agenthub-example` 仍是私有 workspace 示例包，不进入 npm 发布队列。
+两套实现**共存于同一仓库**，共享 `docs/`、`scripts/` 和 CI 配置。npm wrapper 优先调用 Rust binary，自动 fallback 到 TypeScript。
 
 ## 快速开始
 
-npm 发布后可直接安装 CLI：
+### Rust（推荐）
 
-```powershell
-npm install -g @tokendance/code-cli@next
-tokendance --version
-tokendance doctor
-tokendance run "hello"
-```
-
-SDK 消费方可安装：
-
-```powershell
-npm install @tokendance/code-sdk@next @tokendance/code-core@next
-```
-
-首次发布前，以上命令以 [发布准备](docs/release-readiness.md) 中的 registry 检查结果为准。
-
-源码安装：
-
-```powershell
+```bash
 git clone https://github.com/TokenDanceLab/TokenDanceCode.git
 cd TokenDanceCode
+cargo run -p tokendance-cli -- --version     # tokendance 0.3.0-rs.0
+cargo run -p tokendance-cli -- doctor --json  # 健康检查
+cargo run -p tokendance-cli -- run "hello"    # 单次运行
+cargo test --workspace                        # 204 tests
+```
+
+### TypeScript
+
+```bash
 pnpm install
-pnpm verify
-```
-
-构建并运行 CLI：
-
-```powershell
-pnpm --filter @tokendance/code-cli build
+pnpm verify                                   # typecheck + vitest
 node packages/cli/dist/main.js --version
-node packages/cli/dist/main.js quickstart
-node packages/cli/dist/main.js doctor
-node packages/cli/dist/main.js run "hello"
+node packages/cli/dist/main.js doctor --json
 ```
 
-没有配置 API key 时，CLI 使用 MockProvider，适合做安装、SDK、transcript 和 pack smoke 验证。
+### 交互式 REPL
 
-## 常用命令
-
-```powershell
-tokendance
-tokendance run "summarize this repo"
-tokendance run --json "summarize this repo"
-tokendance run --stream-json "summarize this repo"
-tokendance doctor --json
-tokendance config validate --json
-tokendance gateway init --model <model-name>
-tokendance auth tokendanceid login-url --client-id agenthub-local --redirect-uri http://127.0.0.1:48731/callback --json
-tokendance sessions
-tokendance transcript search "needle"
-tokendance quality "pnpm verify"
+```bash
+cargo run -p tokendance-cli                   # 进入交互模式
+tokendance> read the main.rs file
+tokendance> summarize this repo
+tokendance> /help
+tokendance> /exit
 ```
 
-交互式 CLI 是滚动式终端界面，不是 full-screen TUI。它支持 `/status`、`/permissions`、`/config`、`/doctor`、`/diff`、`/review`、`/quality`、`/tasks`、`/todo`、`/worktree`、`/agents`、`/transcript`、`/context`、`/compact`、`/memory`、`/resume` 等 slash commands。命令说明来自同一份 metadata registry，减少 help、usage 和 handler 漂移。
+## 功能全景
 
-## Provider 与凭据边界
+### 🔧 内置工具 (7)
 
-TokenDanceCode 默认不读取项目根目录 `.env`。项目 `.env` 通常属于业务应用，可能包含应用密钥；AgentHub 或脚本需要注入 provider key 时，应通过 SDK `env` 或受控 shell 环境传入。
+| 工具 | 风险 | 说明 |
+|------|------|------|
+| `read_file` | Read | 读取工作区文件，自动路径安全检查 |
+| `write_file` | Write | 写入文件，受权限门控 |
+| `edit_file` | Write | 精确字符串替换（`old_string` → `new_string`），支持 `replace_all` |
+| `glob` | Read | 文件模式匹配，按修改时间排序 |
+| `grep` | Read | 正则搜索，支持 content/files_with_matches/count 三种模式 |
+| `run_powershell` | Shell | 执行 PowerShell 命令，破坏性命令硬拦截 |
+| `echo` | Read | 测试用回显工具 |
 
-| Provider | API key | Base URL |
-|---|---|---|
-| `openai-responses` | `OPENAI_API_KEY` | `OPENAI_BASE_URL`，默认 `https://api.openai.com/v1` |
-| `openai-chat-completions` | `TOKENDANCE_GATEWAY_API_KEY`，缺省回退 `OPENAI_API_KEY` | Gateway key 使用 `TOKENDANCE_GATEWAY_BASE_URL`；OpenAI fallback key 使用 `OPENAI_BASE_URL` |
-| `anthropic-messages` | `ANTHROPIC_API_KEY` | `ANTHROPIC_BASE_URL`，默认 `https://api.anthropic.com` |
+### 🌐 Provider 传输 (3)
 
-TokenDance Gateway 的模型调用使用 TokenDance API key。TokenDanceID/OIDC token 属于身份会话平面，不是模型 API key。
+| Provider | 认证 | 传输门控 |
+|----------|------|----------|
+| OpenAI Chat Completions | `TOKENDANCE_GATEWAY_API_KEY` → `OPENAI_API_KEY` | `TOKENDANCE_GATEWAY_HTTP_TRANSPORT=1` |
+| OpenAI Responses | `TOKENDANCE_OPENAI_API_KEY` → `OPENAI_API_KEY` | `TOKENDANCE_OPENAI_TRANSPORT=1` |
+| Anthropic Messages | `TOKENDANCE_ANTHROPIC_API_KEY` → `ANTHROPIC_API_KEY` | `TOKENDANCE_ANTHROPIC_TRANSPORT=1` |
 
-## SDK 给 AgentHub 使用
+所有 Provider 自动遮盖 API key，错误信息中不泄露凭证。
 
-AgentHub 应优先依赖 `@tokendance/code-sdk`，不要直接调用 core internals。
+### 🛡️ 安全体系
+
+- **4 级权限模式**: Default → Safe → Auto → Yolo
+- **工具风险分类**: Read / Write / Shell / Network / Dangerous
+- **路径安全**: 工作区路径归一化，阻止目录穿越和 symlink 逃逸
+- **破坏性命令拦截**: PowerShell `Remove-Item`、`format-volume` 等硬拒绝
+- **Sandboxing 抽象**: Windows restricted token / macOS Seatbelt / Linux bwrap
+
+### 🔌 扩展能力
+
+| 系统 | 说明 |
+|------|------|
+| **MCP Client** | stdio JSON-RPC 协议，动态工具发现，`mcp__{server}__{tool}` 命名空间 |
+| **Subagent** | 独立 session + 受限工具集 + 递归防护，支持多 Agent 编排 |
+| **Hooks** | PreToolUse / PostToolUse / TurnCompleted / TurnFailed 生命周期钩子 |
+| **Memory** | Markdown 文件持久化记忆，跨 session 保持上下文 |
+| **Instruction Discovery** | 自动发现 AGENTS.md / CLAUDE.md，Global → Project → Local 三层覆盖 |
+
+### 📡 会话与流式
+
+- **JSONL Transcript** — 仅追加，崩溃可恢复，UUID 父子链
+- **SSE 流式解析** — 增量缓冲，多行数据，注释跳过
+- **StreamEvent** — ContentDelta / ToolStarted / TurnCompleted 实时事件
+- **Session Resume** — 从 transcript 重放恢复完整消息历史
+- **Context Compaction** — 超阈值自动压缩旧消息
+
+## 项目结构
+
+```
+TokenDanceCode/
+├── crates/                          # Rust 实现
+│   ├── tokendance-core/             #   Runtime, Provider, Tools, Permissions
+│   ├── tokendance-sdk/              #   AgentHub SDK facade
+│   └── tokendance-cli/              #   CLI binary
+├── packages/                        # TypeScript 实现
+│   ├── core/                        #   Runtime, Provider, Tools
+│   ├── sdk/                         #   AgentHub SDK
+│   ├── cli/                         #   CLI + REPL
+│   └── agenthub-example/            #   接入示例 (private)
+├── docs/                            # 共享文档
+├── scripts/                         # 验证 & 发布脚本
+├── Cargo.toml                       # Rust workspace
+├── package.json                     # npm workspace
+└── README.md
+```
+
+## CLI 命令
+
+```bash
+tokendance                              # 交互式 REPL
+tokendance run "summarize this repo"    # 单次运行
+tokendance run --json "hello"           # 结构化 JSON 输出
+tokendance run --stream-json "hello"    # 流式 JSONL 输出
+tokendance doctor --json                # 健康检查
+tokendance config validate --json       # 配置校验
+tokendance sessions list                # 列出会话
+tokendance transcript search "needle"   # 搜索 transcript
+tokendance quality                      # 质量概览
+```
+
+REPL 内置 slash commands: `/help` `/status` `/exit` `/compact`
+
+## SDK 接入（AgentHub）
 
 ```ts
-import { TOKEN_DANCE_CODE_PACKAGE, TokenDanceCode } from "@tokendance/code-sdk";
-
-console.log(TOKEN_DANCE_CODE_PACKAGE.agentHub.features);
+import { TokenDanceCode } from "@tokendance/code-sdk";
 
 const client = new TokenDanceCode({
-  storageRoot: "<agenthubProject>/.tokendance-code",
+  storageRoot: "~/.tokendance",
   env: process.env,
-  eventSink(event) {
-    console.log(event.type);
-  }
+  eventSink(event) { console.log(event.type); }
 });
 
 const thread = client.startThread({
-  workingDirectory: "<agenthubProject>",
+  workingDirectory: process.cwd(),
   permissionMode: "default"
 });
 
@@ -174,60 +173,57 @@ const turn = await thread.run("summarize this repo");
 console.log(turn.finalResponse);
 ```
 
-SDK 已提供：
+详见 [AgentHub SDK 文档](docs/agenthub-sdk.md)。
 
-- `TokenDanceCode -> Thread -> run() / runStreamed() / context()`
-- AgentHub `agent.stream` event sink
-- remote approval bridge
-- doctor/config readiness facade
-- transcript/search/session lifecycle helpers
-- task/todo/subagent/worktree facade
-- AgentHub-readable `tools.list()` catalog with `permissionProfiles.default/safe/auto/yolo`
-- TokenDanceID OIDC Authorization Code + PKCE login URL helper
+## Rust 模块清单 (20 modules, 204 tests)
 
-详细接入说明见 [docs/agenthub-sdk.md](docs/agenthub-sdk.md)。
+| 模块 | 功能 |
+|------|------|
+| `config` | Settings 加载 / 验证 / 合并 |
+| `permissions` | 4-mode 权限引擎 |
+| `provider` | ModelProvider trait + MockProvider |
+| `providers/*` | OpenAI Chat / Responses / Anthropic HTTP 传输 |
+| `runtime` | Agent loop + streaming + hooks 集成 |
+| `tools` | 7 内置工具 + ToolExposure + MCP 注册 |
+| `transcript` | JSONL 追加 / session resume |
+| `streaming` | SSE 增量解析器 |
+| `context` | Instruction 发现 (AGENTS.md / CLAUDE.md) |
+| `memory` | 持久化记忆 CRUD |
+| `hooks` | 生命周期钩子 |
+| `mcp` | MCP client (stdio JSON-RPC) |
+| `subagent` | Subagent 生成 / 隔离 |
+| `compact` | 上下文压缩 |
+| `sandbox` | 跨平台沙箱抽象 |
+| `worktree` | Git worktree 管理 |
+| `types` | 核心类型 + RuntimeEvent |
 
-## 项目结构
+## 验证
 
-```text
-packages/
-  core/               runtime、provider、tools、permissions、transcript
-  sdk/                AgentHub 和本地脚本使用的 public SDK
-  cli/                tokendance 命令入口和滚动式终端 renderer
-  agenthub-example/   私有 AgentHub 接入示例包
-docs/
-  agenthub-sdk.md
-  release-readiness.md
-  TS重构路线图.md
-  架构对标评估.md
-```
+```bash
+# Rust 验证
+cargo fmt --all -- --check
+cargo test --workspace                    # 204 tests
+cargo run -p tokendance-cli -- doctor
 
-旧 Python `src/tokendance` 和 `tests/` 只作为迁移参考保留；仓库根目录不再提供 Python package metadata。当前开发、测试和发布都以 TypeScript packages 为准。
-
-## 开发与验证
-
-```powershell
-pnpm typecheck
-pnpm test
+# TypeScript 验证
 pnpm verify
-pnpm contract:check
-pnpm pack:smoke
-pnpm release:next:check
+
+# 发布准备
+node scripts/check-rust-release-plan.mjs
+node scripts/smoke-rust-release.mjs
 ```
-
-`pnpm release:next:check` 会运行 `pnpm contract:check && pnpm verify && pnpm pack:check`，覆盖 typecheck、Vitest、build、dry-run pack 和本地 tarball install smoke。
-
-不要在检查脚本中执行 npm publish。`npm publish --tag next` 是 release owner 审核包内容、dist-tag、registry 状态和 npm 登录后的手动步骤。完整发布说明见 [docs/release-readiness.md](docs/release-readiness.md)。
 
 ## 文档
 
 | 文档 | 内容 |
-|---|---|
-| [docs/agenthub-sdk.md](docs/agenthub-sdk.md) | SDK、AgentHub event、approval bridge、OIDC helper |
-| [docs/release-readiness.md](docs/release-readiness.md) | npm first candidate、registry 检查、发布后 smoke |
-| [docs/TS重构路线图.md](docs/TS重构路线图.md) | TS 重构任务和已完成能力 |
-| [docs/架构对标评估.md](docs/架构对标评估.md) | Claude Code / Codex / OpenCode 对标决策 |
-| [docs/端到端验收清单.md](docs/端到端验收清单.md) | Windows/PowerShell 验收步骤 |
+|------|------|
+| [架构设计](docs/rust-rewrite-architecture.md) | Rust 重写架构：20 个模块的设计决策 |
+| [当前状态](docs/rust-rewrite-status.md) | Phase 1–5 完成记录，模块状态表 |
+| [工具参考](docs/rust-tool-reference.md) | 7 个内置工具的输入/输出 schema |
+| [发布清单](docs/rust-release-checklist.md) | Release owner 发布前检查项 |
+| [AgentHub SDK](docs/agenthub-sdk.md) | SDK 接入、event sink、approval bridge |
+| [发布准备](docs/release-readiness.md) | npm 发布门禁和 registry 状态 |
+| [架构对标](docs/架构对标评估.md) | Claude Code / Codex / OpenCode 对标分析 |
 
 ## License
 

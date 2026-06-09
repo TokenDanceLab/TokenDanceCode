@@ -1,127 +1,170 @@
 # TokenDanceCode
 
-> Local command-line coding agent for personal repositories. Windows and PowerShell first. Embeddable through the AgentHub SDK surface.
+> Local Coding Agent Runtime — TypeScript + Rust dual-engine
 
-[中文](README.md) · [AgentHub SDK](docs/agenthub-sdk.md) · [Release readiness](docs/release-readiness.md) · [TS roadmap](docs/TS重构路线图.md)
+![TokenDanceCode CLI](docs/images/tokendance-cli-hero.svg)
 
-![TokenDanceCode CLI overview](docs/images/tokendance-cli-hero.svg)
+[中文](README.md) · [AgentHub SDK](docs/agenthub-sdk.md) · [Release readiness](docs/release-readiness.md)
 
-The image shows the current TypeScript/npm CLI startup screen and common run path.
+---
 
-## What It Is
+## What Is TokenDanceCode
 
-TokenDanceCode is a local CLI agent. Run `tokendance` inside a repository to read code, edit files, run guarded PowerShell tools, inspect Git diffs, manage tasks, and save every turn to a JSONL transcript.
+TokenDanceCode is a **local command-line Coding Agent**. Run `tokendance` inside a repository to:
 
-The current codebase is a TypeScript monorepo. It borrows the useful parts of Claude Code, Codex CLI, and OpenCode: a thin CLI, a public SDK, structured runtime events, transcripts, provider adapters, a permission pipeline, and testable release gates.
+- 📖 **Read code** — search files, regex matching, glob patterns
+- ✏️ **Edit files** — exact-string replacement, full-file write
+- ⚡ **Run commands** — PowerShell tool with permission-gated execution
+- 🔄 **Manage sessions** — JSONL transcript, session resume, context compaction
+- 🤖 **Extend capabilities** — MCP tool protocol, subagent orchestration
 
-TokenDanceCode focuses on the local coding-agent runtime and the SDK surface AgentHub can call. AgentHub owns team workflows, product orchestration, and multi-agent collaboration.
+Designed for **personal repos**, **Windows / PowerShell first**, with an **embeddable AgentHub SDK**.
 
-## Status
+## Dual-Engine Architecture
 
-| Area | Status | Notes |
+TokenDanceCode maintains both TypeScript and Rust implementations in the same repository — feature-aligned, API-compatible:
+
+| | TypeScript | Rust |
 |---|---|---|
-| CLI | Usable | `tokendance`, `run`, `doctor`, `config`, `resume`, `quality`, `transcript` |
-| Runtime | Usable | session state, event stream, tools, permissions, JSONL transcript |
-| Provider adapters | Usable | OpenAI Responses, OpenAI Chat Completions / TokenDance Gateway, Anthropic-compatible Messages |
-| TokenDance Gateway | Usable | OpenAI-compatible Chat Completions adapter; TokenDance API keys stay separate from TokenDanceID login tokens |
-| AgentHub SDK | Usable | thread run/context, event sink, approval bridge, doctor/config, task/todo/subagent/worktree facade |
-| Subagent / worktree | Early usable | Intended for isolated code-change tasks, not a resident team system |
-| npm release | Preparing `next` | Release gates are documented; rerun `pnpm release:next:check` before publishing. Registry status is tracked in [Release readiness](docs/release-readiness.md) |
+| **Location** | `packages/` | `crates/` |
+| **Tests** | Vitest (pnpm verify) | cargo test (204 tests) |
+| **Runtime** | Node.js | Native binary |
+| **npm packages** | `@tokendance/code-*` | Forwarded via wrapper shim |
+| **Status** | ✅ Production-ready | ✅ Core feature parity |
 
-Planned public packages:
-
-- `@tokendance/code-core`
-- `@tokendance/code-sdk`
-- `@tokendance/code-cli`
-
-`@tokendance/code-agenthub-example` remains a private workspace example package.
+Both implementations **coexist** sharing `docs/`, `scripts/`, and CI config. The npm wrapper prefers the Rust binary and falls back to TypeScript.
 
 ## Quick Start
 
-After npm publication, install the CLI directly:
+### Rust (recommended)
 
-```powershell
-npm install -g @tokendance/code-cli@next
-tokendance --version
-tokendance doctor
-tokendance run "hello"
-```
-
-SDK consumers can install:
-
-```powershell
-npm install @tokendance/code-sdk@next @tokendance/code-core@next
-```
-
-Before the first publish, treat the registry checks in [Release readiness](docs/release-readiness.md) as the source of truth.
-
-Source install:
-
-```powershell
+```bash
 git clone https://github.com/TokenDanceLab/TokenDanceCode.git
 cd TokenDanceCode
+cargo run -p tokendance-cli -- --version     # tokendance 0.3.0-rs.0
+cargo run -p tokendance-cli -- doctor --json  # health check
+cargo run -p tokendance-cli -- run "hello"    # single turn
+cargo test --workspace                        # 204 tests
+```
+
+### TypeScript
+
+```bash
 pnpm install
-pnpm verify
-```
-
-Build and run the CLI:
-
-```powershell
-pnpm --filter @tokendance/code-cli build
+pnpm verify                                   # typecheck + vitest
 node packages/cli/dist/main.js --version
-node packages/cli/dist/main.js quickstart
-node packages/cli/dist/main.js doctor
-node packages/cli/dist/main.js run "hello"
+node packages/cli/dist/main.js doctor --json
 ```
 
-Without API keys, the CLI uses MockProvider. That is enough for install checks, SDK smoke tests, transcripts, and package smoke tests.
+### Interactive REPL
 
-## Common Commands
-
-```powershell
-tokendance
-tokendance run "summarize this repo"
-tokendance run --json "summarize this repo"
-tokendance run --stream-json "summarize this repo"
-tokendance doctor --json
-tokendance config validate --json
-tokendance gateway init --model <model-name>
-tokendance auth tokendanceid login-url --client-id agenthub-local --redirect-uri http://127.0.0.1:48731/callback --json
-tokendance sessions
-tokendance transcript search "needle"
-tokendance quality "pnpm verify"
+```bash
+cargo run -p tokendance-cli                   # enter interactive mode
+tokendance> read the main.rs file
+tokendance> summarize this repo
+tokendance> /help
+tokendance> /exit
 ```
 
-The interactive CLI is a scrollback terminal surface, not a full-screen TUI. It supports slash commands such as `/status`, `/permissions`, `/config`, `/doctor`, `/diff`, `/review`, `/quality`, `/tasks`, `/todo`, `/worktree`, `/agents`, `/transcript`, `/context`, `/compact`, `/memory`, and `/resume`. Top-level help and interactive handlers share the same command metadata registry.
+## Features
 
-## Provider Boundary
+### 🔧 Built-in Tools (7)
 
-TokenDanceCode does not read the project root `.env` by default. Pass provider keys through SDK `env`, a controlled shell, or the global TokenDance env file.
+| Tool | Risk | Description |
+|------|------|-------------|
+| `read_file` | Read | Read workspace files with path safety checks |
+| `write_file` | Write | Write files, permission-gated |
+| `edit_file` | Write | Exact-string replace (`old_string` → `new_string`), `replace_all` support |
+| `glob` | Read | File pattern matching, sorted by modification time |
+| `grep` | Read | Regex search with content/files_with_matches/count modes |
+| `run_powershell` | Shell | Execute PowerShell commands, destructive commands hard-denied |
+| `echo` | Read | Test echo tool |
 
-| Provider | API key | Base URL |
-|---|---|---|
-| `openai-responses` | `OPENAI_API_KEY` | `OPENAI_BASE_URL`, default `https://api.openai.com/v1` |
-| `openai-chat-completions` | `TOKENDANCE_GATEWAY_API_KEY`, fallback `OPENAI_API_KEY` | Gateway key uses `TOKENDANCE_GATEWAY_BASE_URL`; OpenAI fallback uses `OPENAI_BASE_URL` |
-| `anthropic-messages` | `ANTHROPIC_API_KEY` | `ANTHROPIC_BASE_URL`, default `https://api.anthropic.com` |
+### 🌐 Provider Transports (3)
 
-TokenDance Gateway model calls use TokenDance API keys. TokenDanceID/OIDC tokens belong to the identity/session plane and must not be used as model API keys.
+| Provider | Auth | Transport Gate |
+|----------|------|----------------|
+| OpenAI Chat Completions | `TOKENDANCE_GATEWAY_API_KEY` → `OPENAI_API_KEY` | `TOKENDANCE_GATEWAY_HTTP_TRANSPORT=1` |
+| OpenAI Responses | `TOKENDANCE_OPENAI_API_KEY` → `OPENAI_API_KEY` | `TOKENDANCE_OPENAI_TRANSPORT=1` |
+| Anthropic Messages | `TOKENDANCE_ANTHROPIC_API_KEY` → `ANTHROPIC_API_KEY` | `TOKENDANCE_ANTHROPIC_TRANSPORT=1` |
+
+All providers automatically redact API keys from error messages.
+
+### 🛡️ Security
+
+- **4 permission modes**: Default → Safe → Auto → Yolo
+- **Tool risk classification**: Read / Write / Shell / Network / Dangerous
+- **Path safety**: Workspace path normalization, blocks directory traversal and symlink escape
+- **Destructive command interception**: PowerShell `Remove-Item`, `format-volume` hard-denied
+- **Sandboxing abstraction**: Windows restricted token / macOS Seatbelt / Linux bwrap
+
+### 🔌 Extensibility
+
+| System | Description |
+|--------|-------------|
+| **MCP Client** | stdio JSON-RPC protocol, dynamic tool discovery, `mcp__{server}__{tool}` namespacing |
+| **Subagent** | Isolated session + restricted tool set + recursion prevention, multi-agent orchestration |
+| **Hooks** | PreToolUse / PostToolUse / TurnCompleted / TurnFailed lifecycle hooks |
+| **Memory** | Markdown file persistent memory, cross-session context |
+| **Instruction Discovery** | Auto-discover AGENTS.md / CLAUDE.md, Global → Project → Local scope hierarchy |
+
+### 📡 Sessions & Streaming
+
+- **JSONL Transcript** — append-only, crash-recoverable, UUID parent chain
+- **SSE Streaming** — incremental buffering, multi-line data, comment skipping
+- **StreamEvent** — ContentDelta / ToolStarted / TurnCompleted real-time events
+- **Session Resume** — replay transcript to restore full message history
+- **Context Compaction** — auto-compress old messages above threshold
+
+## Project Structure
+
+```
+TokenDanceCode/
+├── crates/                          # Rust implementation
+│   ├── tokendance-core/             #   Runtime, Provider, Tools, Permissions
+│   ├── tokendance-sdk/              #   AgentHub SDK facade
+│   └── tokendance-cli/              #   CLI binary
+├── packages/                        # TypeScript implementation
+│   ├── core/                        #   Runtime, Provider, Tools
+│   ├── sdk/                         #   AgentHub SDK
+│   ├── cli/                         #   CLI + REPL
+│   └── agenthub-example/            #   Integration example (private)
+├── docs/                            # Shared documentation
+├── scripts/                         # Verification & release scripts
+├── Cargo.toml                       # Rust workspace
+├── package.json                     # npm workspace
+└── README.md
+```
+
+## CLI Commands
+
+```bash
+tokendance                              # Interactive REPL
+tokendance run "summarize this repo"    # Single turn
+tokendance run --json "hello"           # Structured JSON output
+tokendance run --stream-json "hello"    # Streaming JSONL output
+tokendance doctor --json                # Health check
+tokendance config validate --json       # Config validation
+tokendance sessions list                # List sessions
+tokendance transcript search "needle"   # Search transcripts
+tokendance quality                      # Quality overview
+```
+
+REPL slash commands: `/help` `/status` `/exit` `/compact`
 
 ## AgentHub SDK
 
-AgentHub should consume `@tokendance/code-sdk`.
-
 ```ts
-import { TOKEN_DANCE_CODE_PACKAGE, TokenDanceCode } from "@tokendance/code-sdk";
-
-console.log(TOKEN_DANCE_CODE_PACKAGE.agentHub.features);
+import { TokenDanceCode } from "@tokendance/code-sdk";
 
 const client = new TokenDanceCode({
-  storageRoot: "<agenthubProject>/.tokendance-code",
-  env: process.env
+  storageRoot: "~/.tokendance",
+  env: process.env,
+  eventSink(event) { console.log(event.type); }
 });
 
 const thread = client.startThread({
-  workingDirectory: "<agenthubProject>",
+  workingDirectory: process.cwd(),
   permissionMode: "default"
 });
 
@@ -129,42 +172,57 @@ const turn = await thread.run("summarize this repo");
 console.log(turn.finalResponse);
 ```
 
-The SDK exposes thread runs, streamed events, context preview, AgentHub event sinks, remote approval bridging, doctor/config readiness, transcript helpers, task/todo/subagent/worktree facades, an AgentHub-readable `tools.list()` catalog with `permissionProfiles.default/safe/auto/yolo`, and a TokenDanceID OIDC Authorization Code + PKCE login URL helper.
+See [AgentHub SDK docs](docs/agenthub-sdk.md) for full integration guide.
 
-## Packages
+## Rust Modules (20 modules, 204 tests)
 
-```text
-packages/
-  core/               runtime, providers, tools, permissions, transcript
-  sdk/                public SDK for AgentHub and local scripts
-  cli/                tokendance command and scrollback renderer
-  agenthub-example/   private AgentHub integration example
-```
+| Module | Function |
+|--------|----------|
+| `config` | Settings loading / validation / merge |
+| `permissions` | 4-mode permission engine |
+| `provider` | ModelProvider trait + MockProvider |
+| `providers/*` | OpenAI Chat / Responses / Anthropic HTTP transports |
+| `runtime` | Agent loop + streaming + hooks integration |
+| `tools` | 7 built-in tools + ToolExposure + MCP registration |
+| `transcript` | JSONL append / session resume |
+| `streaming` | SSE incremental parser |
+| `context` | Instruction discovery (AGENTS.md / CLAUDE.md) |
+| `memory` | Persistent memory CRUD |
+| `hooks` | Lifecycle hooks |
+| `mcp` | MCP client (stdio JSON-RPC) |
+| `subagent` | Subagent spawning / isolation |
+| `compact` | Context compaction |
+| `sandbox` | Cross-platform sandboxing abstraction |
+| `worktree` | Git worktree management |
+| `types` | Core types + RuntimeEvent |
 
-The old Python `src/tokendance` and `tests/` directories are retained only as migration references. The repository root no longer carries Python package metadata. Current development, tests, and release gates target the TypeScript packages.
+## Verification
 
-## Development
+```bash
+# Rust gates
+cargo fmt --all -- --check
+cargo test --workspace                    # 204 tests
+cargo run -p tokendance-cli -- doctor
 
-```powershell
-pnpm typecheck
-pnpm test
+# TypeScript gates
 pnpm verify
-pnpm contract:check
-pnpm pack:smoke
-pnpm release:next:check
+
+# Release readiness
+node scripts/check-rust-release-plan.mjs
+node scripts/smoke-rust-release.mjs
 ```
 
-Do not run `npm publish --tag next` from verification scripts. Publishing is a manual release-owner action after package content, registry state, and npm login are checked.
+## Documentation
 
-## Docs
-
-| Document | Purpose |
-|---|---|
-| [docs/agenthub-sdk.md](docs/agenthub-sdk.md) | SDK and AgentHub integration |
-| [docs/release-readiness.md](docs/release-readiness.md) | npm first candidate and registry checks |
-| [docs/TS重构路线图.md](docs/TS重构路线图.md) | TS refactor roadmap |
-| [docs/架构对标评估.md](docs/架构对标评估.md) | Claude Code / Codex / OpenCode comparison |
-| [docs/端到端验收清单.md](docs/端到端验收清单.md) | Windows/PowerShell acceptance checks |
+| Document | Content |
+|----------|---------|
+| [Architecture](docs/rust-rewrite-architecture.md) | Rust rewrite architecture — 20 module design decisions |
+| [Status](docs/rust-rewrite-status.md) | Phase 1–5 completion record, module status |
+| [Tool Reference](docs/rust-tool-reference.md) | 7 built-in tools input/output schemas |
+| [Release Checklist](docs/rust-release-checklist.md) | Release owner pre-publish checklist |
+| [AgentHub SDK](docs/agenthub-sdk.md) | SDK integration, event sink, approval bridge |
+| [Release Readiness](docs/release-readiness.md) | npm publish gates and registry status |
+| [Architecture Comparison](docs/架构对标评估.md) | Claude Code / Codex / OpenCode comparison |
 
 ## License
 

@@ -25,7 +25,9 @@ describe("package metadata", () => {
       "pnpm pack:dry-run",
       "pnpm pack:smoke"
     ].join(" && "));
+    expect(rootPackage.scripts?.["contract:check"]).toBe("node scripts/check-release-contract.mjs");
     expect(rootPackage.scripts?.["release:next:check"]).toBe([
+      "pnpm contract:check",
       "pnpm verify",
       "pnpm pack:check"
     ].join(" && "));
@@ -40,6 +42,14 @@ describe("package metadata", () => {
     expect(smokeScript).toContain("quality --json");
     expect(smokeScript).toContain("agentHub.ready");
     expect(smokeScript).toContain("provider-ready");
+
+    const contractScript = await readText("scripts/check-release-contract.mjs");
+    expect(contractScript).toContain("assertPackageManifest");
+    expect(contractScript).toContain("assertAgentHubContractReadiness");
+    expect(contractScript).toContain("assertPackSmokeEntrypoint");
+    expect(contractScript).toContain("createAgentHubAgentStreamSink");
+    expect(contractScript).toContain("createAgentHubTokenDanceConsumerFixture");
+    expect(contractScript).toContain("pnpm pack:smoke");
 
     const wave4Script = await readText("scripts/verify-wave4-worktrees.mjs");
     expect(wave4Script).toContain("codex/wave4-cli-command-architecture");
@@ -159,6 +169,7 @@ describe("package metadata", () => {
     ]);
 
     for (const text of [readme, roadmap, acceptance]) {
+      expect(text).toContain("pnpm contract:check");
       expect(text).toContain("pnpm release:next:check");
       expect(text).toContain("pnpm pack:smoke");
       expect(text).toContain("npm publish --tag next");
@@ -173,6 +184,7 @@ describe("package metadata", () => {
     }
 
     for (const text of packageReadmes) {
+      expect(text).toContain("pnpm contract:check");
       expect(text).toContain("Manual approval gate");
       expect(text).toContain("package-local README");
       expect(text).toContain("npm publish --tag next");

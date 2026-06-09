@@ -32,10 +32,11 @@ Interactive turns use a scrollback-first renderer instead of a full-screen TUI. 
 This package is part of the TokenDanceCode `next` prerelease train. Before publishing a prerelease tarball, run from the workspace root:
 
 ```powershell
+pnpm contract:check
 pnpm release:next:check
 pnpm pack:smoke
 ```
 
-`pnpm pack:smoke` installs the packed core, SDK, and CLI tarballs into a temporary project and verifies SDK import, a mock turn, CLI startup, `doctor --json` AgentHub readiness, and `quality --json` structured output. Do not run `npm publish --tag next` from this check; publish is a separate manual release step after review.
+`pnpm contract:check` is a read-only release drift gate for package manifests, AgentHub contract readiness, and the pack smoke entrypoint. `pnpm pack:smoke` installs the packed core, SDK, and CLI tarballs into a temporary project and verifies SDK import, a mock turn, CLI startup, `doctor --json` AgentHub readiness, and `quality --json` structured output. Do not run `npm publish --tag next` from these checks; publish is a separate manual release step after review.
 
 Manual approval gate: this package-local README must stay aligned with the root README before any `npm publish --tag next` action. Release owner review should confirm the `tokendance` bin starts from the packed tarball and that CLI docs describe local use, doctor/config readiness, and AgentHub-friendly diagnostics without promising a hosted service.

@@ -1,11 +1,13 @@
 import {
   TOKEN_DANCE_CODE_PACKAGE,
   TokenDanceCode,
-  createAgentHubAgentStreamSink,
+  createAgentHubAgentStreamEmitter,
+  createAgentHubEventSink,
   createAgentHubApprovalBridge,
   type AgentHubAgentStreamEmitter,
   type AgentHubApprovalDecision,
   type AgentHubApprovalRequest,
+  type AgentHubRuntimeEvent,
   type DoctorInfo,
   type ModelProvider,
   type PermissionMode,
@@ -19,6 +21,9 @@ export interface AgentHubTokenDanceRunnerOptions {
   provider?: ModelProvider | TokenDanceProviderConfig;
   storageRoot?: string;
   env?: Record<string, string | undefined>;
+  defaultPermissionMode?: PermissionMode;
+  contextMaxRecentMessages?: number;
+  streamIdFactory?: (eventSeq: number, event: AgentHubRuntimeEvent) => string;
   emitAgentStream: AgentHubAgentStreamEmitter;
   onApprovalRequest?: (request: AgentHubApprovalRequest) => void | Promise<void>;
   clock?: () => string;
@@ -39,6 +44,7 @@ export interface AgentHubTokenDanceContextOptions {
   workingDirectory: string;
   permissionMode?: PermissionMode;
   sessionId: string;
+  maxRecentMessages?: number;
 }
 
 export interface AgentHubTokenDanceDoctorOptions {
@@ -56,8 +62,15 @@ export interface AgentHubTokenDanceRunner {
 }
 
 export function createAgentHubTokenDanceRunner(options: AgentHubTokenDanceRunnerOptions): AgentHubTokenDanceRunner {
+  let activeApprovalRequestEmitter: ((request: AgentHubApprovalRequest) => void | Promise<void>) | undefined;
   const approvalBridge = options.onApprovalRequest
-    ? createAgentHubApprovalBridge({ onRequest: options.onApprovalRequest, clock: options.clock })
+    ? createAgentHubApprovalBridge({
+        clock: options.clock,
+        async onRequest(request) {
+          await activeApprovalRequestEmitter?.(request);
+          await options.onApprovalRequest?.(request);
+        }
+      })
     : undefined;
 
   return {
@@ -78,24 +91,31 @@ export function createAgentHubTokenDanceRunner(options: AgentHubTokenDanceRunner
 
     async run(runOptions) {
       const storageRoot = options.storageRoot ?? runOptions.workingDirectory;
+      const emitAgentStream = createAgentHubAgentStreamEmitter(
+        {
+          taskId: runOptions.taskId,
+          edgeRunId: runOptions.edgeRunId,
+          sessionId: runOptions.sessionId,
+          agentInstanceId: runOptions.agentInstanceId,
+          idFactory: options.streamIdFactory,
+          clock: options.clock
+        },
+        options.emitAgentStream
+      );
       const client = new TokenDanceCode({
         provider: options.provider,
         storageRoot,
         env: options.env,
         approvalCallback: approvalBridge?.approvalCallback,
-        eventSink: createAgentHubAgentStreamSink(
-          {
-            taskId: runOptions.taskId,
-            edgeRunId: runOptions.edgeRunId,
-            sessionId: runOptions.sessionId,
-            agentInstanceId: runOptions.agentInstanceId,
-            clock: options.clock
-          },
-          options.emitAgentStream
-        )
+        eventSink: createAgentHubEventSink(emitAgentStream)
       });
-      const thread = await resumeOrStartThread(client, runOptions, storageRoot);
-      return thread.run(runOptions.prompt);
+      activeApprovalRequestEmitter = (request) => emitAgentStream(toPermissionRequestedRuntimeEvent(request));
+      try {
+        const thread = await resumeOrStartThread(client, runOptions, storageRoot, options.defaultPermissionMode);
+        return await thread.run(runOptions.prompt);
+      } finally {
+        activeApprovalRequestEmitter = undefined;
+      }
     },
 
     async context(contextOptions) {
@@ -105,8 +125,10 @@ export function createAgentHubTokenDanceRunner(options: AgentHubTokenDanceRunner
         storageRoot,
         env: options.env
       });
-      const thread = await resumeOrStartThread(client, contextOptions, storageRoot);
-      return thread.context(contextOptions.prompt);
+      const thread = await resumeOrStartThread(client, contextOptions, storageRoot, options.defaultPermissionMode);
+      return thread.context(contextOptions.prompt, {
+        maxRecentMessages: contextOptions.maxRecentMessages ?? options.contextMaxRecentMessages
+      });
     },
 
     decideApproval(requestId, decision, reason) {
@@ -122,7 +144,8 @@ export function createAgentHubTokenDanceRunner(options: AgentHubTokenDanceRunner
 async function resumeOrStartThread(
   client: TokenDanceCode,
   runOptions: Pick<AgentHubTokenDanceRunOptions, "sessionId" | "workingDirectory" | "permissionMode">,
-  storageRoot: string
+  storageRoot: string,
+  defaultPermissionMode: PermissionMode = "default"
 ) {
   try {
     return await client.resume({ sessionId: runOptions.sessionId, storageRoot });
@@ -133,9 +156,31 @@ async function resumeOrStartThread(
     return client.startThread({
       id: runOptions.sessionId,
       workingDirectory: runOptions.workingDirectory,
-      permissionMode: runOptions.permissionMode
+      permissionMode: runOptions.permissionMode ?? defaultPermissionMode
     });
   }
+}
+
+function toPermissionRequestedRuntimeEvent(request: AgentHubApprovalRequest): AgentHubRuntimeEvent {
+  return {
+    eventType: "run.agent.permission_requested",
+    sourceEventType: "tool.permission",
+    sessionId: request.sessionId,
+    turnId: request.turnId,
+    payload: {
+      sessionId: request.sessionId,
+      turnId: request.turnId,
+      requestId: request.requestId,
+      callId: request.requestId,
+      toolName: request.toolName,
+      toolRisk: request.toolRisk,
+      input: request.input,
+      status: request.status,
+      decision: "pending",
+      reason: request.reason,
+      createdAt: request.createdAt
+    }
+  };
 }
 
 function isMissingSessionError(error: unknown): boolean {

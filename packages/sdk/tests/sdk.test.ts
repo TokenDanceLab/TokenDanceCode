@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { FileTranscriptStore, type ModelProvider, type ModelTurnRequest, type ModelTurnResponse, type SessionState } from "@tokendance/code-core";
-import { TokenDanceCode } from "../src/index.js";
+import { TOKEN_DANCE_CODE_PACKAGE, TokenDanceCode } from "../src/index.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -103,6 +103,24 @@ describe("TokenDanceCode SDK", () => {
     expect(context.messages[0]?.content).toContain("Prefer short action plans.");
     expect(context.messages.at(-1)).toEqual({ role: "user", content: "next AgentHub turn" });
     expect(thread.state.messages.map((message) => message.content)).not.toContain("next AgentHub turn");
+  });
+
+  it("limits context preview history for AgentHub resume panels", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-context-"));
+    const client = new TokenDanceCode({ storageRoot: root });
+    const thread = client.startThread({ workingDirectory: root });
+    await thread.run("first resume turn");
+    await thread.run("second resume turn");
+    await thread.run("third resume turn");
+
+    const context = await thread.context("preview with short history", { maxRecentMessages: 2 });
+    const visibleContent = context.messages.map((message) => message.content);
+
+    expect(visibleContent).not.toContain("first resume turn");
+    expect(visibleContent).not.toContain("second resume turn");
+    expect(visibleContent).toContain("third resume turn");
+    expect(visibleContent).toContain("Mock response: third resume turn");
+    expect(context.messages.at(-1)).toEqual({ role: "user", content: "preview with short history" });
   });
 
   it("loads latest thread with recent transcript for AgentHub callers", async () => {
@@ -441,6 +459,51 @@ describe("TokenDanceCode SDK", () => {
     expect(doctor.config.sources).toEqual(["defaults"]);
     expect(doctor.stateDir.path).toBe(join(root, ".tokendance"));
     expect(doctor.stateDir.writable).toBe(true);
+  });
+
+  it("exposes AgentHub contract metadata and startup checks without secrets", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-startup-"));
+    const client = new TokenDanceCode({
+      env: {
+        OPENAI_API_KEY: "openai-secret-value",
+        ANTHROPIC_API_KEY: ""
+      }
+    });
+
+    const doctor = await client.doctor({ projectRoot: root });
+
+    expect(TOKEN_DANCE_CODE_PACKAGE.agentHub).toEqual({
+      sdkContractVersion: "agenthub-sdk.v1",
+      agentStreamSchemaVersion: 1,
+      features: expect.arrayContaining([
+        "runner-options",
+        "event-envelope",
+        "startup-doctor",
+        "session-resume",
+        "context-preview",
+        "remote-approval"
+      ])
+    });
+    expect(doctor.packageInfo).toMatchObject({
+      version: TOKEN_DANCE_CODE_PACKAGE.version,
+      packages: {
+        sdk: { name: "@tokendance/code-sdk" },
+        cli: { bin: "tokendance" }
+      },
+      agentHub: {
+        sdkContractVersion: "agenthub-sdk.v1",
+        agentStreamSchemaVersion: 1
+      }
+    });
+    expect(doctor.startup.hub).toMatchObject({ ok: true });
+    expect(doctor.startup.hub.checks.map((check) => check.name)).toEqual(
+      expect.arrayContaining(["package-info", "config-readable", "state-dir-writable"])
+    );
+    expect(doctor.startup.edge).toMatchObject({ ok: true });
+    expect(doctor.startup.edge.checks.map((check) => check.name)).toEqual(
+      expect.arrayContaining(["agent-stream-envelope", "git-available", "powershell-available"])
+    );
+    expect(JSON.stringify(doctor)).not.toContain("openai-secret-value");
   });
 
   it("manages tasks and todos through the SDK boundary for AgentHub callers", async () => {

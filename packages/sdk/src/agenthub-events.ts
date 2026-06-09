@@ -1,4 +1,9 @@
 import type { TDCodeEvent, TDCodeEventSink } from "@tokendance/code-core";
+import {
+  AGENTHUB_AGENT_STREAM_SCHEMA_VERSION,
+  AGENTHUB_AGENT_STREAM_SOURCE,
+  AGENTHUB_SDK_CONTRACT_VERSION
+} from "./package-info.js";
 
 export type AgentHubRuntimeEventType =
   | "run.agent.text_delta"
@@ -20,6 +25,9 @@ export interface AgentHubRuntimeEvent {
 export type AgentHubRuntimeEventEmitter = (event: AgentHubRuntimeEvent) => void | Promise<void>;
 
 export interface AgentHubAgentStreamPayload {
+  schema_version: typeof AGENTHUB_AGENT_STREAM_SCHEMA_VERSION;
+  sdk_contract_version: typeof AGENTHUB_SDK_CONTRACT_VERSION;
+  source: typeof AGENTHUB_AGENT_STREAM_SOURCE;
   id: string;
   task_id: string;
   edge_run_id: string;
@@ -146,12 +154,22 @@ export function createAgentHubEventSink(emit: AgentHubRuntimeEventEmitter): TDCo
 }
 
 export function createAgentHubAgentStreamSink(options: AgentHubAgentStreamOptions, emit: AgentHubAgentStreamEmitter): TDCodeEventSink {
+  return createAgentHubEventSink(createAgentHubAgentStreamEmitter(options, emit));
+}
+
+export function createAgentHubAgentStreamEmitter(
+  options: AgentHubAgentStreamOptions,
+  emit: AgentHubAgentStreamEmitter
+): AgentHubRuntimeEventEmitter {
   let eventSeq = 0;
   const clock = options.clock ?? (() => new Date().toISOString());
 
-  return createAgentHubEventSink(async (event) => {
+  return async (event) => {
     eventSeq += 1;
     await emit({
+      schema_version: AGENTHUB_AGENT_STREAM_SCHEMA_VERSION,
+      sdk_contract_version: AGENTHUB_SDK_CONTRACT_VERSION,
+      source: AGENTHUB_AGENT_STREAM_SOURCE,
       id: options.idFactory?.(eventSeq, event) ?? `tdcode_evt_${eventSeq}`,
       task_id: options.taskId,
       edge_run_id: options.edgeRunId,
@@ -162,7 +180,7 @@ export function createAgentHubAgentStreamSink(options: AgentHubAgentStreamOption
       payload: event.payload,
       created_at: clock()
     });
-  });
+  };
 }
 
 function toAgentHubDecision(status: "allowed" | "denied" | "requires_approval"): "allow" | "deny" | "pending" {

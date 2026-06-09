@@ -17,6 +17,7 @@ export interface DoctorOptions {
 
 export interface DoctorInfo {
   version: string;
+  packageInfo: typeof TOKEN_DANCE_CODE_PACKAGE;
   node: string;
   cwd: string;
   platform: NodeJS.Platform;
@@ -40,6 +41,23 @@ export interface DoctorInfo {
     path: string;
     writable: boolean;
   };
+  startup: {
+    hub: StartupCheckGroup;
+    edge: StartupCheckGroup;
+  };
+}
+
+export type StartupCheckStatus = "pass" | "warn" | "fail";
+
+export interface StartupCheck {
+  name: string;
+  status: StartupCheckStatus;
+  message: string;
+}
+
+export interface StartupCheckGroup {
+  ok: boolean;
+  checks: StartupCheck[];
 }
 
 export async function collectDoctorInfo(options: DoctorOptions): Promise<DoctorInfo> {
@@ -50,9 +68,16 @@ export async function collectDoctorInfo(options: DoctorOptions): Promise<DoctorI
   const gitRepository = gitAvailable && await commandAvailable("git", ["rev-parse", "--is-inside-work-tree"], options.projectRoot);
   const powershellAvailable = await commandAvailable("powershell.exe", ["-NoProfile", "-Command", "$PSVersionTable.PSVersion.ToString()"], options.projectRoot)
     || await commandAvailable("pwsh", ["-NoProfile", "-Command", "$PSVersionTable.PSVersion.ToString()"], options.projectRoot);
+  const stateWritable = await stateDirWritable(stateDir);
+  const startup = startupChecks({
+    stateWritable,
+    gitAvailable,
+    powershellAvailable
+  });
 
   return {
     version: TOKEN_DANCE_CODE_PACKAGE.version,
+    packageInfo: TOKEN_DANCE_CODE_PACKAGE,
     node: process.version,
     cwd: options.projectRoot,
     platform: process.platform,
@@ -74,8 +99,9 @@ export async function collectDoctorInfo(options: DoctorOptions): Promise<DoctorI
     },
     stateDir: {
       path: stateDir,
-      writable: await stateDirWritable(stateDir)
-    }
+      writable: stateWritable
+    },
+    startup
   };
 }
 
@@ -102,4 +128,52 @@ async function stateDirWritable(stateDir: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function startupChecks(input: { stateWritable: boolean; gitAvailable: boolean; powershellAvailable: boolean }): DoctorInfo["startup"] {
+  const hubChecks: StartupCheck[] = [
+    {
+      name: "package-info",
+      status: "pass",
+      message: `${TOKEN_DANCE_CODE_PACKAGE.packages.sdk.name} ${TOKEN_DANCE_CODE_PACKAGE.version}`
+    },
+    {
+      name: "config-readable",
+      status: "pass",
+      message: "TokenDanceCode config facade is readable"
+    },
+    {
+      name: "state-dir-writable",
+      status: input.stateWritable ? "pass" : "fail",
+      message: input.stateWritable ? ".tokendance state directory is writable" : ".tokendance state directory is not writable"
+    }
+  ];
+  const edgeChecks: StartupCheck[] = [
+    {
+      name: "agent-stream-envelope",
+      status: "pass",
+      message: `AgentHub agent.stream schema v${TOKEN_DANCE_CODE_PACKAGE.agentHub.agentStreamSchemaVersion}`
+    },
+    {
+      name: "git-available",
+      status: input.gitAvailable ? "pass" : "warn",
+      message: input.gitAvailable ? "git is available" : "git is not available; repo tools will be limited"
+    },
+    {
+      name: "powershell-available",
+      status: input.powershellAvailable ? "pass" : "warn",
+      message: input.powershellAvailable ? "PowerShell is available" : "PowerShell is not available; shell tools will be limited"
+    }
+  ];
+
+  return {
+    hub: {
+      ok: hubChecks.every((check) => check.status !== "fail"),
+      checks: hubChecks
+    },
+    edge: {
+      ok: edgeChecks.every((check) => check.status !== "fail"),
+      checks: edgeChecks
+    }
+  };
 }

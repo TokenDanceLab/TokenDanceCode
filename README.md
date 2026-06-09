@@ -139,11 +139,13 @@ Provider HTTP 失败会统一抛出 `ProviderApiError`，包含 `provider`、`pr
 ```powershell
 node packages/cli/dist/main.js config set provider openai-chat-completions model deepseek-v4-pro permission-mode safe
 node packages/cli/dist/main.js config --json
+node packages/cli/dist/main.js config validate
+node packages/cli/dist/main.js config validate --json
 node packages/cli/dist/main.js config set --json provider openai-chat-completions model deepseek-v4-pro permission-mode safe
 node packages/cli/dist/main.js config set --global provider anthropic-messages model claude-sonnet-4-6 permission-mode default
 ```
 
-`config --json` 输出与 SDK `client.config()` 同源的结构化 payload，适合 AgentHub shell、启动向导或脚本读取。`config set` 只写入 `provider`、`model`、`permissionMode` 到 `.tokendance/config.json` 或 `~/.tokendance/config.json`，并会拒绝 `apiKey`、`token`、`secret` 等非白名单字段；`config set --json` 会额外返回 `scope` 和 `savedPath`。Provider key 继续放在受控环境变量或全局 `~/.tokendance/.env`，不要写入 JSON 配置。
+`config --json` 输出与 SDK `client.config()` 同源的结构化 payload，适合 AgentHub shell、启动向导或脚本读取。`config validate` 检查当前 provider/model 是否具备运行所需环境，文本模式未 ready 时返回非 0，`--json` 返回与 SDK `client.validateConfig()` 同源的结构化结果。`config set` 只写入 `provider`、`model`、`permissionMode` 到 `.tokendance/config.json` 或 `~/.tokendance/config.json`，并会拒绝 `apiKey`、`token`、`secret` 等非白名单字段；`config set --json` 会额外返回 `scope` 和 `savedPath`。Provider key 继续放在受控环境变量或全局 `~/.tokendance/.env`，不要写入 JSON 配置。
 
 ### 方式一：当前 PowerShell 会话
 
@@ -214,6 +216,7 @@ node packages/cli/dist/main.js quickstart
 node packages/cli/dist/main.js run "完整阅读这个项目"
 node packages/cli/dist/main.js config
 node packages/cli/dist/main.js config --json
+node packages/cli/dist/main.js config validate --json
 node packages/cli/dist/main.js config set provider openai-chat-completions model deepseek-v4-pro permission-mode safe
 node packages/cli/dist/main.js auth tokendanceid login-url --client-id agenthub-local --redirect-uri http://127.0.0.1:48731/callback
 node packages/cli/dist/main.js gateway init --model deepseek-v4-pro
@@ -341,6 +344,9 @@ console.log(status.ok);
 const config = await client.config({ projectRoot: process.cwd() });
 console.log(config.config.provider, config.config.model);
 
+const validation = await client.validateConfig({ projectRoot: process.cwd() });
+console.log(validation.validation.ready, validation.validation.missing);
+
 const savedConfig = await client.setConfig(
   { provider: "openai-chat-completions", model: "deepseek-v4-pro", permissionMode: "safe" },
   { projectRoot: process.cwd() }
@@ -412,6 +418,7 @@ const client = new TokenDanceCode({
 /doctor json
 /config
 /config json
+/config validate json
 /config set provider <provider> model <model> permission-mode <mode>
 /permissions default
 /permissions safe

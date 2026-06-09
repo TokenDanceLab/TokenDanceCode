@@ -243,6 +243,48 @@ describe("TokenDanceCode CLI", () => {
     expect(setJson.stdoutText()).not.toContain("global-openai");
   });
 
+  it("validates config readiness in top-level and interactive commands", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-config-validate-"));
+    const home = await mkdtemp(join(tmpdir(), "tdcode-cli-home-"));
+    await mkdir(join(root, ".tokendance"), { recursive: true });
+    await writeFile(
+      join(root, ".tokendance", "config.json"),
+      JSON.stringify({ provider: "openai-chat-completions", model: "deepseek-v4-pro", permissionMode: "safe" }),
+      "utf8"
+    );
+    const missing = createTestIO("", root, home, {});
+    const ready = createTestIO("", root, home, {
+      TOKENDANCE_GATEWAY_API_KEY: "gateway-secret",
+      TOKENDANCE_GATEWAY_BASE_URL: "https://api.vectorcontrol.tech/v1"
+    });
+    const interactive = createTestIO("/config validate json\n/exit\n", root, home, {
+      TOKENDANCE_GATEWAY_API_KEY: "gateway-secret"
+    });
+
+    const missingExitCode = await runCli(["config", "validate"], missing);
+    const readyExitCode = await runCli(["config", "validate", "--json"], ready);
+    const interactiveExitCode = await runCli([], interactive);
+
+    const readyJson = JSON.parse(ready.stdoutText());
+    const interactiveJsonMatch = interactive.stdoutText().match(/\{\n[\s\S]*\n\}/);
+    const interactiveJson = JSON.parse(interactiveJsonMatch?.[0] ?? "{}");
+
+    expect(missingExitCode).toBe(1);
+    expect(missing.stdoutText()).toContain("Config Validation");
+    expect(missing.stdoutText()).toContain("ready: no");
+    expect(missing.stdoutText()).toContain("missing: TOKENDANCE_GATEWAY_API_KEY or OPENAI_API_KEY");
+    expect(missing.stdoutText()).not.toContain("gateway-secret");
+    expect(readyExitCode).toBe(0);
+    expect(readyJson.validation).toMatchObject({
+      ready: true,
+      provider: "openai-chat-completions",
+      missing: []
+    });
+    expect(ready.stdoutText()).not.toContain("gateway-secret");
+    expect(interactiveExitCode).toBe(0);
+    expect(interactiveJson.validation.ready).toBe(true);
+  });
+
   it("uses global env files for provider keys without reading project env by default", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-cli-env-"));
     const home = await mkdtemp(join(tmpdir(), "tdcode-cli-home-"));

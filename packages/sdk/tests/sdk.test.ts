@@ -460,6 +460,41 @@ describe("TokenDanceCode SDK", () => {
     await expect(readFile(join(projectRoot, ".tokendance", "config.json"), "utf8")).resolves.toContain("deepseek-v4-pro");
   });
 
+  it("validates effective config readiness through the SDK boundary for AgentHub callers", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-config-"));
+    const projectRoot = join(root, "repo");
+    await mkdir(join(projectRoot, ".tokendance"), { recursive: true });
+    await writeFile(
+      join(projectRoot, ".tokendance", "config.json"),
+      JSON.stringify({ provider: "openai-chat-completions", model: "deepseek-v4-pro", permissionMode: "safe" }),
+      "utf8"
+    );
+
+    const missing = await new TokenDanceCode().validateConfig({ projectRoot, homeDir: join(root, "home") });
+    const ready = await new TokenDanceCode({
+      env: {
+        TOKENDANCE_GATEWAY_API_KEY: "gateway-secret",
+        TOKENDANCE_GATEWAY_BASE_URL: "https://api.vectorcontrol.tech/v1"
+      }
+    }).validateConfig({ projectRoot, homeDir: join(root, "home") });
+
+    expect(missing.validation).toMatchObject({
+      ready: false,
+      provider: "openai-chat-completions",
+      missing: ["TOKENDANCE_GATEWAY_API_KEY or OPENAI_API_KEY"]
+    });
+    expect(ready.validation).toMatchObject({
+      ready: true,
+      provider: "openai-chat-completions",
+      missing: [],
+      credentials: {
+        apiKey: "present",
+        apiKeyEnv: "TOKENDANCE_GATEWAY_API_KEY"
+      }
+    });
+    expect(JSON.stringify(ready)).not.toContain("gateway-secret");
+  });
+
   it("applies SDK env provider hints when reading effective config", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-config-"));
     const client = new TokenDanceCode({
@@ -532,7 +567,8 @@ describe("TokenDanceCode SDK", () => {
         "session-resume",
         "context-preview",
         "remote-approval",
-        "config-writer"
+        "config-writer",
+        "config-validation"
       ])
     });
     expect(doctor.packageInfo).toMatchObject({

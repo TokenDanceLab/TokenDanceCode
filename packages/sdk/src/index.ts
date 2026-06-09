@@ -17,6 +17,7 @@ import {
   createDefaultToolRegistry,
   readTokenDanceConfig,
   writeTokenDanceConfig,
+  validateProviderConfig,
   resolveProviderRuntimeEnv,
   readTranscript,
   type AgentRunRecord,
@@ -31,6 +32,7 @@ import {
   type CompactResult,
   type ConfigInfo,
   type ConfigPatch,
+  type ProviderConfigValidation,
   type ConfigWriteScope,
   type BuiltContext,
   type TaskRecord,
@@ -131,6 +133,10 @@ export interface ConfigOptions {
 
 export interface ConfigSetOptions extends ConfigOptions {
   scope?: ConfigWriteScope;
+}
+
+export interface ConfigValidationInfo extends ConfigInfo {
+  validation: ProviderConfigValidation;
 }
 
 export interface DoctorFacadeOptions {
@@ -246,6 +252,14 @@ export class TokenDanceCode {
       scope: options.scope,
       config
     });
+  }
+
+  async validateConfig(options: ConfigOptions = {}): Promise<ConfigValidationInfo> {
+    const info = await this.config(options);
+    return {
+      ...info,
+      validation: validateProviderConfig(info.config, this.options.env)
+    };
   }
 
   doctor(options: DoctorFacadeOptions = {}) {
@@ -619,6 +633,7 @@ export type {
   CompactResult,
   ConfigPatch,
   ConfigWriteScope,
+  ProviderConfigValidation,
   ModelProvider,
   PermissionApprovalCallback,
   PermissionMode,

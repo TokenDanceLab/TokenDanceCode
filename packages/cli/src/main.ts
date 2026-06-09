@@ -358,6 +358,22 @@ async function configCommand(args: string[], io: CliIO): Promise<number> {
   const env = await readCliEnv(io);
   const style = styleFromEnv(env);
   const client = new TokenDanceCode({ env });
+  if (args[0] === "validate") {
+    const format = configFormat(args.slice(1));
+    if (stripConfigFormatArgs(args.slice(1)).length > 0) {
+      await write(io.stderr, "Usage: tokendance config validate [--json]\n");
+      return 1;
+    }
+
+    const info = await client.validateConfig({ projectRoot: io.cwd(), homeDir: homeDirFor(io) });
+    if (format === "json") {
+      await write(io.stdout, `${JSON.stringify(info, null, 2)}\n`);
+    } else {
+      await printConfigValidation(io, info.validation);
+    }
+    return info.validation.ready ? 0 : 1;
+  }
+
   if (args[0] === "set") {
     const format = configFormat(args.slice(1));
     const parsed = parseConfigSetArgs(stripConfigFormatArgs(args.slice(1)));
@@ -382,7 +398,7 @@ async function configCommand(args: string[], io: CliIO): Promise<number> {
 
   const format = configFormat(args);
   if (stripConfigFormatArgs(args).length > 0) {
-    await write(io.stderr, "Usage: tokendance config [--json] [set [--json] [--project|--global] provider <provider> model <model> permission-mode <mode>]\n");
+    await write(io.stderr, "Usage: tokendance config [--json] [validate [--json] | set [--json] [--project|--global] provider <provider> model <model> permission-mode <mode>]\n");
     return 1;
   }
 
@@ -403,6 +419,24 @@ async function configCommand(args: string[], io: CliIO): Promise<number> {
     await write(io.stdout, `source: ${source.kind}${source.path ? ` ${source.path}` : ""}\n`);
   }
   return 0;
+}
+
+async function printConfigValidation(io: CliIO, validation: Awaited<ReturnType<TokenDanceCode["validateConfig"]>>["validation"]): Promise<void> {
+  const style = styleFromEnv(await readCliEnv(io));
+  await writeSection(io, "Config Validation", style);
+  await writeField(io, "ready", yesNo(validation.ready));
+  await writeField(io, "provider", validation.provider);
+  await writeField(io, "model", validation.model);
+  await writeField(io, "missing", validation.missing.length > 0 ? validation.missing.join(", ") : "none");
+  await writeField(io, "apiKey", validation.credentials.apiKey);
+  if ("apiKeyEnv" in validation.credentials) {
+    await writeField(io, "apiKeyEnv", validation.credentials.apiKeyEnv);
+  }
+  await writeField(io, "requiredApiKeyEnv", "required" in validation.credentials ? validation.credentials.required.join(" or ") : "none");
+  await writeField(io, "baseUrl", validation.baseUrl.status);
+  if ("baseUrlEnv" in validation.baseUrl) {
+    await writeField(io, "baseUrlEnv", validation.baseUrl.baseUrlEnv);
+  }
 }
 
 async function gatewayCommand(args: string[], io: CliIO): Promise<number> {
@@ -1079,6 +1113,7 @@ ${heading("Work:", style)}
 ${heading("Diagnostics:", style)}
   tokendance doctor [--json]
   tokendance config [--json]
+  tokendance config validate [--json]
   tokendance config set [--json] [--project|--global] provider <provider> model <model> permission-mode <mode>
 
 ${heading("Gateway:", style)}
@@ -1122,6 +1157,7 @@ ${heading("Work:", style)}
 ${heading("Diagnostics:", style)}
   /doctor [json]
   /config [json]
+  /config validate [json]
   /config set [json] [--project|--global] provider <provider> model <model> permission-mode <mode>
 
 ${heading("Gateway:", style)}
@@ -1401,7 +1437,7 @@ function normalizeConfigField(value: string | undefined): keyof ConfigPatch | un
 }
 
 function configSetUsage(): string {
-  return "Usage: tokendance config set [--project|--global] provider <provider> model <model> permission-mode <default|safe|auto|yolo>\n";
+  return "Usage: tokendance config set [--json] [--project|--global] provider <provider> model <model> permission-mode <default|safe|auto|yolo>\n";
 }
 
 function parseTokenDanceIdLoginArgs(args: string[]):

@@ -51,6 +51,21 @@ export interface ProviderIntegrationGate {
   missing: string[];
 }
 
+export interface ProviderConfigValidation {
+  ready: boolean;
+  provider: ConfigProvider;
+  model: string;
+  missing: string[];
+  credentials:
+    | { apiKey: "not-required" }
+    | { apiKey: "present"; apiKeyEnv: ProviderApiKeyEnv; required: ProviderApiKeyEnv[] }
+    | { apiKey: "missing"; required: ProviderApiKeyEnv[] };
+  baseUrl:
+    | { status: "not-required" }
+    | { status: "present"; baseUrlEnv: ProviderBaseUrlEnv }
+    | { status: "default"; defaultUrl: string };
+}
+
 const defaultConfig: TokenDanceConfig = {
   provider: "mock",
   model: "mock",
@@ -196,6 +211,42 @@ export function shouldRunProviderIntegration(provider: ConfigProvider, env: Reco
   };
 }
 
+export function validateProviderConfig(config: TokenDanceConfig, env: Record<string, string | undefined> = process.env): ProviderConfigValidation {
+  if (config.provider === "mock") {
+    return {
+      ready: true,
+      provider: config.provider,
+      model: config.model,
+      missing: [],
+      credentials: { apiKey: "not-required" },
+      baseUrl: { status: "not-required" }
+    };
+  }
+
+  const runtimeEnv = resolveProviderRuntimeEnv(config.provider, env);
+  const required = requiredRuntimeApiKeyEnvs(config.provider);
+  const missing: string[] = [];
+  if (!runtimeEnv.apiKey || !runtimeEnv.apiKeyEnv) {
+    missing.push(config.provider === "openai-chat-completions" ? "TOKENDANCE_GATEWAY_API_KEY or OPENAI_API_KEY" : required[0]!);
+  }
+  if (config.model.trim() === "" || config.model === defaultConfig.model) {
+    missing.push("model");
+  }
+
+  return {
+    ready: missing.length === 0,
+    provider: config.provider,
+    model: config.model,
+    missing,
+    credentials: runtimeEnv.apiKeyEnv
+      ? { apiKey: "present", apiKeyEnv: runtimeEnv.apiKeyEnv, required }
+      : { apiKey: "missing", required },
+    baseUrl: runtimeEnv.baseUrlEnv
+      ? { status: "present", baseUrlEnv: runtimeEnv.baseUrlEnv }
+      : { status: "default", defaultUrl: defaultBaseUrl(config.provider) }
+  };
+}
+
 function sanitizeConfig(value: unknown): Partial<TokenDanceConfig> {
   if (typeof value !== "object" || value === null) {
     return {};
@@ -254,6 +305,20 @@ function envValue(value: string | undefined): string | undefined {
 
 function requiredApiKeyEnv(provider: Exclude<ConfigProvider, "mock" | "openai-chat-completions">): ProviderApiKeyEnv {
   return provider === "openai-responses" ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY";
+}
+
+function requiredRuntimeApiKeyEnvs(provider: Exclude<ConfigProvider, "mock">): ProviderApiKeyEnv[] {
+  if (provider === "openai-chat-completions") {
+    return ["TOKENDANCE_GATEWAY_API_KEY", "OPENAI_API_KEY"];
+  }
+  return [requiredApiKeyEnv(provider)];
+}
+
+function defaultBaseUrl(provider: Exclude<ConfigProvider, "mock">): string {
+  if (provider === "anthropic-messages") {
+    return "https://api.anthropic.com";
+  }
+  return "https://api.openai.com/v1";
 }
 
 function integrationModelEnv(provider: Exclude<ConfigProvider, "mock">): string {

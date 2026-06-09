@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { readTokenDanceConfig, resolveProviderRuntimeEnv, shouldRunProviderIntegration, writeTokenDanceConfig } from "../src/index.js";
+import { readTokenDanceConfig, resolveProviderRuntimeEnv, shouldRunProviderIntegration, validateProviderConfig, writeTokenDanceConfig } from "../src/index.js";
 
 describe("TokenDance config", () => {
   it("merges defaults, global config, and project config without secrets", async () => {
@@ -153,6 +153,75 @@ describe("TokenDance config", () => {
         TOKENDANCE_ANTHROPIC_TEST_MODEL: "claude-test"
       })
     ).toEqual({ enabled: true, missing: [] });
+  });
+
+  it("validates provider readiness without exposing secrets", () => {
+    expect(validateProviderConfig({ provider: "mock", model: "mock", permissionMode: "default" }, {})).toEqual({
+      ready: true,
+      provider: "mock",
+      model: "mock",
+      missing: [],
+      credentials: {
+        apiKey: "not-required"
+      },
+      baseUrl: {
+        status: "not-required"
+      }
+    });
+
+    expect(validateProviderConfig({ provider: "openai-responses", model: "gpt-test", permissionMode: "safe" }, {})).toEqual({
+      ready: false,
+      provider: "openai-responses",
+      model: "gpt-test",
+      missing: ["OPENAI_API_KEY"],
+      credentials: {
+        apiKey: "missing",
+        required: ["OPENAI_API_KEY"]
+      },
+      baseUrl: {
+        status: "default",
+        defaultUrl: "https://api.openai.com/v1"
+      }
+    });
+
+    expect(
+      validateProviderConfig(
+        { provider: "openai-chat-completions", model: "deepseek-v4-pro", permissionMode: "safe" },
+        {
+          TOKENDANCE_GATEWAY_API_KEY: "gateway-secret",
+          TOKENDANCE_GATEWAY_BASE_URL: "https://api.vectorcontrol.tech/v1"
+        }
+      )
+    ).toEqual({
+      ready: true,
+      provider: "openai-chat-completions",
+      model: "deepseek-v4-pro",
+      missing: [],
+      credentials: {
+        apiKey: "present",
+        apiKeyEnv: "TOKENDANCE_GATEWAY_API_KEY",
+        required: ["TOKENDANCE_GATEWAY_API_KEY", "OPENAI_API_KEY"]
+      },
+      baseUrl: {
+        status: "present",
+        baseUrlEnv: "TOKENDANCE_GATEWAY_BASE_URL"
+      }
+    });
+
+    const serialized = JSON.stringify(
+      validateProviderConfig(
+        { provider: "openai-chat-completions", model: "deepseek-v4-pro", permissionMode: "safe" },
+        { TOKENDANCE_GATEWAY_API_KEY: "gateway-secret" }
+      )
+    );
+    expect(serialized).not.toContain("gateway-secret");
+  });
+
+  it("requires a non-mock model for real provider readiness", () => {
+    expect(validateProviderConfig({ provider: "anthropic-messages", model: "mock", permissionMode: "safe" }, { ANTHROPIC_API_KEY: "secret" })).toMatchObject({
+      ready: false,
+      missing: ["model"]
+    });
   });
 
   it("writes only safe project config fields and strips stored secrets", async () => {

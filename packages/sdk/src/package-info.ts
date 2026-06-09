@@ -11,7 +11,8 @@ export interface TokenDanceCodePackageInfo {
       "context-preview",
       "remote-approval",
       "tokendanceid-oidc-login",
-      "config-writer"
+      "config-writer",
+      "config-validation"
     ];
   };
   packages: {
@@ -55,7 +56,8 @@ export const TOKEN_DANCE_CODE_PACKAGE: TokenDanceCodePackageInfo = {
       "context-preview",
       "remote-approval",
       "tokendanceid-oidc-login",
-      "config-writer"
+      "config-writer",
+      "config-validation"
     ]
   },
   packages: {

@@ -8,26 +8,47 @@
 
 截图展示了 `tokendance` 在 PowerShell 中启动后的本地 CLI 体验。
 
-## Rust 重写状态
+## Rust Rewrite
 
-This branch is an aggressive Rust rewrite of the current TypeScript implementation. The TypeScript packages remain in the repository as contract references while the Rust crates take over the active runtime.
+TokenDanceCode is being rewritten in Rust for performance and reliability. The Rust branch (`codex/rust-rewrite`) coexists with the TypeScript implementation.
 
-Active crates:
-
-- `crates/tokendance-core`: runtime, provider trait, permissions, session, transcript.
-- `crates/tokendance-sdk`: AgentHub facade and event mapping.
-- `crates/tokendance-cli`: `tokendance` binary.
-
-First baseline commands:
+### Quick Start (Rust)
 
 ```powershell
-cargo test --workspace
+git clone https://github.com/TokenDanceLab/TokenDanceCode.git
+cd TokenDanceCode
+git checkout codex/rust-rewrite
 cargo run -p tokendance-cli -- --version
 cargo run -p tokendance-cli -- doctor --json
-cargo run -p tokendance-cli -- run --json "hello"
 ```
 
+### Current Status
+
+- **204 tests** passing across 3 crates (CLI: 12, Core: 185, SDK: 7)
+- **7 built-in tools**: echo, read_file, write_file, edit_file, glob, grep, run_powershell
+- **3 provider transports**: OpenAI Chat Completions, OpenAI Responses, Anthropic Messages
+- **Interactive REPL** with streaming output
+- **MCP client** for tool extensibility (stdio JSON-RPC, tool discovery, namespaced tools)
+- **Subagent spawning** for multi-agent orchestration (isolated sessions, filtered tools, recursion prevention)
+- **Context compaction** for long-running sessions (threshold-based, heuristic summary)
+- **Memory system** with markdown files and frontmatter (CRUD operations, scoped types)
+- **Hooks system** for lifecycle customization (PreToolUse, PostToolUse, TurnCompleted, TurnFailed)
+- **Streaming architecture** with SSE parser and mpsc channels
+- **Instruction discovery** for AGENTS.md/CLAUDE.md with scope hierarchy
+
 See [docs/rust-rewrite-architecture.md](docs/rust-rewrite-architecture.md) for ownership, migration order, and release gates.
+
+### Release Readiness
+
+```powershell
+# Full release readiness check
+node scripts/smoke-rust-release.mjs
+
+# Provider smoke (opt-in, requires API keys)
+TOKENDANCE_SMOKE_PROVIDERS=1 node scripts/smoke-providers.mjs
+```
+
+See [docs/rust-release-checklist.md](docs/rust-release-checklist.md) for the full release checklist.
 
 ## 项目定位
 

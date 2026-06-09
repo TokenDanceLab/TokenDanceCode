@@ -8,11 +8,13 @@ pub mod permissions;
 pub mod provider;
 pub mod providers;
 pub mod runtime;
+pub mod sandbox;
 pub mod streaming;
 pub mod subagent;
 pub mod tools;
 pub mod transcript;
 pub mod types;
+pub mod worktree;
 
 pub use config::{
     DoctorInfo, ProviderConfig, ProviderKind, ProviderSettings, Settings, doctor_info,

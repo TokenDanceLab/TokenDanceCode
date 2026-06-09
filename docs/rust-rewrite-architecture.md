@@ -11,7 +11,12 @@ Keep the product boundary narrow:
 - provider adapters for OpenAI Responses, OpenAI-compatible Chat Completions / TokenDance Gateway, and Anthropic-compatible Messages;
 - permission modes and subject-level safety evidence;
 - AgentHub-consumable SDK facade, `agent.stream` mapping, approval bridge, TokenDanceID login helper, and same-session run guard;
-- Rust-first npm binary wrapper for the CLI and SDK bridge.
+- Rust-first npm binary wrapper for the CLI and SDK bridge;
+- MCP client for tool extensibility;
+- subagent spawning for multi-agent orchestration;
+- context compaction for long-running sessions;
+- memory system for persistent knowledge;
+- hooks system for lifecycle customization.
 
 Do not build a hosted service, AgentHub replacement, plugin marketplace, full-screen IDE, or long-lived cloud daemon in this repo.
 
@@ -19,9 +24,9 @@ Do not build a hosted service, AgentHub replacement, plugin marketplace, full-sc
 
 | Crate | Role | Current baseline |
 |---|---|---|
-| `tokendance-core` | Runtime, provider trait, session state, permissions, transcript JSONL, config loading | Mock provider, tool catalog with 7 tools, config merge/validate, one-turn transcript loop |
-| `tokendance-sdk` | AgentHub-facing facade and event mapping | Runner facade, schema constants, same-session in-process guard |
-| `tokendance-cli` | `tokendance` binary | `run`, `doctor`, `config validate`, `sessions list/show`, `transcript search`, `quality`, `gateway init`, `auth tokendanceid login-url` |
+| `tokendance-core` | Runtime, provider trait, session state, permissions, transcript JSONL, config, MCP, subagent, compaction, memory, hooks, streaming, context | 185 tests, 7 built-in tools, 3 provider transports, MCP client, subagent system |
+| `tokendance-sdk` | AgentHub-facing facade and event mapping | 7 tests, runner facade, schema constants, same-session guard |
+| `tokendance-cli` | `tokendance` binary | 12 tests, `run`, `doctor`, `config validate`, `sessions list/show`, `transcript search`, `quality`, `gateway init`, `auth tokendanceid login-url` |
 
 ## Tool System Design
 
@@ -100,6 +105,227 @@ The `ProviderError` type redacts secret-like values in error messages:
 
 HTTP transport uses `reqwest` with `rustls-tls`. API keys are resolved from `TOKENDANCE_GATEWAY_API_KEY` or per-provider env vars and are never printed to stdout or included in error context.
 
+## MCP Client Architecture
+
+The MCP (Model Context Protocol) client enables tool extensibility through external server processes.
+
+### Transport
+
+- **Protocol**: JSON-RPC 2.0 over stdio
+- **Server lifecycle**: the client spawns a server process, initializes the connection, and shuts it down on drop
+- **Configuration**: `McpServerConfig` defines `command`, `args`, and `env` for the server process
+
+### Tool Discovery
+
+- On initialization, the client calls `tools/list` to discover available tools
+- Each tool is represented as `McpToolInfo` with `name`, `description`, and `inputSchema`
+- Discovered tools are registered in the `ToolRegistry` with namespaced names (e.g. `mcp__{server}__{tool}`)
+
+### Tool Execution
+
+- Tools are called via `tools/call` with the tool name and arguments
+- Results are returned as `McpToolResult` with content and error fields
+- The client handles request/response correlation with JSON-RPC message IDs
+
+### Resource Reading
+
+- Resources are listed via `resources/list` and read via `resources/read`
+- Each resource has a URI, name, description, and optional MIME type
+
+## Subagent System
+
+Subagents enable multi-agent orchestration by spawning isolated agent sessions.
+
+### Configuration
+
+`SubagentConfig` declares:
+
+- **name**: descriptive name for the subagent type
+- **prompt**: system prompt/instructions for the subagent
+- **allowed_tools / disallowed_tools**: subset of parent's tools (empty means all available)
+- **max_turns**: maximum turns the subagent can take (default: 10)
+- **permission_mode**: can be more restrictive than parent
+- **model**: optional override (None = inherit from parent)
+- **working_directory**: optional override (None = inherit from parent)
+
+### Isolation
+
+- Each subagent gets an isolated `SessionState` with its own message history
+- Tool access is filtered through the `allowed_tools`/`disallowed_tools` lists
+- The subagent's permission mode can be stricter than the parent's
+
+### Recursion Prevention
+
+A hardcoded list of tool names (`subagent`, `run_subagent`, `agent`) are blocked from subagent tool lists to prevent unbounded recursion.
+
+### Result
+
+`SubagentResult` captures:
+
+- `subagent_id`: unique identifier
+- `success`: whether the subagent completed successfully
+- `response`: the final response text
+- `turns_completed`: number of turns executed
+- `tools_used`: list of tools invoked
+
+## Context Compaction
+
+Context compaction reduces token usage in long-running sessions by summarizing older messages.
+
+### Configuration
+
+`CompactConfig` controls compaction behavior:
+
+- **max_messages**: threshold to trigger compaction (default: 100)
+- **keep_recent**: number of recent messages to preserve unsummarized (default: 10)
+- **enabled**: whether compaction is active (default: true)
+
+### Heuristic Summary
+
+When the message count exceeds `max_messages`:
+
+1. Messages older than `keep_recent` are selected for compaction
+2. A summary is produced replacing the older messages
+3. The compacted messages are removed and replaced with a single summary message
+4. `CompactResult` reports the summary, messages compacted, messages kept, and estimated tokens saved
+
+## Memory System
+
+The memory system provides persistent knowledge storage backed by markdown files.
+
+### Storage Format
+
+Each memory entry is stored as a `.md` file with YAML-like frontmatter:
+
+```markdown
+---
+name: user-preferences
+description: User's coding preferences
+metadata:
+  type: feedback
+  updated: "2026-06-10"
+---
+
+User prefers kebab-case for directory names...
+```
+
+### Memory Types
+
+| Type | Scope |
+|---|---|
+| `user` | Global user-level preferences |
+| `feedback` | User feedback and corrections |
+| `project` | Project-specific knowledge |
+| `reference` | Reference material and documentation |
+
+### CRUD Operations
+
+`MemoryStore` provides:
+
+- **Create**: write a new memory entry as a markdown file
+- **Read**: load and parse a memory entry from file
+- **Update**: modify an existing memory entry in place
+- **Delete**: remove a memory entry file
+- **List**: enumerate all memory entries in the store
+
+## Instruction Discovery
+
+The context builder discovers instruction files that guide agent behavior.
+
+### Scope Hierarchy
+
+Instructions are loaded in order (later overrides earlier):
+
+1. **Global**: `{HOME}/.tokendance/AGENTS.md`
+2. **Project**: `{project_root}/AGENTS.md`
+3. **Project (alt)**: `{project_root}/CLAUDE.md`
+4. **Local**: `{project_root}/.tokendance/AGENTS.md`
+
+### Discovery
+
+`InstructionFile` captures:
+
+- `path`: resolved file path
+- `scope`: `InstructionScope` enum (Global, Project, Local)
+- `content`: file contents
+
+### Working Context
+
+`WorkingContext` provides environmental context:
+
+- `project_root`: resolved project directory
+- `project_type`: detected type ("rust", "typescript", "mixed", "unknown")
+- `top_level_files`: files and directories in the project root
+- `instruction_count`: number of instruction files found
+
+## Hooks System
+
+The hooks system provides lifecycle callbacks for customizing agent behavior.
+
+### Hook Points
+
+| Hook | Timing | Use case |
+|---|---|---|
+| `PreToolUse` | Before tool execution | Validate inputs, block dangerous operations |
+| `PostToolUse` | After tool execution | Audit, logging, post-processing |
+| `TurnCompleted` | After a turn finishes | Progress tracking, notification |
+| `TurnFailed` | After a turn fails | Error reporting, cleanup |
+
+### Hook Context
+
+`HookContext` provides:
+
+- `session_id`: current session identifier
+- `turn_id`: current turn identifier
+- `tool_call`: tool call details (for tool hooks)
+- `tool_result`: tool result (for post hooks)
+- `decision`: permission decision (for tool hooks)
+
+### Hook Results
+
+- **Continue**: proceed normally
+- **Block**: prevent the action with a reason
+- **Modify**: alter the tool input (PreToolUse only)
+
+### Registry
+
+`HookRegistry` manages named hook collections per hook point. Hooks are registered at startup and called synchronously in registration order.
+
+## Streaming Architecture
+
+The streaming subsystem handles real-time output from provider responses.
+
+### SSE Parser
+
+`parse_sse_buffer` processes Server-Sent Events text into structured `SseEvent` objects:
+
+- **event_type**: the SSE event type field
+- **data**: concatenated data lines
+- **id**: optional event ID
+
+The parser handles SSE edge cases: comment lines (starting with `:`), concatenated data fields, and missing fields.
+
+### StreamEvent
+
+The streaming layer converts SSE events into `StreamEvent` variants for the runtime to process.
+
+### Channel Integration
+
+Provider responses flow through `tokio::sync::mpsc` channels, enabling:
+
+- Non-blocking streaming from provider HTTP responses
+- Buffered event processing in the runtime loop
+- Clean shutdown when the channel closes
+
+## Sandboxing Abstraction
+
+The runtime provides platform-specific safety policies:
+
+- **Windows**: PowerShell destructive-command hard-deny (e.g. `Remove-Item -Recurse -Force` on system paths)
+- **Path validation**: workspace-relative path enforcement, traversal rejection
+- **Secret-like paths**: paths matching common secret patterns require approval or are denied in safe mode
+- **Command classification**: shell commands are classified for risk before execution
+
 ## Config System
 
 Settings are loaded from `settings.json` files and merged:
@@ -146,11 +372,14 @@ The Rust branch is not releasable until these pass:
 ```powershell
 cargo fmt --all -- --check
 cargo test --workspace
+cargo clippy --workspace -- -D warnings
 cargo run -p tokendance-cli -- --version
 cargo run -p tokendance-cli -- doctor --json
-cargo run -p tokendance-cli -- run --json "hello"
 pnpm verify
+pnpm release:rust:plan:check
 pnpm smoke:rust-wrapper
+node scripts/smoke-rust-release.mjs
+node scripts/smoke-providers.mjs
 ```
 
 `pnpm verify` intentionally remains the short Rust verification gate for now:
@@ -182,13 +411,3 @@ The Rust-first npm binary wrapper is a distribution layer, not a second CLI impl
 - Optional native packages may be listed through `optionalDependencies` only after their manifests, CI artifact names, target triples, and smoke tests are defined.
 - Planned native package names include `@tokendance/code-cli-win32-x64-msvc`, `@tokendance/code-cli-darwin-arm64`, `@tokendance/code-cli-darwin-x64`, `@tokendance/code-cli-linux-x64-gnu`, and `@tokendance/code-cli-linux-arm64-gnu`.
 - Do not add publish scripts. Publishing remains a manual release-owner action from reviewed tarballs.
-
-## Next Parallel Slices
-
-| Slice | Owner paths | First deliverable |
-|---|---|---|
-| CLI contract | `crates/tokendance-cli/**`, CLI tests | parser and JSON/JSONL tests for `run`, `doctor`, config/gateway/auth stubs |
-| Runtime contract | `crates/tokendance-core/**` | event enum parity, transcript sequence continuity, permission subjects |
-| Provider adapters | `crates/tokendance-core/src/provider*` | typed protocol errors and mock/openai-chat scaffold |
-| AgentHub SDK | `crates/tokendance-sdk/**` | schema v2 envelopes, approval bridge scaffold, same-session terminal failure |
-| Release wrapper | `package.json`, `scripts/**`, package metadata docs | binary npm wrapper plan, privacy scan updates, no publish script |

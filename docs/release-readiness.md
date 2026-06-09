@@ -7,7 +7,7 @@ TokenDanceCode has a local npm first-candidate baseline. The public registry doe
 ## Candidate
 
 - Version: `0.2.0-ts.0`
-- Candidate commit: `aac4a81` (`docs(readme): refresh public npm baseline`)
+- Candidate commit: `677de55` (`docs(release): record npm first candidate baseline`)
 - Release branch: `release/npm-first` points at the candidate commit.
 - Packages:
   - `@tokendance/code-core`

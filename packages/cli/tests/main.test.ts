@@ -227,24 +227,33 @@ describe("TokenDanceCode CLI", () => {
 
   it("manages tasks and todos in interactive and top-level commands", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-cli-tasks-"));
-    const interactive = createTestIO("/tasks create Stage 15 E2E\n/todo add Run unittest --task task-1\n/tasks done task-1\n/todo doing todo-1\n/tasks\n/todo\n/exit\n", root);
+    const interactive = createTestIO(
+      "/tasks create Stage 15 E2E\n/tasks link-session task-1 session-cli\n/tasks link-worktree task-1 D:/Code/TokenDance/TokenDanceCode/.worktrees/parallel-threads-tasks\n/todo add Run unittest --task task-1\n/tasks done task-1\n/todo doing todo-1\n/tasks\n/todo\n/exit\n",
+      root
+    );
     await runCli([], interactive);
     const topLevelTasks = createTestIO("", root);
     const topLevelTodos = createTestIO("", root);
+    const missingLinkArgs = createTestIO("", root);
 
     const tasksExitCode = await runCli(["tasks"], topLevelTasks);
     const todosExitCode = await runCli(["todo"], topLevelTodos);
+    const missingLinkArgsExitCode = await runCli(["tasks", "link-session", "task-1"], missingLinkArgs);
 
     expect(interactive.stdoutText()).toContain("Created task task-1.");
+    expect(interactive.stdoutText()).toContain("Linked task task-1 to session session-cli.");
+    expect(interactive.stdoutText()).toContain("Linked task task-1 to worktree D:/Code/TokenDance/TokenDanceCode/.worktrees/parallel-threads-tasks.");
     expect(interactive.stdoutText()).toContain("Created todo todo-1.");
     expect(interactive.stdoutText()).toContain("Updated task task-1 to completed.");
     expect(interactive.stdoutText()).toContain("Updated todo todo-1 to in_progress.");
-    expect(interactive.stdoutText()).toContain("[completed] task-1 Stage 15 E2E");
+    expect(interactive.stdoutText()).toContain("[completed] task-1 Stage 15 E2E (session session-cli, worktree D:/Code/TokenDance/TokenDanceCode/.worktrees/parallel-threads-tasks)");
     expect(interactive.stdoutText()).toContain("[in_progress] todo-1 Run unittest (task task-1)");
     expect(tasksExitCode).toBe(0);
     expect(todosExitCode).toBe(0);
-    expect(topLevelTasks.stdoutText()).toContain("[completed] task-1 Stage 15 E2E");
+    expect(missingLinkArgsExitCode).toBe(1);
+    expect(topLevelTasks.stdoutText()).toContain("[completed] task-1 Stage 15 E2E (session session-cli, worktree D:/Code/TokenDance/TokenDanceCode/.worktrees/parallel-threads-tasks)");
     expect(topLevelTodos.stdoutText()).toContain("[in_progress] todo-1 Run unittest (task task-1)");
+    expect(missingLinkArgs.stderrText()).toContain("Usage: tokendance tasks link-session <task-id> <session-id>");
   });
 
   it("manages worktrees in interactive and top-level commands", async () => {

@@ -340,6 +340,8 @@ const client = new TokenDanceCode({
 /tasks create <title>
 /tasks doing <task-id>
 /tasks done <task-id>
+/tasks link-session <task-id> <session-id>
+/tasks link-worktree <task-id> <worktree>
 /todo
 /todo add <text> [--task task-id]
 /todo doing <todo-id>

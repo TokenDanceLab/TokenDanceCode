@@ -510,7 +510,27 @@ async function tasksCommand(args: string[], io: CliIO): Promise<number> {
       await write(io.stdout, `Updated task ${task.id} to ${task.status}.\n`);
       return 0;
     }
-    await write(io.stderr, "Usage: tokendance tasks [create|doing|done] [value]\n");
+    if (command === "link-session") {
+      const sessionId = rest.join(" ").trim();
+      if (!id || !sessionId) {
+        await write(io.stderr, "Usage: tokendance tasks link-session <task-id> <session-id>\n");
+        return 1;
+      }
+      const task = await tasks.linkSession(id, sessionId);
+      await write(io.stdout, `Linked task ${task.id} to session ${task.linkedSessionId}.\n`);
+      return 0;
+    }
+    if (command === "link-worktree") {
+      const worktree = rest.join(" ").trim();
+      if (!id || !worktree) {
+        await write(io.stderr, "Usage: tokendance tasks link-worktree <task-id> <worktree>\n");
+        return 1;
+      }
+      const task = await tasks.linkWorktree(id, worktree);
+      await write(io.stdout, `Linked task ${task.id} to worktree ${task.linkedWorktree}.\n`);
+      return 0;
+    }
+    await write(io.stderr, "Usage: tokendance tasks [create|doing|done|link-session|link-worktree] [value]\n");
     return 1;
   } catch (error) {
     await write(io.stderr, `${error instanceof Error ? error.message : String(error)}\n`);
@@ -745,7 +765,10 @@ async function printTasks(io: CliIO, tasks: Awaited<ReturnType<ReturnType<TokenD
     return;
   }
   for (const task of tasks) {
-    await write(io.stdout, `[${task.status}] ${task.id} ${task.title}\n`);
+    const linked = [task.linkedSessionId ? `session ${task.linkedSessionId}` : "", task.linkedWorktree ? `worktree ${task.linkedWorktree}` : ""]
+      .filter(Boolean)
+      .join(", ");
+    await write(io.stdout, `[${task.status}] ${task.id} ${task.title}${linked ? ` (${linked})` : ""}\n`);
   }
 }
 
@@ -883,7 +906,7 @@ Usage:
   tokendance review
   tokendance tools
   tokendance quality [command]
-  tokendance tasks [create|doing|done] [value]
+  tokendance tasks [create|doing|done|link-session|link-worktree] [value]
   tokendance todo [add|doing|done] [value]
   tokendance worktree [list|create|remove] [name] [--discard]
   tokendance resume [session-id]
@@ -917,7 +940,7 @@ async function printInteractiveHelp(io: CliIO): Promise<void> {
   /review
   /tools
   /quality [command]
-  /tasks [create|doing|done] [value]
+  /tasks [create|doing|done|link-session|link-worktree] [value]
   /todo [add|doing|done] [value]
   /worktree [list|create|remove] [name] [--discard]
   /transcript [search <query>]

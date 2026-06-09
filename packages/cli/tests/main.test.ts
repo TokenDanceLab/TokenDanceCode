@@ -1174,6 +1174,30 @@ describe("TokenDanceCode CLI", () => {
     expect(io.stderrText()).toBe("");
   });
 
+  it("keeps run format-looking tokens after the first prompt word as literal text", async () => {
+    const io = createTestIO();
+
+    const exitCode = await runCli(["run", "explain", "--json", "flag"], io);
+
+    expect(exitCode).toBe(0);
+    expect(io.stdoutText()).toContain("Mock response: explain --json flag\n");
+    expect(io.stdoutText()).toContain("[usage] usage input=19 output=5 total=24\n");
+    expect(() => JSON.parse(io.stdoutText())).toThrow();
+    expect(io.stderrText()).toBe("");
+  });
+
+  it("uses double dash to let top-level run prompts start with literal flags", async () => {
+    const io = createTestIO();
+
+    const exitCode = await runCli(["run", "--", "--json", "literal"], io);
+
+    expect(exitCode).toBe(0);
+    expect(io.stdoutText()).toContain("Mock response: --json literal\n");
+    expect(io.stdoutText()).toContain("[usage] usage input=14 output=5 total=19\n");
+    expect(() => JSON.parse(io.stdoutText())).toThrow();
+    expect(io.stderrText()).toBe("");
+  });
+
   it("prints aggregate JSON for top-level run with final result and tool events", async () => {
     const io = createTestIO();
 
@@ -1263,6 +1287,30 @@ describe("TokenDanceCode CLI", () => {
     });
     expect(payload.threadId).toBe(payload.sessionId);
     expect(payload.sessionId).toEqual(expect.any(String));
+  });
+
+  it("keeps leading run JSON flags as format selectors", async () => {
+    const aggregate = createTestIO();
+    const stream = createTestIO();
+
+    const aggregateExitCode = await runCli(["run", "--json", "leading", "json"], aggregate);
+    const streamExitCode = await runCli(["run", "--stream-json", "leading", "stream"], stream);
+    const aggregatePayload = JSON.parse(aggregate.stdoutText());
+    const streamLines = stream.stdoutText().trim().split("\n").map((line) => JSON.parse(line));
+
+    expect(aggregateExitCode).toBe(0);
+    expect(streamExitCode).toBe(0);
+    expect(aggregatePayload).toMatchObject({
+      success: true,
+      finalResponse: "Mock response: leading json",
+      error: null
+    });
+    expect(streamLines.at(-1)).toMatchObject({
+      eventType: "run.result",
+      success: true,
+      finalResponse: "Mock response: leading stream",
+      error: null
+    });
   });
 
   it("renders compact summaries for successful tool results", async () => {

@@ -905,7 +905,12 @@ function parseRunArgs(args: string[]): RunCommandArgs | { error: string } {
   let format: RunOutputFormat = "text";
   const promptArgs: string[] = [];
 
-  for (const arg of args) {
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--") {
+      promptArgs.push(...args.slice(index + 1));
+      break;
+    }
     if (arg === "--json" || arg === "--stream-json") {
       const nextFormat = arg === "--json" ? "json" : "stream-json";
       if (format !== "text" && format !== nextFormat) {
@@ -914,7 +919,8 @@ function parseRunArgs(args: string[]): RunCommandArgs | { error: string } {
       format = nextFormat;
       continue;
     }
-    promptArgs.push(arg);
+    promptArgs.push(...args.slice(index));
+    break;
   }
 
   return { format, prompt: promptArgs.join(" ").trim() };

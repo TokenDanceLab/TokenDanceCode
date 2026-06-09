@@ -75,6 +75,21 @@ pnpm release:next:check
 
 `pnpm pack:smoke` 会把 `@tokendance/code-core`、`@tokendance/code-sdk`、`@tokendance/code-cli` 的真实 tarball 安装到临时项目中，验证 SDK import、mock turn 和 CLI bin 启动。`pnpm release:next:check` 是 npm `next` 预发布前的本地门禁，覆盖 `pnpm verify && pnpm pack:check`。不要在检查脚本中执行 npm publish；`npm publish --tag next` 只作为 release owner 审核后的人工发布动作。
 
+### Release owner 检查清单
+
+Manual approval gate：本地 release gate 只运行 `pnpm release:next:check`、`pnpm pack:check` 和 `pnpm pack:smoke`，不执行 npm 写操作。release owner 在批准 `npm publish --tag next` 前，需要确认版本一致、`publishConfig.tag=next`、包内容只包含发布所需文件、package-local README 与根 README 一致、npm 登录和 2FA 状态由本人可控。
+
+AgentHub consumption story：AgentHub 消费 `@tokendance/code-sdk`，读取 `TOKEN_DANCE_CODE_PACKAGE` 做启动检查，使用 thread API、event sink、approval bridge、config 和 doctor facade。`@tokendance/code-core` 继续作为 SDK/CLI runtime 依赖，`@tokendance/code-cli` 提供本地 `tokendance` bin，`@tokendance/code-agenthub-example` 只作为私有复制样例，不发布到 npm。
+
+Residual risk matrix：
+
+| 风险 | 当前状态 | 后续处理 |
+|---|---|---|
+| npm 发布动作不可由本地检查证明 | 检查脚本明确不发布 | Manual approval gate 后由 release owner 逐包执行 |
+| 真实 provider smoke 依赖外部 key | 默认测试不读取项目 `.env`，真实集成测试显式 opt-in | 需要时由 release owner 在受控 shell 注入 |
+| AgentHub 生产接入仍需产品侧替换样例存储 | SDK 和 example 覆盖 contract 与事件形态 | Hub/Edge 合并时替换为自己的 event bus、approval store 和 session 生命周期 |
+| Python v0.1 验收项仍在文档后半段 | TS 权威验收已前置 | 后续迁移切片继续替换旧项 |
+
 涉及 CLI 行为时额外运行：
 
 ```powershell

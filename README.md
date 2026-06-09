@@ -532,6 +532,31 @@ pnpm pack:smoke
 
 `pnpm release:next:check` 等价于 `pnpm verify && pnpm pack:check`。它覆盖 typecheck、Vitest、构建、dry-run pack 和本地 tarball install smoke。不要在检查脚本中执行 npm publish；`npm publish --tag next` 只作为人工审核后的单包发布动作，由 release owner 在确认版本、dist-tag、包内容和 npm 登录状态后执行。
 
+### Release owner 检查清单
+
+Manual approval gate：`pnpm release:next:check` 和 `pnpm pack:smoke` 只证明本地源码、构建产物、dry-run pack 和临时项目安装闭环可用；它们不会登录 npm、不会改 dist-tag、不会发布任何包。真正执行 `npm publish --tag next` 前，release owner 需要逐包确认以下事项。
+
+| 检查项 | 期望证据 |
+|---|---|
+| 版本与 dist-tag | 根包和三个 public 包版本一致，`publishConfig.tag` 为 `next` |
+| 包内容 | `pnpm pack:smoke` 已安装真实 tarball，且包内只包含 `dist`、`README.md` 和 npm 必需 manifest 文件 |
+| README 一致性 | 根 README 与 package-local README 都说明包职责、AgentHub 消费方式、pack smoke 和手动发布边界 |
+| 凭据边界 | 发布检查不读取或打印 provider key；npm 登录状态只由 release owner 在本机确认 |
+| 人工发布 | `npm publish --tag next` 只能在显式批准后对 `@tokendance/code-core`、`@tokendance/code-sdk`、`@tokendance/code-cli` 逐包执行 |
+
+### AgentHub consumption story
+
+AgentHub 只应把 `@tokendance/code-sdk` 当作稳定消费入口。Hub/Edge/Desktop/Web 可以读取 `TOKEN_DANCE_CODE_PACKAGE` 做启动检查，使用 `TokenDanceCode -> Thread -> run()/runStreamed()/context()` 执行本地 coding-agent turn，通过 `createAgentHubEventSink()` 或 `createAgentHubAgentStreamSink()` 投递 runtime events，并用 `createAgentHubApprovalBridge()` 接入远程审批。`@tokendance/code-core` 是 SDK/CLI 的 shared runtime，业务集成不应直接依赖 core internals；`@tokendance/code-cli` 提供人工或脚本启动的 `tokendance` bin；`@tokendance/code-agenthub-example` 仍是私有复制样例，不进入 npm 发布队列。
+
+### Residual risk matrix
+
+| 风险 | 当前状态 | 发布前处理 |
+|---|---|---|
+| 真实 provider 环境未配置 | MockProvider 和 provider readiness 覆盖本地验证，真实模型集成测试默认跳过 | release owner 只在需要真实模型 smoke 时显式配置环境变量，不把 key 写入仓库 |
+| npm 账号和 dist-tag 状态不可由 CI 证明 | 本地检查不触碰 npm registry 写操作 | Manual approval gate 后由 release owner 逐包确认 npm login、2FA 和 `next` tag |
+| AgentHub 生产接入仍需产品侧验证 | SDK contract、event sink、approval bridge 和私有 example 已测试 | AgentHub 合并时复用 SDK 边界，并用 Hub 自己的 event bus、approval store 和 session 生命周期替换样例数组 |
+| Python v0.1 参考实现仍保留 | TS 分支不再扩展旧 Python runtime | 后续迁移时继续用路线图和验收清单清理旧验收项 |
+
 包 README 策略：
 
 - 根 `README.md` 说明源码安装、开发、AgentHub SDK 集成和发布前验证。

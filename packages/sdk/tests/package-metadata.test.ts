@@ -195,6 +195,29 @@ describe("package metadata", () => {
     expect(readme).not.toContain("正式发布到 PyPI");
     expect(readme).not.toContain("pipx install");
   });
+
+  it("documents Wave 5 reference architecture decisions and removes stale provider defaults", async () => {
+    const readme = await readText("README.md");
+    const architectureBenchmark = await readText("docs/架构对标评估.md");
+    const roadmap = await readText("docs/TS重构路线图.md");
+    const parallelPlan = await readText("docs/并行推进计划.md");
+    const acceptance = await readText("docs/端到端验收清单.md");
+
+    for (const text of [architectureBenchmark, roadmap, parallelPlan]) {
+      expect(text).toContain("CLI main.ts 过大风险");
+      expect(text).toContain("command registry lane");
+      expect(text).toContain("Codex contract/schema drift gate");
+      expect(text).toContain("OpenCode command metadata registry");
+      expect(text).toContain("拒绝 app-server daemon");
+      expect(text).toContain("拒绝 OpenTUI");
+      expect(text).toContain("拒绝 plugin marketplace");
+      expect(text).toContain("拒绝 native installer");
+    }
+
+    expect(readme).toContain("不是 app-server daemon、OpenTUI 前端、plugin marketplace 或 native installer");
+    expect(acceptance).toContain("未配置时默认是 `mock` provider、`mock` model 和 `default` permission mode");
+    expect(acceptance).not.toContain("当前默认值应为 `openai`、`gpt-5.4`、`default`、`local`、`local`");
+  });
 });
 
 async function readJson(path: string): Promise<Record<string, any>> {

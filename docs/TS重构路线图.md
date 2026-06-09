@@ -23,6 +23,9 @@
 可借鉴但不照搬的结论：
 
 - CLI 保持薄入口，负责参数、REPL 和事件渲染，不直接调用模型或执行工具。
+- CLI main.ts 过大风险已经显性化；新增顶层命令和 slash command 进入 command registry lane，用 command id/category/title/aliases/usage/JSON contract 描述，再由薄入口 wiring。
+- OpenCode command metadata registry 可作为命令元数据形态参考，但只吸收 metadata registry，不复制 full-screen palette、OpenTUI provider tree 或插件运行时。
+- Codex contract/schema drift gate 是长期门禁：SDK manifest、AgentHub event envelope、transcript schema、provider tool schema 和 CLI JSON 输出变化必须由 focused tests 先捕获。
 - Core runtime 输出结构化事件；CLI、SDK、transcript writer 消费同一事件流。
 - Tool call 必须统一经过 registry、schema parse、permission、execution、result serialization 和 transcript。
 - Approval policy 和 sandbox/execution policy 分开建模，首版先覆盖 Windows/PowerShell 风险分类。
@@ -31,8 +34,10 @@
 
 首版不做：
 
-- MCP marketplace、插件、skills 生态。
-- daemon/app-server/remote-control/IDE bridge。
+- 拒绝 plugin marketplace：MCP marketplace、插件、skills 生态。
+- 拒绝 app-server daemon：daemon/app-server/remote-control/IDE bridge。
+- 拒绝 OpenTUI：full-screen OpenTUI/Solid provider tree 和命令 palette。
+- 拒绝 native installer：原生安装器、自动更新器、系统托盘或后台常驻服务。
 - 多 agent swarm/team、cron/scheduled agent。
 - 复杂 telemetry、feature flag、rollout trace。
 - 全平台强 sandbox。首版先做好 Windows/PowerShell 自用边界。
@@ -197,6 +202,10 @@ node packages/cli/dist/main.js run "hello"
 ### P6：Wave 5 对标收敛与长期基线
 
 - [ ] 架构对标评估：整理 ClaudeCode / Codex / OpenCode 中适合自用 Agent 框架吸收的薄 CLI、事件流、权限、session/transcript、provider、SDK/release 模式，并明确拒绝过重模式。
+- [ ] CLI main.ts 过大风险：把顶层命令、slash command、usage 文案和 JSON contract 收敛到 command registry lane；`main.ts` 只保留 IO-aware handler wiring。
+- [ ] Codex contract/schema drift gate：把 SDK manifest、AgentHub event envelope、transcript schema、provider schema 和 CLI JSON 输出的漂移纳入 package metadata / focused tests。
+- [ ] OpenCode command metadata registry：吸收 id/category/title/aliases/usage/JSON contract 的 registry 形态，继续拒绝 full-screen palette 和 provider tree。
+- [ ] 拒绝 app-server daemon、拒绝 OpenTUI、拒绝 plugin marketplace、拒绝 native installer：这些都不是 Wave 5 或首版 CLI harness 的实现目标。
 - [ ] Release/npm baseline：保持 `pnpm release:next:check` 和 tarball smoke 作为发布前本地 gate；`npm publish --tag next` 继续只允许 release owner 人工执行。
 - [ ] AgentHub SDK contract：继续强化 `agenthub-sdk.v1` manifest、event envelope、approval bridge、doctor readiness 和生产接入边界。
 - [ ] Gateway/OIDC onboarding：把 `gateway init`、`doctor`、`config validate`、TokenDanceID OIDC login URL helper 串成可读 quickstart；继续区分 TokenDance API key 与 TokenDanceID session token。

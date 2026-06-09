@@ -88,11 +88,24 @@ function yesNo(value: boolean): "yes" | "no" {
 
 export async function printStatus(io: CliIO, thread: Thread): Promise<void> {
   const state = thread.state;
+  const transcript = await thread.transcript();
+  const lastEvent = thread.recentTranscript.length > 0
+    ? thread.recentTranscript[thread.recentTranscript.length - 1]
+    : null;
+  const turns = thread.recentTranscript.filter((e) => e.event.type === "turn.completed").length;
+
   await writeSection(io, "Status", styleFromEnv(await readCliEnv(io)));
   await writeField(io, "sessionId", state.id);
   await writeField(io, "cwd", state.cwd);
   await writeField(io, "permissionMode", state.permissionMode);
-  await writeField(io, "messages", String(state.messages.length));
+  await writeField(io, "messages", `${state.messages.length}`);
+  await writeField(io, "events", `${transcript.eventCount}`);
+  await writeField(io, "turns", `${turns}`);
+  await writeField(io, "recent", `${thread.recentTranscript.length}`);
+  await writeField(io, "transcript", transcript.transcriptPath);
+  if (lastEvent) {
+    await writeField(io, "lastEvent", `${lastEvent.event.type} (seq ${lastEvent.seq})`);
+  }
 }
 
 // --- Help ---

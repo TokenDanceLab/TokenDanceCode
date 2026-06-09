@@ -550,7 +550,7 @@ tokendance doctor
 - 在哪个目录运行 `tokendance`，哪个目录就是当前 workspace root。
 - 会话 transcript 会保存到当前项目的 `.tokendance/` 下。
 - `glob` 工具默认排除 `.git`、`.tokendance`、虚拟环境、缓存目录、build/dist、`node_modules` 和 `.env`。
-- CLI 通过 runtime event 渲染工具开始、权限决策、工具完成耗时、失败原因、成功结果摘要和 assistant 文本；测试默认保持纯文本，设置 `FORCE_COLOR=1` 时 renderer 会对工具、权限状态、工具风险、失败状态和 usage 数字使用 ANSI 高亮，usage 行同时显示 input/output/total token 数。
+- CLI 通过 runtime event 渲染工具开始、权限决策、工具完成耗时、失败原因、成功结果摘要和 assistant 文本；结构化 permission reason 会压缩成 `risk/action/mode/tool` 元数据和可读详情。测试默认保持纯文本，设置 `FORCE_COLOR=1` 时 renderer 会对工具、权限状态、工具风险、失败状态和 usage 数字使用 ANSI 高亮，usage 行同时显示 input/output/total token 数。
 - CLI 帮助按 Core、Session、Work、Diagnostics、Gateway 分组；交互式 `/status`、`/config`、`/doctor` 使用小节输出，便于扫描但仍保持薄 CLI。
 - 真实模型集成测试默认跳过，需要显式配置相关环境变量后才会运行。
 - AgentHub 集成应使用 SDK 的 `approvalCallback` / `createAgentHubApprovalBridge()` 和 `eventSink`，不要直接调用 core runtime 内部类。

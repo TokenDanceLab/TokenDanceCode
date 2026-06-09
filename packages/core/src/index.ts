@@ -12,6 +12,7 @@ export * from "./openai-provider.js";
 export * from "./patch-tools.js";
 export * from "./permissions.js";
 export * from "./powershell.js";
+export * from "./provider-errors.js";
 export * from "./runtime.js";
 export * from "./resume.js";
 export * from "./session.js";

@@ -1,4 +1,5 @@
 import type { JsonSchemaObject, ModelProvider, ModelTurnRequest, ModelTurnResponse, TDMessage, ToolResult, ToolSpec } from "./types.js";
+import { createProviderApiError, readProviderJson } from "./provider-errors.js";
 
 type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
@@ -67,9 +68,15 @@ export class AnthropicMessagesProvider implements ModelProvider {
       })
     });
 
-    const payload = (await response.json()) as AnthropicResponsePayload;
+    const { payload = {}, rawText } = await readProviderJson<AnthropicResponsePayload>(response);
     if (!response.ok) {
-      throw new Error(payload.error?.message ?? `Anthropic Messages API returned HTTP ${response.status}`);
+      throw createProviderApiError({
+        provider: "anthropic-messages",
+        status: response.status,
+        payload,
+        rawText,
+        fallbackMessage: `Anthropic Messages API returned HTTP ${response.status}`
+      });
     }
 
     const toolCalls = parseToolCalls(payload);

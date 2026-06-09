@@ -1,4 +1,5 @@
 import type { JsonSchemaObject, ModelProvider, ModelTurnRequest, ModelTurnResponse, ToolResult, ToolSpec } from "./types.js";
+import { createProviderApiError, readProviderJson } from "./provider-errors.js";
 
 type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
@@ -70,9 +71,15 @@ export class OpenAIResponsesProvider implements ModelProvider {
       })
     });
 
-    const payload = (await response.json()) as OpenAIResponsePayload;
+    const { payload = {}, rawText } = await readProviderJson<OpenAIResponsePayload>(response);
     if (!response.ok) {
-      throw new Error(payload.error?.message ?? `OpenAI Responses API returned HTTP ${response.status}`);
+      throw createProviderApiError({
+        provider: "openai-responses",
+        status: response.status,
+        payload,
+        rawText,
+        fallbackMessage: `OpenAI Responses API returned HTTP ${response.status}`
+      });
     }
 
     const toolCalls = parseToolCalls(payload);

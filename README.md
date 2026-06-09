@@ -95,7 +95,17 @@ node packages/cli/dist/main.js run "hello"
 
 TokenDanceCode TS 版当前已提供 OpenAI Responses API、OpenAI Chat Completions API 与 Anthropic-compatible Messages API provider adapter。CLI 默认仍使用 MockProvider；AgentHub 或本地脚本可通过 SDK 显式选择 provider。
 
-CLI 会读取有效配置来启动 `tokendance` 交互式 session 和 `tokendance run`：`provider`/`model` 决定 SDK provider，`permissionMode` 决定新 session 的初始权限模式。未配置时默认是 `mock` provider、`mock` model 和 `default` permission mode。设置 `MODEL_ID` 加对应 provider key 时，CLI 会从 env 推断 provider；例如 `ANTHROPIC_API_KEY + MODEL_ID` 使用 `anthropic-messages`，`OPENAI_API_KEY + MODEL_ID` 使用 `openai-responses`。需要 OpenAI-compatible `/v1/chat/completions` 时显式设置 `TOKENDANCE_PROVIDER=openai-chat-completions`。
+CLI 会读取有效配置来启动 `tokendance` 交互式 session 和 `tokendance run`：`provider`/`model` 决定 SDK provider，`permissionMode` 决定新 session 的初始权限模式。未配置时默认是 `mock` provider、`mock` model 和 `default` permission mode。设置 `MODEL_ID` 加对应 provider key 时，CLI 会从 env 推断 provider；例如 `ANTHROPIC_API_KEY + MODEL_ID` 使用 `anthropic-messages`，`OPENAI_API_KEY + MODEL_ID` 使用 `openai-responses`，`TOKENDANCE_GATEWAY_API_KEY + TOKENDANCE_MODEL` 使用 `openai-chat-completions`。需要 OpenAI-compatible `/v1/chat/completions` 时显式设置 `TOKENDANCE_PROVIDER=openai-chat-completions`。
+
+Provider key/base URL 优先级按协议隔离：
+
+| Provider | API key | Base URL | 协议 |
+|---|---|---|---|
+| `openai-responses` | `OPENAI_API_KEY` | `OPENAI_BASE_URL`，默认 `https://api.openai.com/v1` | `POST /v1/responses` |
+| `openai-chat-completions` | `TOKENDANCE_GATEWAY_API_KEY`，缺省回退 `OPENAI_API_KEY` | `TOKENDANCE_GATEWAY_BASE_URL`，缺省回退 `OPENAI_BASE_URL`，默认 `https://api.openai.com/v1` | `POST /v1/chat/completions` |
+| `anthropic-messages` | `ANTHROPIC_API_KEY` | `ANTHROPIC_BASE_URL`，默认 `https://api.anthropic.com` | `POST /v1/messages` |
+
+Provider HTTP 失败会统一抛出 `ProviderApiError`，包含 `provider`、`protocol`、`status`、可用的 upstream `type/code` 和不含密钥的诊断 message。非 JSON 错误响应会归一化为同一异常类型。
 
 配置可以放在以下位置：
 
@@ -109,6 +119,13 @@ CLI 会读取有效配置来启动 `tokendance` 交互式 session 和 `tokendanc
 ```powershell
 $env:ANTHROPIC_API_KEY = "your-api-key"
 $env:MODEL_ID = "claude-sonnet-4-6"
+```
+
+使用 OpenAI Responses API：
+
+```powershell
+$env:OPENAI_API_KEY = "your-api-key"
+$env:MODEL_ID = "gpt-5.4"
 ```
 
 使用 Anthropic-compatible 第三方接口，例如 DeepSeek：

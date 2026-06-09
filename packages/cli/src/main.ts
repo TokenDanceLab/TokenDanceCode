@@ -1058,15 +1058,12 @@ function providerFromConfig(
   if (config.provider === "openai-responses" || config.provider === "openai-chat-completions") {
     return {
       type: config.provider,
-      model: config.model,
-      apiKey: env.TOKENDANCE_GATEWAY_API_KEY ?? env.OPENAI_API_KEY,
-      baseUrl: env.TOKENDANCE_GATEWAY_BASE_URL ?? env.OPENAI_BASE_URL
+      model: config.model
     };
   }
   return {
     type: config.provider,
-    model: config.model,
-    baseUrl: env.ANTHROPIC_BASE_URL
+    model: config.model
   };
 }
 

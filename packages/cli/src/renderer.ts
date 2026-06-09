@@ -3,6 +3,12 @@ import type { TDCodeEvent } from "@tokendance/code-sdk";
 import { dim, error, label, ok, warn, type CliStyle } from "./format.js";
 
 const maxToolSummaryLength = 120;
+const toolRisks = new Set<RendererToolRisk>(["read", "write", "shell", "network", "dangerous"]);
+
+type PermissionDecision = Extract<TDCodeEvent, { type: "tool.permission" }>["decision"];
+type RendererToolResult = Extract<TDCodeEvent, { type: "tool.completed" }>["result"];
+type RendererTokenUsage = NonNullable<Extract<TDCodeEvent, { type: "turn.completed" }>["usage"]>;
+type RendererToolRisk = "read" | "write" | "shell" | "network" | "dangerous";
 
 export interface EventRendererIO {
   stdout: Writable;
@@ -51,7 +57,7 @@ async function renderEvent(io: EventRendererIO, event: TDCodeEvent, state: Rende
       return;
     case "tool.permission":
       await flushAssistantLine(io, state);
-      await write(io.stdout, `${permissionLabel(event.decision.status, style)} ${event.decision.status}: ${event.decision.reason}\n`);
+      await write(io.stdout, `${formatPermission(event.decision, style)}\n`);
       return;
     case "tool.completed":
       await flushAssistantLine(io, state);
@@ -61,7 +67,7 @@ async function renderEvent(io: EventRendererIO, event: TDCodeEvent, state: Rende
         await write(io.stdout, `${ok("tool", style)} ${event.result.toolName} completed${summary ? `: ${summary}` : ""}${duration}\n`);
         return;
       }
-      await write(io.stdout, `${error("tool", style)} ${event.result.toolName} failed: ${event.result.error ?? "unknown error"}${duration}\n`);
+      await write(io.stdout, `${formatToolFailure(event.result, style)}${duration}\n`);
       return;
     case "turn.completed":
       await flushAssistantLine(io, state);
@@ -69,7 +75,7 @@ async function renderEvent(io: EventRendererIO, event: TDCodeEvent, state: Rende
         await write(io.stdout, `${event.finalResponse}\n`);
       }
       if (event.usage) {
-        await write(io.stdout, `${dim(`usage input=${event.usage.inputTokens} output=${event.usage.outputTokens}`, style)}\n`);
+        await write(io.stdout, `${formatUsage(event.usage, style)}\n`);
       }
       return;
     default:
@@ -81,14 +87,61 @@ function rendererStyle(io: EventRendererIO): CliStyle {
   return { color: io.color === true };
 }
 
-function permissionLabel(status: string, style: CliStyle): string {
+function formatPermission(decision: PermissionDecision, style: CliStyle): string {
+  const risk = riskFromReason(decision.reason);
+  const metadata = risk ? ` [risk=${formatRisk(risk, style)}]` : "";
+  return `permission ${permissionStatus(decision.status, style)}${metadata} ${decision.reason}`;
+}
+
+function formatToolFailure(result: RendererToolResult, style: CliStyle): string {
+  const risk = riskFromReason(result.safetyEvidence?.reason ?? result.error ?? "");
+  const metadata = formatToolFailureMetadata(risk, result.safetyEvidence?.source, style);
+  return `tool ${result.toolName} ${error("failed", style)}${metadata}: ${result.error ?? "unknown error"}`;
+}
+
+function formatToolFailureMetadata(risk: RendererToolRisk | undefined, source: string | undefined, style: CliStyle): string {
+  const fields: string[] = [];
+  if (risk) {
+    fields.push(`risk=${formatRisk(risk, style)}`);
+  }
+  if (source) {
+    fields.push(`source=${dim(source, style)}`);
+  }
+  return fields.length === 0 ? "" : ` [${fields.join(" ")}]`;
+}
+
+function formatUsage(usage: RendererTokenUsage, style: CliStyle): string {
+  const total = usage.inputTokens + usage.outputTokens;
+  return `usage input=${label(String(usage.inputTokens), style)} output=${label(String(usage.outputTokens), style)} total=${label(String(total), style)}`;
+}
+
+function permissionStatus(status: PermissionDecision["status"], style: CliStyle): string {
   if (status === "allowed") {
-    return ok("permission", style);
+    return ok(status, style);
   }
   if (status === "denied") {
-    return error("permission", style);
+    return error(status, style);
   }
-  return warn("permission", style);
+  return warn(status, style);
+}
+
+function formatRisk(risk: RendererToolRisk, style: CliStyle): string {
+  if (risk === "read") {
+    return label(risk, style);
+  }
+  if (risk === "dangerous") {
+    return error(risk, style);
+  }
+  return warn(risk, style);
+}
+
+function riskFromReason(reason: string): RendererToolRisk | undefined {
+  const match = /\brisk=([a-z_]+)/.exec(reason);
+  if (!match) {
+    return undefined;
+  }
+  const risk = match[1] as RendererToolRisk;
+  return toolRisks.has(risk) ? risk : undefined;
 }
 
 async function flushAssistantLine(io: EventRendererIO, state: RendererState): Promise<void> {

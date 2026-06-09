@@ -242,6 +242,56 @@ describe("TokenDanceCode CLI", () => {
     expect(config.stdoutText()).not.toContain("existing-secret");
   });
 
+  it("generates TokenDanceID OIDC login URLs in top-level and interactive commands", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-auth-"));
+    const topLevel = createTestIO("", root);
+    const interactive = createTestIO(
+      "/auth tokendanceid login-url --client-id agenthub-local --redirect-uri http://127.0.0.1:48731/callback --state state-cli --nonce nonce-cli --code-verifier verifier-cli\n/exit\n",
+      root
+    );
+    const missingArgs = createTestIO("", root);
+
+    const topLevelExitCode = await runCli(
+      [
+        "auth",
+        "tokendanceid",
+        "login-url",
+        "--client-id",
+        "agenthub-local",
+        "--redirect-uri",
+        "http://127.0.0.1:48731/callback",
+        "--state",
+        "state-cli",
+        "--nonce",
+        "nonce-cli",
+        "--code-verifier",
+        "verifier-cli",
+        "--json"
+      ],
+      topLevel
+    );
+    const missingArgsExitCode = await runCli(["auth", "tokendanceid", "login-url", "--client-id", "agenthub-local"], missingArgs);
+    const parsed = JSON.parse(topLevel.stdoutText());
+    await runCli([], interactive);
+
+    expect(topLevelExitCode).toBe(0);
+    expect(parsed.issuerUrl).toBe("https://id.vectorcontrol.tech");
+    expect(parsed.authorizeEndpoint).toBe("https://id.vectorcontrol.tech/oidc/authorize");
+    expect(parsed.clientId).toBe("agenthub-local");
+    expect(parsed.redirectUri).toBe("http://127.0.0.1:48731/callback");
+    expect(parsed.state).toBe("state-cli");
+    expect(parsed.nonce).toBe("nonce-cli");
+    expect(parsed.codeVerifier).toBe("verifier-cli");
+    expect(parsed.authorizationUrl).toContain("response_type=code");
+    expect(parsed.authorizationUrl).toContain("code_challenge_method=S256");
+    expect(parsed.authorizationUrl).not.toContain("TOKENDANCE_GATEWAY_API_KEY");
+    expect(interactive.stdoutText()).toContain("TokenDanceID authorize URL:");
+    expect(interactive.stdoutText()).toContain("Code verifier: verifier-cli");
+    expect(interactive.stdoutText()).toContain("TokenDanceID login tokens are not TokenDance Gateway model API keys.");
+    expect(missingArgsExitCode).toBe(1);
+    expect(missingArgs.stderrText()).toContain("Usage: tokendance auth tokendanceid login-url --client-id <id> --redirect-uri <uri>");
+  });
+
   it("starts interactive sessions with the configured permission mode", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-cli-config-"));
     await mkdir(join(root, ".tokendance"), { recursive: true });

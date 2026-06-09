@@ -5,6 +5,7 @@ import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import {
+  createTokenDanceIdLoginRequest,
   TokenDanceCode,
   type DoctorInfo,
   type AgentRunRecord,
@@ -56,6 +57,10 @@ export async function runCli(argv: string[], io: CliIO = defaultIO()): Promise<n
 
   if (command === "gateway") {
     return gatewayCommand(rest, io);
+  }
+
+  if (command === "auth") {
+    return authCommand(rest, io);
   }
 
   if (command === "resume") {
@@ -183,6 +188,11 @@ async function runInteractive(io: CliIO): Promise<void> {
 
     if (line === "/memory" || line.startsWith("/memory ")) {
       await memoryCommand(line.split(/\s+/).slice(1), io);
+      continue;
+    }
+
+    if (line === "/auth" || line.startsWith("/auth ")) {
+      await authCommand(line.split(/\s+/).slice(1), io);
       continue;
     }
 
@@ -378,6 +388,53 @@ async function gatewayCommand(args: string[], io: CliIO): Promise<number> {
   await write(io.stdout, "2. Run tokendance config to confirm provider/model/base URL.\n");
   await write(io.stdout, "3. Use TokenDance API keys for Gateway calls; TokenDanceID login tokens are not model API keys.\n");
   return 0;
+}
+
+async function authCommand(args: string[], io: CliIO): Promise<number> {
+  const [provider, command, ...rest] = args;
+  if (provider !== "tokendanceid" || command !== "login-url") {
+    await write(io.stderr, tokenDanceIdLoginUsage());
+    return 1;
+  }
+
+  const parsed = parseTokenDanceIdLoginArgs(rest);
+  if (!parsed) {
+    await write(io.stderr, tokenDanceIdLoginUsage());
+    return 1;
+  }
+
+  try {
+    const login = createTokenDanceIdLoginRequest({
+      issuerUrl: parsed.issuerUrl,
+      clientId: parsed.clientId,
+      redirectUri: parsed.redirectUri,
+      scope: parsed.scope,
+      state: parsed.state,
+      nonce: parsed.nonce,
+      codeVerifier: parsed.codeVerifier,
+      extraParams: {
+        device_type: parsed.deviceType,
+        device_id: parsed.deviceId
+      }
+    });
+
+    if (parsed.json) {
+      await write(io.stdout, `${JSON.stringify(login, null, 2)}\n`);
+      return 0;
+    }
+
+    await write(io.stdout, "TokenDanceID authorize URL:\n");
+    await write(io.stdout, `${login.authorizationUrl}\n`);
+    await write(io.stdout, `State: ${login.state}\n`);
+    await write(io.stdout, `Nonce: ${login.nonce}\n`);
+    await write(io.stdout, `Code verifier: ${login.codeVerifier}\n`);
+    await write(io.stdout, "Exchange the code on AgentHub Hub Server; this CLI does not store TokenDanceID tokens.\n");
+    await write(io.stdout, "TokenDanceID login tokens are not TokenDance Gateway model API keys.\n");
+    return 0;
+  } catch (error) {
+    await write(io.stderr, `${error instanceof Error ? error.message : String(error)}\n`);
+    return 1;
+  }
 }
 
 async function agentsCommand(args: string[], io: CliIO): Promise<number> {
@@ -920,6 +977,7 @@ ${heading("Session:", style)}
   tokendance context [--session session-id] <prompt>
   tokendance compact [session-id]
   tokendance memory [add|delete] [project|global] [value]
+  tokendance auth tokendanceid login-url --client-id <id> --redirect-uri <uri> [--json]
 
 ${heading("Work:", style)}
   tokendance agents [run investigator|reviewer <prompt>]
@@ -956,6 +1014,7 @@ ${heading("Session:", style)}
   /permissions [default|safe|auto|yolo]
   /resume
   /memory [add|delete] [project|global] [value]
+  /auth tokendanceid login-url --client-id <id> --redirect-uri <uri> [--json]
   /transcript [search <query>]
   /context <prompt>
   /compact
@@ -1157,6 +1216,91 @@ function parseGatewayInitArgs(args: string[]): { model: string; baseUrl: string 
     return undefined;
   }
   return { model, baseUrl };
+}
+
+function parseTokenDanceIdLoginArgs(args: string[]):
+  | {
+      issuerUrl?: string;
+      clientId: string;
+      redirectUri: string;
+      scope?: string;
+      state?: string;
+      nonce?: string;
+      codeVerifier?: string;
+      deviceType?: string;
+      deviceId?: string;
+      json: boolean;
+    }
+  | undefined {
+  const parsed: {
+    issuerUrl?: string;
+    clientId?: string;
+    redirectUri?: string;
+    scope?: string;
+    state?: string;
+    nonce?: string;
+    codeVerifier?: string;
+    deviceType?: string;
+    deviceId?: string;
+    json: boolean;
+  } = { json: false };
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--json") {
+      parsed.json = true;
+      continue;
+    }
+
+    const value = args[index + 1]?.trim();
+    if (!value) {
+      return undefined;
+    }
+
+    if (arg === "--issuer-url") {
+      parsed.issuerUrl = value;
+    } else if (arg === "--client-id") {
+      parsed.clientId = value;
+    } else if (arg === "--redirect-uri") {
+      parsed.redirectUri = value;
+    } else if (arg === "--scope") {
+      parsed.scope = value;
+    } else if (arg === "--state") {
+      parsed.state = value;
+    } else if (arg === "--nonce") {
+      parsed.nonce = value;
+    } else if (arg === "--code-verifier") {
+      parsed.codeVerifier = value;
+    } else if (arg === "--device-type") {
+      parsed.deviceType = value;
+    } else if (arg === "--device-id") {
+      parsed.deviceId = value;
+    } else {
+      return undefined;
+    }
+    index += 1;
+  }
+
+  if (!parsed.clientId || !parsed.redirectUri) {
+    return undefined;
+  }
+
+  return {
+    issuerUrl: parsed.issuerUrl,
+    clientId: parsed.clientId,
+    redirectUri: parsed.redirectUri,
+    scope: parsed.scope,
+    state: parsed.state,
+    nonce: parsed.nonce,
+    codeVerifier: parsed.codeVerifier,
+    deviceType: parsed.deviceType,
+    deviceId: parsed.deviceId,
+    json: parsed.json
+  };
+}
+
+function tokenDanceIdLoginUsage(): string {
+  return "Usage: tokendance auth tokendanceid login-url --client-id <id> --redirect-uri <uri> [--issuer-url url] [--scope scope] [--state state] [--nonce nonce] [--code-verifier verifier] [--device-type type] [--device-id id] [--json]\n";
 }
 
 function updateEnvFile(content: string, values: Record<string, string>): string {

@@ -130,6 +130,19 @@ await hub.exchangeTokenDanceIdCode({
 
 默认 issuer 是 `https://id.vectorcontrol.tech`，默认 scope 是 `openid profile email`。Desktop/native 场景应使用 TokenDanceID 已登记的 loopback callback 策略；生产 Hub/Web 场景应使用 Hub-owned backend callback。TokenDanceID/OIDC 登录 token 只用于身份和 Hub session，不是 TokenDance Gateway 模型 API key。
 
+CLI 使用同一 helper 暴露调试入口：
+
+```powershell
+tokendance auth tokendanceid login-url `
+  --client-id agenthub-local `
+  --redirect-uri http://127.0.0.1:48731/callback `
+  --device-type desktop `
+  --device-id 00000000-0000-4000-8000-000000000001 `
+  --json
+```
+
+`--json` 输出适合 AgentHub 调试面板或 Desktop shell 读取；纯文本输出适合人工复制。CLI 不会打开浏览器、不写入本地 token 文件，也不会把 TokenDanceID 登录 token 当作 TokenDance Gateway 模型 API key。
+
 ## 5. 启动 Thread
 
 ```ts

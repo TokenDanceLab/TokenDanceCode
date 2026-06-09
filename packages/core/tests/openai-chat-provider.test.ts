@@ -132,6 +132,39 @@ describe("OpenAIChatCompletionsProvider", () => {
       message: "[openai-chat-completions] HTTP 429 insufficient_quota: quota exceeded"
     });
   });
+
+  it("normalizes TokenDance Gateway string error payloads", async () => {
+    const provider = new OpenAIChatCompletionsProvider({
+      apiKey: "gateway-key",
+      model: "deepseek-v4-pro",
+      baseUrl: "https://api.vectorcontrol.tech/v1",
+      fetch: async () => jsonResponse({ error: "quota exceeded" }, { status: 429 })
+    });
+
+    await expect(provider.createTurn(baseRequest())).rejects.toMatchObject({
+      name: "ProviderApiError",
+      provider: "openai-chat-completions",
+      status: 429,
+      message: "[openai-chat-completions] HTTP 429: quota exceeded"
+    });
+  });
+
+  it("rejects successful Chat Completions payloads without a message", async () => {
+    const provider = new OpenAIChatCompletionsProvider({
+      apiKey: "test-key",
+      model: "gpt-test",
+      fetch: async () => jsonResponse({ choices: [] })
+    });
+
+    await expect(provider.createTurn(baseRequest())).rejects.toMatchObject({
+      name: "ProviderApiError",
+      provider: "openai-chat-completions",
+      protocol: "openai-chat-completions",
+      status: 200,
+      type: "invalid_provider_response",
+      message: "[openai-chat-completions] HTTP 200 invalid_provider_response: OpenAI Chat Completions API response did not include an assistant message"
+    });
+  });
 });
 
 function baseRequest(): ModelTurnRequest {

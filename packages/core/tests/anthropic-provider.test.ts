@@ -110,6 +110,23 @@ describe("AnthropicMessagesProvider", () => {
       message: "[anthropic-messages] HTTP 502: bad gateway"
     });
   });
+
+  it("rejects successful Messages payloads without assistant content", async () => {
+    const provider = new AnthropicMessagesProvider({
+      apiKey: "test-key",
+      model: "claude-test",
+      fetch: async () => jsonResponse({})
+    });
+
+    await expect(provider.createTurn(baseRequest())).rejects.toMatchObject({
+      name: "ProviderApiError",
+      provider: "anthropic-messages",
+      protocol: "anthropic-messages",
+      status: 200,
+      type: "invalid_provider_response",
+      message: "[anthropic-messages] HTTP 200 invalid_provider_response: Anthropic Messages API response did not include assistant content"
+    });
+  });
 });
 
 function baseRequest(): ModelTurnRequest {

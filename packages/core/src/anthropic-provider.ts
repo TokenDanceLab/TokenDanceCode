@@ -1,5 +1,5 @@
 import type { JsonSchemaObject, ModelProvider, ModelTurnRequest, ModelTurnResponse, TDMessage, ToolResult, ToolSpec } from "./types.js";
-import { createProviderApiError, readProviderJson } from "./provider-errors.js";
+import { createInvalidProviderResponseError, createProviderApiError, readProviderJson } from "./provider-errors.js";
 
 type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
@@ -81,6 +81,9 @@ export class AnthropicMessagesProvider implements ModelProvider {
 
     const toolCalls = parseToolCalls(payload);
     const assistantMessage = parseAssistantText(payload);
+    if (!assistantMessage && toolCalls.length === 0) {
+      throw createInvalidProviderResponseError("anthropic-messages", "Anthropic Messages API response did not include assistant content");
+    }
     this.conversationBySession.set(request.session.id, [...messages, { role: "assistant", content: payload.content ?? [] }]);
 
     return {

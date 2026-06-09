@@ -134,6 +134,41 @@ describe("TokenDance config", () => {
     });
   });
 
+  it("does not mix TokenDance Gateway base URL with OpenAI fallback credentials", () => {
+    expect(
+      resolveProviderRuntimeEnv("openai-chat-completions", {
+        TOKENDANCE_GATEWAY_BASE_URL: "https://api.vectorcontrol.tech/v1",
+        OPENAI_API_KEY: "openai-secret",
+        OPENAI_BASE_URL: "https://api.openai.example/v1"
+      })
+    ).toEqual({
+      apiKey: "openai-secret",
+      apiKeyEnv: "OPENAI_API_KEY",
+      baseUrl: "https://api.openai.example/v1",
+      baseUrlEnv: "OPENAI_BASE_URL"
+    });
+  });
+
+  it("uses the TokenDance Gateway default base URL with Gateway credentials", () => {
+    expect(
+      resolveProviderRuntimeEnv("openai-chat-completions", {
+        TOKENDANCE_GATEWAY_API_KEY: "gateway-secret",
+        OPENAI_BASE_URL: "https://api.openai.example/v1"
+      })
+    ).toEqual({
+      apiKey: "gateway-secret",
+      apiKeyEnv: "TOKENDANCE_GATEWAY_API_KEY",
+      baseUrl: "https://api.vectorcontrol.tech/v1"
+    });
+    expect(validateProviderConfig({ provider: "openai-chat-completions", model: "deepseek-v4-pro", permissionMode: "safe" }, { TOKENDANCE_GATEWAY_API_KEY: "gateway-secret" })).toMatchObject({
+      ready: true,
+      baseUrl: {
+        status: "default",
+        defaultUrl: "https://api.vectorcontrol.tech/v1"
+      }
+    });
+  });
+
   it("requires explicit integration-test gates for each real provider protocol", () => {
     expect(shouldRunProviderIntegration("openai-responses", {})).toEqual({
       enabled: false,

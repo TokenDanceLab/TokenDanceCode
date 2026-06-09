@@ -1,5 +1,5 @@
 import type { JsonSchemaObject, ModelProvider, ModelTurnRequest, ModelTurnResponse, ToolResult, ToolSpec } from "./types.js";
-import { createProviderApiError, readProviderJson } from "./provider-errors.js";
+import { createInvalidProviderResponseError, createProviderApiError, readProviderJson } from "./provider-errors.js";
 
 type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
@@ -84,6 +84,9 @@ export class OpenAIResponsesProvider implements ModelProvider {
 
     const toolCalls = parseToolCalls(payload);
     const assistantMessage = parseAssistantText(payload);
+    if (!assistantMessage && toolCalls.length === 0) {
+      throw createInvalidProviderResponseError("openai-responses", "OpenAI Responses API response did not include assistant output or tool calls");
+    }
     const outputItems = (payload.output ?? []).filter(isConversationOutputItem);
     this.conversationBySession.set(request.session.id, [...input, ...outputItems]);
 

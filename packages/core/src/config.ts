@@ -71,6 +71,8 @@ const defaultConfig: TokenDanceConfig = {
   model: "mock",
   permissionMode: "default"
 };
+const tokendanceGatewayDefaultBaseUrl = "https://api.vectorcontrol.tech/v1";
+const openaiDefaultBaseUrl = "https://api.openai.com/v1";
 
 export async function readTokenDanceConfig(options: ConfigReadOptions): Promise<ConfigInfo> {
   const homeDir = options.homeDir ?? process.env.USERPROFILE ?? process.env.HOME ?? options.projectRoot;
@@ -157,16 +159,26 @@ function readEnvConfig(env: Record<string, string | undefined> | undefined): Par
 
 export function resolveProviderRuntimeEnv(provider: ConfigProvider, env: Record<string, string | undefined> = process.env): ProviderRuntimeEnv {
   if (provider === "openai-chat-completions") {
-    return {
-      ...firstPresent([
-        ["TOKENDANCE_GATEWAY_API_KEY", env.TOKENDANCE_GATEWAY_API_KEY],
-        ["OPENAI_API_KEY", env.OPENAI_API_KEY]
-      ]),
-      ...firstPresentBaseUrl([
-        ["TOKENDANCE_GATEWAY_BASE_URL", env.TOKENDANCE_GATEWAY_BASE_URL],
-        ["OPENAI_BASE_URL", env.OPENAI_BASE_URL]
-      ])
-    };
+    const gatewayApiKey = envValue(env.TOKENDANCE_GATEWAY_API_KEY);
+    if (gatewayApiKey) {
+      const gatewayBaseUrl = envValue(env.TOKENDANCE_GATEWAY_BASE_URL);
+      return {
+        apiKey: gatewayApiKey,
+        apiKeyEnv: "TOKENDANCE_GATEWAY_API_KEY",
+        ...(gatewayBaseUrl ? { baseUrl: gatewayBaseUrl, baseUrlEnv: "TOKENDANCE_GATEWAY_BASE_URL" as const } : { baseUrl: tokendanceGatewayDefaultBaseUrl })
+      };
+    }
+
+    const openaiApiKey = envValue(env.OPENAI_API_KEY);
+    if (openaiApiKey) {
+      return {
+        apiKey: openaiApiKey,
+        apiKeyEnv: "OPENAI_API_KEY",
+        ...firstPresentBaseUrl([["OPENAI_BASE_URL", env.OPENAI_BASE_URL]])
+      };
+    }
+
+    return firstPresentBaseUrl([["TOKENDANCE_GATEWAY_BASE_URL", env.TOKENDANCE_GATEWAY_BASE_URL]]);
   }
 
   if (provider === "openai-responses") {
@@ -243,7 +255,7 @@ export function validateProviderConfig(config: TokenDanceConfig, env: Record<str
       : { apiKey: "missing", required },
     baseUrl: runtimeEnv.baseUrlEnv
       ? { status: "present", baseUrlEnv: runtimeEnv.baseUrlEnv }
-      : { status: "default", defaultUrl: defaultBaseUrl(config.provider) }
+      : { status: "default", defaultUrl: defaultBaseUrl(config.provider, runtimeEnv.apiKeyEnv) }
   };
 }
 
@@ -314,11 +326,14 @@ function requiredRuntimeApiKeyEnvs(provider: Exclude<ConfigProvider, "mock">): P
   return [requiredApiKeyEnv(provider)];
 }
 
-function defaultBaseUrl(provider: Exclude<ConfigProvider, "mock">): string {
+function defaultBaseUrl(provider: Exclude<ConfigProvider, "mock">, apiKeyEnv?: ProviderApiKeyEnv): string {
   if (provider === "anthropic-messages") {
     return "https://api.anthropic.com";
   }
-  return "https://api.openai.com/v1";
+  if (provider === "openai-chat-completions" && apiKeyEnv === "TOKENDANCE_GATEWAY_API_KEY") {
+    return tokendanceGatewayDefaultBaseUrl;
+  }
+  return openaiDefaultBaseUrl;
 }
 
 function integrationModelEnv(provider: Exclude<ConfigProvider, "mock">): string {

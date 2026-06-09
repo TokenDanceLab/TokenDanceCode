@@ -191,7 +191,8 @@ export function resolveProviderRuntimeEnv(provider: ConfigProvider, env: Record<
       };
     }
 
-    return firstPresentBaseUrl([["TOKENDANCE_GATEWAY_BASE_URL", env.TOKENDANCE_GATEWAY_BASE_URL]]);
+    const gatewayBaseUrl = firstPresentBaseUrl([["TOKENDANCE_GATEWAY_BASE_URL", env.TOKENDANCE_GATEWAY_BASE_URL]]);
+    return gatewayBaseUrl.baseUrl ? gatewayBaseUrl : { baseUrl: tokendanceGatewayDefaultBaseUrl };
   }
 
   if (provider === "openai-responses") {
@@ -373,7 +374,7 @@ function defaultBaseUrl(provider: Exclude<ConfigProvider, "mock">, apiKeyEnv?: P
   if (provider === "anthropic-messages") {
     return "https://api.anthropic.com";
   }
-  if (provider === "openai-chat-completions" && apiKeyEnv === "TOKENDANCE_GATEWAY_API_KEY") {
+  if (provider === "openai-chat-completions" && apiKeyEnv !== "OPENAI_API_KEY") {
     return tokendanceGatewayDefaultBaseUrl;
   }
   return openaiDefaultBaseUrl;

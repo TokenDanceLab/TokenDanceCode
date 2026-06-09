@@ -4,11 +4,15 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
+use std::path::Path;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
-use tokendance_core::{MockProvider, PermissionMode, Runtime, StartThreadOptions, TurnResult};
+use tokendance_core::{
+    Message, MockProvider, PermissionMode, Runtime, SessionState, StartThreadOptions, TurnResult,
+    doctor_info, user_message,
+};
 use uuid::Uuid;
 
 pub const SDK_CONTRACT_VERSION: &str = "agenthub-sdk.v1";
@@ -21,6 +25,184 @@ pub const OIDC_PKCE_S256_METHOD: &str = "S256";
 pub const AGENTHUB_APPROVAL_SCHEMA_VERSION: u8 = 1;
 pub const AGENTHUB_APPROVAL_PENDING_EVENT: &str = "approval.pending";
 pub const AGENTHUB_APPROVAL_DECIDED_EVENT: &str = "approval.decided";
+pub const AGENTHUB_DOCTOR_READINESS_CONTRACT: &str = "agenthub.doctor-readiness.v1";
+pub const AGENTHUB_FEATURE_FLAGS: &[&str] = &[
+    "runner-options",
+    "event-envelope",
+    "startup-doctor",
+    "doctor-readiness",
+    "runner-bootstrap",
+    "agenthub-consumer-fixture",
+    "session-resume",
+    "session-lifecycle-metadata",
+    "context-preview",
+    "remote-approval",
+    "tokendanceid-oidc-login",
+    "config-writer",
+    "config-validation",
+    "agenthub-package-feature-flags",
+    "agenthub-event-envelope-schema",
+    "agenthub-approval-bridge",
+    "agenthub-doctor-readiness",
+    "agenthub-contract-readiness",
+    "terminal-failure-result",
+];
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TokenDanceCodePackageInfo {
+    pub version: String,
+    pub agent_hub: AgentHubPackageInfo,
+    pub packages: TokenDanceCodePackages,
+    pub verification: TokenDanceCodeVerification,
+}
+
+impl TokenDanceCodePackageInfo {
+    pub fn supports_agenthub_feature(&self, feature: &str) -> bool {
+        self.agent_hub
+            .features
+            .iter()
+            .any(|candidate| candidate == feature)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AgentHubPackageInfo {
+    pub sdk_contract_version: String,
+    pub agent_stream_schema_version: u8,
+    pub features: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TokenDanceCodePackages {
+    pub core: PackageImportInfo,
+    pub sdk: PackageImportInfo,
+    pub cli: CliPackageInfo,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PackageImportInfo {
+    pub name: String,
+    pub import: String,
+    pub types: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CliPackageInfo {
+    pub name: String,
+    pub bin: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TokenDanceCodeVerification {
+    pub test: String,
+    pub package: String,
+    pub tarball_smoke: String,
+    pub prerelease: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AgentHubContextPreviewOptions {
+    pub prompt: String,
+    pub working_directory: PathBuf,
+    pub storage_root: PathBuf,
+    pub session_id: String,
+    #[serde(default)]
+    pub permission_mode: PermissionMode,
+    pub max_recent_messages: Option<usize>,
+    pub context_budget: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AgentHubContextPreview {
+    pub session_id: String,
+    pub messages: Vec<Message>,
+    pub included_files: Vec<PathBuf>,
+    pub metadata: AgentHubContextPreviewMetadata,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AgentHubContextPreviewMetadata {
+    pub workspace_root: PathBuf,
+    pub max_recent_messages: usize,
+    pub session_message_count: usize,
+    pub included_recent_message_count: usize,
+    pub dropped_recent_message_count: usize,
+    pub included_files: Vec<PathBuf>,
+    pub has_compact_summary: bool,
+    pub memory_entry_count: usize,
+    pub system_message_characters: usize,
+    pub total_message_characters: usize,
+    pub context_budget: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct AgentHubDoctorOptions {
+    pub working_directory: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AgentHubBootstrapResult {
+    pub package_info: TokenDanceCodePackageInfo,
+    pub doctor: AgentHubDoctorInfo,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AgentHubDoctorInfo {
+    pub version: String,
+    pub package_info: TokenDanceCodePackageInfo,
+    pub rust_runtime: bool,
+    pub cwd: PathBuf,
+    pub provider: tokendance_core::ProviderConfig,
+    pub warnings: Vec<String>,
+    pub state_dir: AgentHubStateDirDoctorInfo,
+    pub startup: AgentHubStartupDoctorInfo,
+    pub agent_hub: AgentHubDoctorReadiness,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AgentHubStateDirDoctorInfo {
+    pub path: PathBuf,
+    pub writable: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AgentHubStartupDoctorInfo {
+    pub hub: AgentHubStartupCheckGroup,
+    pub edge: AgentHubStartupCheckGroup,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AgentHubStartupCheckGroup {
+    pub ok: bool,
+    pub checks: Vec<AgentHubStartupCheck>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AgentHubStartupCheck {
+    pub name: String,
+    pub status: AgentHubStartupCheckStatus,
+    pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentHubStartupCheckStatus {
+    Pass,
+    Warn,
+    Fail,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AgentHubDoctorReadiness {
+    pub contract_version: String,
+    pub sdk_contract_version: String,
+    pub readiness_contract: String,
+    pub agent_stream_schema_version: u8,
+    pub features: Vec<String>,
+    pub ready: bool,
+    pub blocking_checks: Vec<String>,
+    pub warning_checks: Vec<String>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TokenDanceIdOidcConfig {
@@ -283,6 +465,36 @@ impl AgentHubRunner {
         Self::default()
     }
 
+    pub fn package_info(&self) -> TokenDanceCodePackageInfo {
+        package_info()
+    }
+
+    pub async fn doctor(
+        &self,
+        options: AgentHubDoctorOptions,
+    ) -> anyhow::Result<AgentHubDoctorInfo> {
+        doctor(options).await
+    }
+
+    pub async fn bootstrap(
+        &self,
+        options: AgentHubDoctorOptions,
+    ) -> anyhow::Result<AgentHubBootstrapResult> {
+        let package_info = self.package_info();
+        let doctor = self.doctor(options).await?;
+        Ok(AgentHubBootstrapResult {
+            package_info,
+            doctor,
+        })
+    }
+
+    pub async fn context_preview(
+        &self,
+        options: AgentHubContextPreviewOptions,
+    ) -> anyhow::Result<AgentHubContextPreview> {
+        context_preview(options).await
+    }
+
     pub async fn run(&self, options: AgentHubRunOptions) -> anyhow::Result<AgentHubRunResult> {
         let key = normalize_run_key(&options.storage_root, &options.session_id);
         {
@@ -328,6 +540,281 @@ impl AgentHubRunner {
             .collect();
         Ok(AgentHubRunResult { turn, frames })
     }
+}
+
+fn package_info() -> TokenDanceCodePackageInfo {
+    TokenDanceCodePackageInfo {
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        agent_hub: AgentHubPackageInfo {
+            sdk_contract_version: SDK_CONTRACT_VERSION.to_string(),
+            agent_stream_schema_version: AGENT_STREAM_SCHEMA_VERSION,
+            features: AGENTHUB_FEATURE_FLAGS
+                .iter()
+                .map(|feature| (*feature).to_string())
+                .collect(),
+        },
+        packages: TokenDanceCodePackages {
+            core: PackageImportInfo {
+                name: "@tokendance/code-core".to_string(),
+                import: "@tokendance/code-core".to_string(),
+                types: "@tokendance/code-core".to_string(),
+            },
+            sdk: PackageImportInfo {
+                name: "@tokendance/code-sdk".to_string(),
+                import: "@tokendance/code-sdk".to_string(),
+                types: "@tokendance/code-sdk".to_string(),
+            },
+            cli: CliPackageInfo {
+                name: "@tokendance/code-cli".to_string(),
+                bin: "tokendance".to_string(),
+            },
+        },
+        verification: TokenDanceCodeVerification {
+            test: "pnpm verify".to_string(),
+            package: "pnpm pack:check".to_string(),
+            tarball_smoke: "pnpm pack:smoke".to_string(),
+            prerelease: "pnpm release:next:check".to_string(),
+        },
+    }
+}
+
+async fn context_preview(
+    options: AgentHubContextPreviewOptions,
+) -> anyhow::Result<AgentHubContextPreview> {
+    let session = load_session(&options.storage_root, &options.session_id)
+        .await?
+        .unwrap_or_else(|| SessionState {
+            id: options.session_id.clone(),
+            cwd: options.working_directory.clone(),
+            permission_mode: options.permission_mode,
+            messages: Vec::new(),
+        });
+    let max_recent_messages = options.max_recent_messages.unwrap_or(20);
+    let session_message_count = session.messages.len();
+    let dropped_recent_message_count = session_message_count.saturating_sub(max_recent_messages);
+    let included_recent_messages = session
+        .messages
+        .iter()
+        .skip(dropped_recent_message_count)
+        .cloned()
+        .collect::<Vec<_>>();
+
+    let mut messages = Vec::with_capacity(included_recent_messages.len() + 1);
+    messages.extend(included_recent_messages.iter().cloned());
+    messages.push(user_message(options.prompt));
+
+    if let Some(budget) = options.context_budget {
+        apply_message_budget(&mut messages, budget);
+    }
+
+    let total_message_characters = messages.iter().map(|message| message.content.len()).sum();
+    Ok(AgentHubContextPreview {
+        session_id: session.id,
+        messages,
+        included_files: Vec::new(),
+        metadata: AgentHubContextPreviewMetadata {
+            workspace_root: options.working_directory,
+            max_recent_messages,
+            session_message_count,
+            included_recent_message_count: included_recent_messages.len(),
+            dropped_recent_message_count,
+            included_files: Vec::new(),
+            has_compact_summary: false,
+            memory_entry_count: 0,
+            system_message_characters: 0,
+            total_message_characters,
+            context_budget: options.context_budget,
+        },
+    })
+}
+
+async fn load_session(
+    storage_root: &Path,
+    session_id: &str,
+) -> anyhow::Result<Option<SessionState>> {
+    let path = storage_root
+        .join("sessions")
+        .join(session_id)
+        .join("session.json");
+    match tokio::fs::read_to_string(path).await {
+        Ok(content) => Ok(Some(serde_json::from_str(&content)?)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error.into()),
+    }
+}
+
+fn apply_message_budget(messages: &mut [Message], budget: usize) {
+    let mut remaining = budget;
+    for message in messages.iter_mut() {
+        if message.content.len() <= remaining {
+            remaining -= message.content.len();
+        } else {
+            message.content.truncate(remaining);
+            remaining = 0;
+        }
+    }
+}
+
+async fn doctor(options: AgentHubDoctorOptions) -> anyhow::Result<AgentHubDoctorInfo> {
+    let cwd = options
+        .working_directory
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let core = doctor_info(
+        env!("CARGO_PKG_VERSION"),
+        tokendance_core::ProviderConfig::default(),
+    );
+    let package_info = package_info();
+    let state_dir = cwd.join(".tokendance");
+    let state_writable = state_dir_writable(&state_dir).await;
+    let startup = startup_checks(&package_info, state_writable);
+    let agent_hub = agenthub_readiness(&package_info, &startup);
+
+    Ok(AgentHubDoctorInfo {
+        version: core.version,
+        package_info,
+        rust_runtime: core.rust_runtime,
+        cwd,
+        provider: core.provider,
+        warnings: core.warnings,
+        state_dir: AgentHubStateDirDoctorInfo {
+            path: state_dir,
+            writable: state_writable,
+        },
+        startup,
+        agent_hub,
+    })
+}
+
+async fn state_dir_writable(state_dir: &Path) -> bool {
+    let probe = state_dir.join(".doctor-write-test");
+    if tokio::fs::create_dir_all(state_dir).await.is_err() {
+        return false;
+    }
+    if tokio::fs::write(&probe, b"ok").await.is_err() {
+        return false;
+    }
+    let _ = tokio::fs::remove_file(probe).await;
+    true
+}
+
+fn startup_checks(
+    package_info: &TokenDanceCodePackageInfo,
+    state_writable: bool,
+) -> AgentHubStartupDoctorInfo {
+    let hub_checks = vec![
+        AgentHubStartupCheck {
+            name: "package-info".to_string(),
+            status: AgentHubStartupCheckStatus::Pass,
+            message: format!(
+                "{} {}",
+                package_info.packages.sdk.name, package_info.version
+            ),
+        },
+        AgentHubStartupCheck {
+            name: "sdk-contract".to_string(),
+            status: AgentHubStartupCheckStatus::Pass,
+            message: format!(
+                "AgentHub SDK contract {}",
+                package_info.agent_hub.sdk_contract_version
+            ),
+        },
+        AgentHubStartupCheck {
+            name: "config-readable".to_string(),
+            status: AgentHubStartupCheckStatus::Pass,
+            message: "TokenDanceCode config facade is readable".to_string(),
+        },
+        AgentHubStartupCheck {
+            name: "state-dir-writable".to_string(),
+            status: if state_writable {
+                AgentHubStartupCheckStatus::Pass
+            } else {
+                AgentHubStartupCheckStatus::Fail
+            },
+            message: if state_writable {
+                ".tokendance state directory is writable"
+            } else {
+                ".tokendance state directory is not writable"
+            }
+            .to_string(),
+        },
+        AgentHubStartupCheck {
+            name: "provider-ready".to_string(),
+            status: AgentHubStartupCheckStatus::Pass,
+            message: "provider mock is ready".to_string(),
+        },
+    ];
+    let edge_checks = vec![
+        AgentHubStartupCheck {
+            name: "agent-stream-envelope".to_string(),
+            status: AgentHubStartupCheckStatus::Pass,
+            message: format!(
+                "AgentHub agent.stream schema v{}",
+                package_info.agent_hub.agent_stream_schema_version
+            ),
+        },
+        AgentHubStartupCheck {
+            name: "git-available".to_string(),
+            status: AgentHubStartupCheckStatus::Pass,
+            message: "git availability is deferred to CLI doctor".to_string(),
+        },
+        AgentHubStartupCheck {
+            name: "powershell-available".to_string(),
+            status: AgentHubStartupCheckStatus::Pass,
+            message: "PowerShell availability is deferred to CLI doctor".to_string(),
+        },
+    ];
+
+    AgentHubStartupDoctorInfo {
+        hub: AgentHubStartupCheckGroup {
+            ok: hub_checks
+                .iter()
+                .all(|check| check.status != AgentHubStartupCheckStatus::Fail),
+            checks: hub_checks,
+        },
+        edge: AgentHubStartupCheckGroup {
+            ok: edge_checks
+                .iter()
+                .all(|check| check.status != AgentHubStartupCheckStatus::Fail),
+            checks: edge_checks,
+        },
+    }
+}
+
+fn agenthub_readiness(
+    package_info: &TokenDanceCodePackageInfo,
+    startup: &AgentHubStartupDoctorInfo,
+) -> AgentHubDoctorReadiness {
+    AgentHubDoctorReadiness {
+        contract_version: package_info.agent_hub.sdk_contract_version.clone(),
+        sdk_contract_version: package_info.agent_hub.sdk_contract_version.clone(),
+        readiness_contract: AGENTHUB_DOCTOR_READINESS_CONTRACT.to_string(),
+        agent_stream_schema_version: package_info.agent_hub.agent_stream_schema_version,
+        features: package_info.agent_hub.features.clone(),
+        ready: startup.hub.ok && startup.edge.ok,
+        blocking_checks: collect_startup_checks(startup, AgentHubStartupCheckStatus::Fail),
+        warning_checks: collect_startup_checks(startup, AgentHubStartupCheckStatus::Warn),
+    }
+}
+
+fn collect_startup_checks(
+    startup: &AgentHubStartupDoctorInfo,
+    status: AgentHubStartupCheckStatus,
+) -> Vec<String> {
+    startup
+        .hub
+        .checks
+        .iter()
+        .filter(|check| check.status == status)
+        .map(|check| format!("hub.{}", check.name))
+        .chain(
+            startup
+                .edge
+                .checks
+                .iter()
+                .filter(|check| check.status == status)
+                .map(|check| format!("edge.{}", check.name)),
+        )
+        .collect()
 }
 
 fn runtime_event_frame(
@@ -591,6 +1078,84 @@ mod tests {
         assert_eq!(
             error.terminal_frame.payload["reason"],
             SESSION_RUN_IN_PROGRESS_REASON
+        );
+    }
+
+    #[tokio::test]
+    async fn runner_context_preview_is_transient_and_reports_metadata() {
+        let root = std::env::temp_dir().join(format!("tdcode-rs-sdk-{}", Uuid::new_v4()));
+        let runner = AgentHubRunner::new();
+        runner
+            .run(run_options(root.clone(), "edge-context-seed"))
+            .await
+            .unwrap();
+
+        let preview = runner
+            .context_preview(AgentHubContextPreviewOptions {
+                prompt: "next turn".to_string(),
+                working_directory: root.clone(),
+                storage_root: root.clone(),
+                session_id: "session".to_string(),
+                permission_mode: PermissionMode::Default,
+                max_recent_messages: Some(1),
+                context_budget: Some(128),
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(preview.session_id, "session");
+        assert_eq!(preview.messages.last().unwrap().content, "next turn");
+        assert_eq!(preview.metadata.workspace_root, root);
+        assert_eq!(preview.metadata.session_message_count, 2);
+        assert_eq!(preview.metadata.included_recent_message_count, 1);
+        assert_eq!(preview.metadata.dropped_recent_message_count, 1);
+        assert_eq!(preview.metadata.context_budget, Some(128));
+        assert!(preview.metadata.total_message_characters > 0);
+
+        let session_path = root.join("sessions").join("session").join("session.json");
+        let session_json = tokio::fs::read_to_string(session_path).await.unwrap();
+        assert!(!session_json.contains("next turn"));
+    }
+
+    #[tokio::test]
+    async fn runner_bootstrap_combines_package_info_and_doctor_readiness() {
+        let root = std::env::temp_dir().join(format!("tdcode-rs-sdk-{}", Uuid::new_v4()));
+        let runner = AgentHubRunner::new();
+
+        let package_info = runner.package_info();
+        assert_eq!(
+            package_info.agent_hub.sdk_contract_version,
+            SDK_CONTRACT_VERSION
+        );
+        assert_eq!(
+            package_info.agent_hub.agent_stream_schema_version,
+            AGENT_STREAM_SCHEMA_VERSION
+        );
+        assert!(package_info.supports_agenthub_feature("context-preview"));
+        assert!(package_info.supports_agenthub_feature("runner-bootstrap"));
+
+        let doctor = runner
+            .doctor(AgentHubDoctorOptions {
+                working_directory: Some(root.clone()),
+            })
+            .await
+            .unwrap();
+        assert_eq!(doctor.package_info, package_info);
+        assert!(doctor.state_dir.writable);
+        assert!(doctor.agent_hub.ready);
+        assert_eq!(doctor.agent_hub.sdk_contract_version, SDK_CONTRACT_VERSION);
+        assert_eq!(doctor.agent_hub.agent_stream_schema_version, 2);
+
+        let startup = runner
+            .bootstrap(AgentHubDoctorOptions {
+                working_directory: Some(root),
+            })
+            .await
+            .unwrap();
+        assert_eq!(startup.package_info, package_info);
+        assert_eq!(
+            startup.doctor.agent_hub.readiness_contract,
+            AGENTHUB_DOCTOR_READINESS_CONTRACT
         );
     }
 

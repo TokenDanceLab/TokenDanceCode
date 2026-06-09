@@ -78,6 +78,22 @@ async function assertNpmWrapperScaffold() {
   ]) {
     assert(wrapper.includes(expected), `packages/cli/bin/tokendance.js missing '${expected}'`);
   }
+
+  const rootPackage = await readJson("package.json");
+  assert(rootPackage.scripts?.["smoke:rust-wrapper"] === "node scripts/smoke-rust-wrapper-tarball.mjs", "root package must expose pnpm smoke:rust-wrapper");
+
+  const smoke = await readText("scripts/smoke-rust-wrapper-tarball.mjs");
+  for (const expected of [
+    "npm pack",
+    "\"install\"",
+    "tokendance --version",
+    "tokendance doctor --json",
+    "findOrBuildRustBinary",
+    "assertNoForbiddenPackageContent",
+    "assertPackedFiles"
+  ]) {
+    assert(smoke.includes(expected), `scripts/smoke-rust-wrapper-tarball.mjs missing '${expected}'`);
+  }
 }
 
 async function assertReleaseReadinessDocs() {
@@ -87,6 +103,7 @@ async function assertReleaseReadinessDocs() {
     "optional native packages",
     expectedVerify,
     "release:rust:plan:check",
+    "smoke:rust-wrapper",
     "No package script may run `npm publish`",
     "@tokendance/code-cli-win32-x64-msvc",
     "Manual release-owner action"
@@ -101,6 +118,7 @@ async function assertRustArchitectureDocs() {
     "Rust-first npm binary wrapper",
     "optionalDependencies",
     "packages/cli/bin/tokendance.js",
+    "smoke:rust-wrapper",
     "crates/tokendance-cli",
     "Do not add publish scripts"
   ]) {

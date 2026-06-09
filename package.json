@@ -17,6 +17,7 @@
     "rust:fmt": "cargo fmt --all",
     "rust:cli": "cargo run -p tokendance-cli --",
     "release:rust:plan:check": "node scripts/check-rust-release-plan.mjs",
+    "smoke:rust-wrapper": "node scripts/smoke-rust-wrapper-tarball.mjs",
     "pack:dry-run": "pnpm --filter @tokendance/code-core pack --dry-run && pnpm --filter @tokendance/code-sdk pack --dry-run && pnpm --filter @tokendance/code-cli pack --dry-run",
     "pack:smoke": "node scripts/smoke-tarball-install.mjs",
     "smoke:gateway": "node scripts/smoke-real-gateway.mjs",

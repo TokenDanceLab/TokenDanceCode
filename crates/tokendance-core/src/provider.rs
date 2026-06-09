@@ -163,19 +163,32 @@ pub fn assistant_message(content: impl Into<String>) -> Message {
 fn redact_secret_like(message: &str) -> String {
     message
         .split_whitespace()
-        .map(|part| {
-            if part.starts_with("sk-")
-                || part.starts_with("td-")
-                || part.starts_with("Bearer ")
-                || part.len() >= 32 && part.chars().all(|ch| ch.is_ascii_alphanumeric())
-            {
-                "[redacted]"
-            } else {
-                part
-            }
-        })
+        .map(redact_secret_like_part)
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+fn redact_secret_like_part(part: &str) -> String {
+    if is_secret_like(part) {
+        return "[redacted]".to_string();
+    }
+
+    if let Some((name, value)) = part.split_once('=') {
+        let trimmed = value.trim_end_matches(|ch: char| {
+            ch == '.' || ch == ',' || ch == ';' || ch == ')' || ch == ']'
+        });
+        if is_secret_like(trimmed) {
+            return format!("{name}=[redacted]");
+        }
+    }
+
+    part.to_string()
+}
+
+fn is_secret_like(value: &str) -> bool {
+    value.starts_with("sk-")
+        || value.starts_with("td-")
+        || value.len() >= 32 && value.chars().all(|ch| ch.is_ascii_alphanumeric())
 }
 
 #[cfg(test)]
@@ -235,6 +248,18 @@ mod tests {
 
         let rendered = error.to_string();
         assert!(rendered.contains("[openai-chat-completions] HTTP 0 provider_transport_error"));
+        assert!(!rendered.contains("abcdefghijklmnopqrstuvwxyz123456"));
+    }
+
+    #[test]
+    fn provider_error_redacts_secret_prefixes_embedded_in_context() {
+        let error = ProviderError::transport(
+            ProviderProtocol::OpenAiChatCompletions,
+            "request failed token=abcdefghijklmnopqrstuvwxyz123456.",
+        );
+
+        let rendered = error.to_string();
+        assert!(rendered.contains("token=[redacted]"));
         assert!(!rendered.contains("abcdefghijklmnopqrstuvwxyz123456"));
     }
 

@@ -31,6 +31,7 @@ Run from the workspace root:
 ```powershell
 pnpm verify
 pnpm release:rust:plan:check
+pnpm smoke:rust-wrapper
 git diff --check
 ```
 
@@ -48,7 +49,7 @@ Latest known local evidence, to be refreshed before a release decision:
 
 - `pnpm verify` is the active Rust branch gate and runs Cargo formatting and workspace tests.
 - `pnpm release:rust:plan:check` verifies the Rust wrapper plan docs, checks `packages/cli/bin/tokendance.js`, keeps `pnpm verify` on Cargo, and fails if package scripts include an npm publish command.
-- The tarball smoke privacy scan is retained for the future wrapper package, but it is not the current Rust release gate.
+- `pnpm smoke:rust-wrapper` packs `@tokendance/code-cli` into a local tarball, installs it into a temp npm project without publishing, locates or builds the current-platform `tokendance` Rust binary, runs `tokendance --version` and `tokendance doctor --json`, and rejects tarball contents that include source/test/build-only paths, local workspace paths, token-like secrets, or npm auth config.
 
 Use fresh command output as the source for current test counts.
 
@@ -75,8 +76,8 @@ Before promoting the wrapper from plan to release candidate:
 1. Build the Rust CLI in CI for every supported target.
 2. Generate platform-native npm packages from reviewed CI artifacts.
 3. Replace the current JavaScript shim placeholder with reviewed native-package artifact paths once CI produces them.
-4. Add a tarball install smoke that runs `tokendance --version` and `tokendance doctor --json` from a fresh temp project.
-5. Add a package privacy scan for wrapper and native package contents.
+4. Keep `pnpm smoke:rust-wrapper` passing for the wrapper package; it runs `tokendance --version` and `tokendance doctor --json` from a fresh temp project without publishing.
+5. Extend the package privacy scan to platform-native package contents once those packages exist.
 6. Run the release-owner publish checklist outside this repository.
 
 ## Publish Boundary

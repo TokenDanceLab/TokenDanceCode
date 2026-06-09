@@ -55,6 +55,7 @@ cargo run -p tokendance-cli -- --version
 cargo run -p tokendance-cli -- doctor --json
 cargo run -p tokendance-cli -- run --json "hello"
 pnpm verify
+pnpm smoke:rust-wrapper
 ```
 
 `pnpm verify` intentionally remains the short Rust verification gate for now:
@@ -81,6 +82,7 @@ The Rust-first npm binary wrapper is a distribution layer, not a second CLI impl
 - `packages/cli/bin/tokendance.js` is the npm `bin` entry for `tokendance`.
 - The JavaScript shim resolves a local built Rust binary first, then a reviewed platform-native binary package placeholder, forwards argv and stdio unchanged, and shows a clear unsupported-platform error when no binary is available.
 - `packages/cli/package.json` uses Rust-aligned `build` and `test` scripts for `crates/tokendance-cli`; it no longer points the npm bin at legacy TypeScript `dist`.
+- `pnpm smoke:rust-wrapper` packs and installs the wrapper locally without publishing, locates or builds the current-platform Rust binary for the temp install, runs `tokendance --version` and `tokendance doctor --json`, and scans the packed wrapper for source/test/build-only files, local paths, npm auth config, and token-like secret material.
 - Platform binaries should come from CI artifacts built from `crates/tokendance-cli`; package scripts must not compile ad hoc release binaries on user machines.
 - Optional native packages may be listed through `optionalDependencies` only after their manifests, CI artifact names, target triples, and smoke tests are defined.
 - Planned native package names include `@tokendance/code-cli-win32-x64-msvc`, `@tokendance/code-cli-darwin-arm64`, `@tokendance/code-cli-darwin-x64`, `@tokendance/code-cli-linux-x64-gnu`, and `@tokendance/code-cli-linux-arm64-gnu`.

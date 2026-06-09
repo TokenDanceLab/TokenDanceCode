@@ -380,7 +380,7 @@ console.log(doctor.git.available, doctor.stateDir.writable);
 console.log(doctor.config.validation.ready, doctor.startup.hub.ok);
 ```
 
-SDK 也提供 TokenDanceID OIDC 登录 URL helper。它只生成 Authorization Code + PKCE 登录参数并校验 callback `state`；真正 code exchange、JWKS 验证、`tokendance_sub` 映射和 Hub-local session 仍由 AgentHub Hub Server 负责。
+SDK 也提供 TokenDanceID OIDC 登录 URL helper。它只生成 Authorization Code + PKCE 登录参数，提供 PKCE/state/callback 诊断，并校验 callback `state`；真正 code exchange、JWKS 验证、`tokendance_sub` 映射和 Hub-local session 仍由 AgentHub Hub Server 负责。
 
 CLI 也提供同源登录 URL 生成入口，便于本地壳层或 AgentHub 调试面板复制：
 
@@ -391,10 +391,10 @@ node packages/cli/dist/main.js auth tokendanceid login-url `
   --json
 ```
 
-该命令不打开浏览器、不交换 authorization code、不保存 TokenDanceID token；输出中的 `codeVerifier` 只供 Hub 后端完成本轮 PKCE exchange。
+该命令不打开浏览器、不交换 authorization code、不保存 TokenDanceID token；输出中的 `codeVerifier` 只供 Hub 后端完成本轮 PKCE exchange。`--json` 输出还包含 `diagnostics.pkce`、`diagnostics.state`、`diagnostics.callback` 和 `diagnostics.boundaries`，其中 exchange/JWKS/session owner 均为 AgentHub Hub Server，且明确标记 CLI/SDK helper 不 exchange token、不保存 TokenDanceID token、不接受 Gateway API key。
 
 ```ts
-import { createTokenDanceIdLoginRequest, verifyTokenDanceIdCallback } from "@tokendance/code-sdk";
+import { createTokenDanceIdLoginRequest, diagnoseTokenDanceIdCallback, diagnoseTokenDanceIdLoginRequest, verifyTokenDanceIdCallback } from "@tokendance/code-sdk";
 
 const login = createTokenDanceIdLoginRequest({
   clientId: "agenthub-local",
@@ -402,6 +402,8 @@ const login = createTokenDanceIdLoginRequest({
 });
 
 console.log(login.authorizationUrl);
+console.log(diagnoseTokenDanceIdLoginRequest(login).pkce.ok);
+console.log(diagnoseTokenDanceIdCallback("http://127.0.0.1:48731/callback?code=...&state=...", login).reason);
 
 const callback = verifyTokenDanceIdCallback("http://127.0.0.1:48731/callback?code=...&state=...", login);
 console.log(callback.codeVerifier);

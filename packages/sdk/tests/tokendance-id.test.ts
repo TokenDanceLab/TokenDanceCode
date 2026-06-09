@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { createTokenDanceIdLoginRequest, verifyTokenDanceIdCallback } from "../src/index.js";
+import { createTokenDanceIdLoginRequest, diagnoseTokenDanceIdCallback, diagnoseTokenDanceIdLoginRequest, verifyTokenDanceIdCallback } from "../src/index.js";
 
 describe("TokenDanceID OIDC helpers", () => {
   it("creates an Authorization Code + PKCE login URL for AgentHub callers", () => {
@@ -54,6 +54,69 @@ describe("TokenDanceID OIDC helpers", () => {
       redirectUri: "http://127.0.0.1:48731/callback",
       issuerUrl: "https://id.vectorcontrol.tech"
     });
+  });
+
+  it("reports PKCE, state, callback, and ownership diagnostics without exchanging or storing tokens", () => {
+    const login = createTokenDanceIdLoginRequest({
+      clientId: "agenthub-local",
+      redirectUri: "http://127.0.0.1:48731/callback",
+      codeVerifier: "verifier-for-test",
+      state: "state-for-test",
+      nonce: "nonce-for-test"
+    });
+
+    const loginDiagnostic = diagnoseTokenDanceIdLoginRequest(login);
+    const readyCallback = diagnoseTokenDanceIdCallback("http://127.0.0.1:48731/callback?code=auth-code&state=state-for-test", login);
+    const mismatchCallback = diagnoseTokenDanceIdCallback("http://127.0.0.1:48731/callback?code=auth-code&state=wrong", login);
+
+    expect(loginDiagnostic).toMatchObject({
+      ok: true,
+      pkce: {
+        ok: true,
+        method: "S256",
+        codeVerifierLength: "verifier-for-test".length,
+        codeChallengeLength: base64UrlSha256("verifier-for-test").length
+      },
+      state: {
+        ok: true,
+        present: true,
+        length: "state-for-test".length
+      },
+      callback: {
+        exchangeOwner: "AgentHub Hub Server",
+        jwksOwner: "AgentHub Hub Server",
+        sessionOwner: "AgentHub Hub Server"
+      },
+      boundaries: {
+        exchangesAuthorizationCode: false,
+        storesTokenDanceIdTokens: false,
+        acceptsGatewayApiKey: false
+      }
+    });
+    expect(readyCallback).toMatchObject({
+      ok: true,
+      reason: "ready_for_hub_exchange",
+      code: { present: true },
+      state: { present: true, matches: true },
+      callback: {
+        exchangeOwner: "AgentHub Hub Server",
+        jwksOwner: "AgentHub Hub Server",
+        sessionOwner: "AgentHub Hub Server"
+      },
+      boundaries: {
+        exchangesAuthorizationCode: false,
+        storesTokenDanceIdTokens: false,
+        acceptsGatewayApiKey: false
+      }
+    });
+    expect(mismatchCallback).toMatchObject({
+      ok: false,
+      reason: "state_mismatch",
+      code: { present: true },
+      state: { present: true, matches: false }
+    });
+    expect(readyCallback).not.toHaveProperty("accessToken");
+    expect(readyCallback).not.toHaveProperty("refreshToken");
   });
 
   it("rejects callback errors and state mismatches", () => {

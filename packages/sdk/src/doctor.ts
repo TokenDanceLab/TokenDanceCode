@@ -34,7 +34,7 @@ export interface DoctorInfo {
   config: {
     projectConfigPath: string;
     globalConfigPath: string;
-    sources: Array<"defaults" | "global" | "project">;
+    sources: Array<"defaults" | "global" | "project" | "env">;
   };
   stateDir: {
     path: string;
@@ -44,7 +44,7 @@ export interface DoctorInfo {
 
 export async function collectDoctorInfo(options: DoctorOptions): Promise<DoctorInfo> {
   const env = options.env ?? process.env;
-  const config = await readTokenDanceConfig({ projectRoot: options.projectRoot, homeDir: options.homeDir });
+  const config = await readTokenDanceConfig({ projectRoot: options.projectRoot, homeDir: options.homeDir, env });
   const stateDir = join(options.projectRoot, ".tokendance");
   const gitAvailable = await commandAvailable("git", ["--version"], options.projectRoot);
   const gitRepository = gitAvailable && await commandAvailable("git", ["rev-parse", "--is-inside-work-tree"], options.projectRoot);

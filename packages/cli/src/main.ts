@@ -317,7 +317,7 @@ async function memoryCommand(args: string[], io: CliIO): Promise<number> {
 }
 
 async function configCommand(io: CliIO): Promise<number> {
-  const info = await new TokenDanceCode().config({ projectRoot: io.cwd(), homeDir: homeDirFor(io) });
+  const info = await new TokenDanceCode({ env: await readCliEnv(io) }).config({ projectRoot: io.cwd(), homeDir: homeDirFor(io) });
   await write(io.stdout, `provider: ${info.config.provider}\n`);
   await write(io.stdout, `model: ${info.config.model}\n`);
   await write(io.stdout, `permissionMode: ${info.config.permissionMode}\n`);
@@ -998,20 +998,31 @@ async function createConfiguredClient(io: CliIO): Promise<{ client: TokenDanceCo
   return {
     client: new TokenDanceCode({
       storageRoot: io.cwd(),
-      provider: providerFromConfig(info.config),
+      provider: providerFromConfig(info.config, env),
       env
     }),
     permissionMode: info.config.permissionMode
   };
 }
 
-function providerFromConfig(config: Awaited<ReturnType<TokenDanceCode["config"]>>["config"]): TokenDanceProviderConfig {
+function providerFromConfig(
+  config: Awaited<ReturnType<TokenDanceCode["config"]>>["config"],
+  env: Record<string, string | undefined>
+): TokenDanceProviderConfig {
   if (config.provider === "mock") {
     return { type: "mock" };
   }
+  if (config.provider === "openai-responses") {
+    return {
+      type: "openai-responses",
+      model: config.model,
+      baseUrl: env.OPENAI_BASE_URL
+    };
+  }
   return {
     type: config.provider,
-    model: config.model
+    model: config.model,
+    baseUrl: env.ANTHROPIC_BASE_URL
   };
 }
 

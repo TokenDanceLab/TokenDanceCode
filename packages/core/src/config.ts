@@ -11,7 +11,7 @@ export interface TokenDanceConfig {
 }
 
 export interface ConfigSource {
-  kind: "defaults" | "global" | "project";
+  kind: "defaults" | "global" | "project" | "env";
   path?: string;
 }
 
@@ -25,6 +25,7 @@ export interface ConfigInfo {
 export interface ConfigReadOptions {
   projectRoot: string;
   homeDir?: string;
+  env?: Record<string, string | undefined>;
 }
 
 const defaultConfig: TokenDanceConfig = {
@@ -52,6 +53,12 @@ export async function readTokenDanceConfig(options: ConfigReadOptions): Promise<
     sources.push({ kind: "project", path: projectConfigPath });
   }
 
+  const envConfig = readEnvConfig(options.env);
+  if (envConfig) {
+    config = { ...config, ...envConfig };
+    sources.push({ kind: "env" });
+  }
+
   return {
     config,
     sources,
@@ -66,6 +73,34 @@ async function readPartialConfig(path: string): Promise<Partial<TokenDanceConfig
   } catch {
     return undefined;
   }
+}
+
+function readEnvConfig(env: Record<string, string | undefined> | undefined): Partial<TokenDanceConfig> | undefined {
+  if (!env) {
+    return undefined;
+  }
+
+  const config: Partial<TokenDanceConfig> = {};
+  const provider = parseProvider(env.TOKENDANCE_PROVIDER);
+  const model = env.TOKENDANCE_MODEL?.trim() || env.MODEL_ID?.trim();
+  const permissionMode = parsePermissionMode(env.TOKENDANCE_PERMISSION_MODE);
+
+  if (provider) {
+    config.provider = provider;
+  } else if (model && env.ANTHROPIC_API_KEY) {
+    config.provider = "anthropic-messages";
+  } else if (model && env.OPENAI_API_KEY) {
+    config.provider = "openai-responses";
+  }
+
+  if (model) {
+    config.model = model;
+  }
+  if (permissionMode) {
+    config.permissionMode = permissionMode;
+  }
+
+  return Object.keys(config).length > 0 ? config : undefined;
 }
 
 function sanitizeConfig(value: unknown): Partial<TokenDanceConfig> {
@@ -85,4 +120,12 @@ function sanitizeConfig(value: unknown): Partial<TokenDanceConfig> {
     config.permissionMode = raw.permissionMode;
   }
   return config;
+}
+
+function parseProvider(value: string | undefined): ConfigProvider | undefined {
+  return value === "mock" || value === "openai-responses" || value === "anthropic-messages" ? value : undefined;
+}
+
+function parsePermissionMode(value: string | undefined): PermissionMode | undefined {
+  return value === "default" || value === "safe" || value === "auto" || value === "yolo" ? value : undefined;
 }

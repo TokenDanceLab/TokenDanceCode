@@ -392,6 +392,26 @@ describe("TokenDanceCode SDK", () => {
     expect(info.sources.map((source) => source.kind)).toEqual(["defaults", "project"]);
   });
 
+  it("applies SDK env provider hints when reading effective config", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-config-"));
+    const client = new TokenDanceCode({
+      env: {
+        OPENAI_API_KEY: "openai-secret-value",
+        MODEL_ID: "gpt-test"
+      }
+    });
+
+    const info = await client.config({ projectRoot: root });
+
+    expect(info.config).toEqual({
+      provider: "openai-responses",
+      model: "gpt-test",
+      permissionMode: "default"
+    });
+    expect(info.sources.map((source) => source.kind)).toEqual(["defaults", "env"]);
+    expect(JSON.stringify(info)).not.toContain("openai-secret-value");
+  });
+
   it("exposes structured doctor diagnostics through the SDK boundary for AgentHub callers", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-doctor-"));
     const home = await mkdtemp(join(tmpdir(), "tdcode-home-doctor-"));

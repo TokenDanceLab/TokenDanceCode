@@ -139,6 +139,26 @@ describe("TokenDanceCode CLI", () => {
     expect(globalEnv.stdoutText()).not.toContain("global-openai");
   });
 
+  it("derives provider and model from global env for CLI startup", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-env-"));
+    const home = await mkdtemp(join(tmpdir(), "tdcode-cli-home-"));
+    await mkdir(join(home, ".tokendance"), { recursive: true });
+    await writeFile(
+      join(home, ".tokendance", ".env"),
+      "ANTHROPIC_API_KEY=global-anthropic\nANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic\nMODEL_ID=deepseek-v4-pro\n",
+      "utf8"
+    );
+    const config = createTestIO("", root, home, {});
+
+    const exitCode = await runCli(["config"], config);
+
+    expect(exitCode).toBe(0);
+    expect(config.stdoutText()).toContain("provider: anthropic-messages");
+    expect(config.stdoutText()).toContain("model: deepseek-v4-pro");
+    expect(config.stdoutText()).toContain("source: env");
+    expect(config.stdoutText()).not.toContain("global-anthropic");
+  });
+
   it("starts interactive sessions with the configured permission mode", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-cli-config-"));
     await mkdir(join(root, ".tokendance"), { recursive: true });

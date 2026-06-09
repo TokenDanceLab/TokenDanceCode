@@ -95,7 +95,7 @@ node packages/cli/dist/main.js run "hello"
 
 TokenDanceCode TS 版当前已提供 OpenAI Responses API 与 Anthropic-compatible Messages API provider adapter。CLI 默认仍使用 MockProvider；AgentHub 或本地脚本可通过 SDK 显式选择 provider。
 
-CLI 会读取有效配置来启动 `tokendance` 交互式 session 和 `tokendance run`：`provider`/`model` 决定 SDK provider，`permissionMode` 决定新 session 的初始权限模式。未配置时默认是 `mock` provider、`mock` model 和 `default` permission mode。
+CLI 会读取有效配置来启动 `tokendance` 交互式 session 和 `tokendance run`：`provider`/`model` 决定 SDK provider，`permissionMode` 决定新 session 的初始权限模式。未配置时默认是 `mock` provider、`mock` model 和 `default` permission mode。设置 `MODEL_ID` 加对应 provider key 时，CLI 会从 env 推断 provider；例如 `ANTHROPIC_API_KEY + MODEL_ID` 使用 `anthropic-messages`，`OPENAI_API_KEY + MODEL_ID` 使用 `openai-responses`。
 
 配置可以放在以下位置：
 

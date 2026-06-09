@@ -383,12 +383,12 @@ console.log(info.config.model);
 console.log(info.config.permissionMode);
 ```
 
-配置来源按 `defaults -> global -> project` 合并。当前支持 JSON 文件：
+配置来源按 `defaults -> global -> project -> env` 合并。当前支持 JSON 文件：
 
 - global：`<homeDir>/.tokendance/config.json`
 - project：`<projectRoot>/.tokendance/config.json`
 
-首版只读取 `provider`、`model`、`permissionMode` 三个白名单字段，忽略 `apiKey`、`token` 等 secret 字段，避免把密钥带入 CLI 输出、文档或 AgentHub 调试事件。
+首版只读取 `provider`、`model`、`permissionMode` 三个白名单字段，忽略 `apiKey`、`token` 等 secret 字段，避免把密钥带入 CLI 输出、文档或 AgentHub 调试事件。调用方通过 SDK `env` 显式注入环境时，`MODEL_ID` / `TOKENDANCE_MODEL` 可设置模型，`TOKENDANCE_PROVIDER` 可显式设置 provider；未显式设置 provider 但存在 `MODEL_ID` 和对应 API key 时，SDK config facade 会把 `ANTHROPIC_API_KEY` 推断为 `anthropic-messages`、把 `OPENAI_API_KEY` 推断为 `openai-responses`。密钥只参与 present/missing 和 provider 推断，不会进入 `config()` 输出。
 
 ## 11. Doctor
 

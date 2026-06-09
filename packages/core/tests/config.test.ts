@@ -40,4 +40,24 @@ describe("TokenDance config", () => {
     expect(info.sources.map((source) => source.kind)).toEqual(["defaults", "global", "project"]);
     expect(JSON.stringify(info)).not.toContain("must-not-appear");
   });
+
+  it("applies env provider hints without exposing secrets", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-config-"));
+    const info = await readTokenDanceConfig({
+      projectRoot: root,
+      env: {
+        ANTHROPIC_API_KEY: "secret-key",
+        MODEL_ID: "deepseek-v4-pro",
+        TOKENDANCE_PERMISSION_MODE: "safe"
+      }
+    });
+
+    expect(info.config).toEqual({
+      provider: "anthropic-messages",
+      model: "deepseek-v4-pro",
+      permissionMode: "safe"
+    });
+    expect(info.sources.map((source) => source.kind)).toEqual(["defaults", "env"]);
+    expect(JSON.stringify(info)).not.toContain("secret-key");
+  });
 });

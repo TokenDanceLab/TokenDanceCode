@@ -208,7 +208,8 @@ export class TokenDanceCode {
   config(options: ConfigOptions = {}): Promise<ConfigInfo> {
     return readTokenDanceConfig({
       projectRoot: options.projectRoot ?? this.options.storageRoot ?? process.cwd(),
-      homeDir: options.homeDir
+      homeDir: options.homeDir,
+      env: this.options.env
     });
   }
 

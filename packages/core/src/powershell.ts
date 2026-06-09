@@ -10,13 +10,17 @@ const commandEnd = "(?=$|[\\s;&|])";
 const chainPattern = /[;&|]/;
 
 const denyPatterns = [
-  { label: "Remove-Item/rm/del/erase", pattern: new RegExp(`${commandSeparator}(?:Remove-Item|rm|del|erase)${commandEnd}`, "i") },
-  { label: "Set-ExecutionPolicy", pattern: new RegExp(`${commandSeparator}Set-ExecutionPolicy${commandEnd}`, "i") },
-  { label: "Stop-Process", pattern: new RegExp(`${commandSeparator}Stop-Process${commandEnd}`, "i") },
-  { label: "Restart-Computer", pattern: new RegExp(`${commandSeparator}Restart-Computer${commandEnd}`, "i") },
-  { label: "download pipe to Invoke-Expression", pattern: /\b(?:iwr|irm|Invoke-WebRequest|Invoke-RestMethod)\b.*\|.*\b(?:iex|Invoke-Expression)\b/i },
-  { label: "git reset --hard", pattern: /\bgit\s+reset\b(?=.*(?:--hard|-hard)\b)/i },
-  { label: "git clean -fdx", pattern: /\bgit\s+clean\b(?=.*-[a-z]*f[a-z]*)(?=.*-[a-z]*d[a-z]*)(?=.*-[a-z]*x[a-z]*)/i }
+  { label: "Remove-Item/rm/del/erase", pattern: new RegExp(`${commandSeparator}(?:Remove-Item|rm|del|erase)${commandEnd}`, "i"), evidencePattern: /\b(?:Remove-Item|rm|del|erase)\b/i },
+  { label: "Set-ExecutionPolicy", pattern: new RegExp(`${commandSeparator}Set-ExecutionPolicy${commandEnd}`, "i"), evidencePattern: /\bSet-ExecutionPolicy\b/i },
+  { label: "Stop-Process", pattern: new RegExp(`${commandSeparator}Stop-Process${commandEnd}`, "i"), evidencePattern: /\bStop-Process\b/i },
+  { label: "Restart-Computer", pattern: new RegExp(`${commandSeparator}Restart-Computer${commandEnd}`, "i"), evidencePattern: /\bRestart-Computer\b/i },
+  {
+    label: "download pipe to Invoke-Expression",
+    pattern: /\b(?:iwr|irm|Invoke-WebRequest|Invoke-RestMethod)\b.*\|.*\b(?:iex|Invoke-Expression)\b/i,
+    evidencePattern: /\b(?:iwr|irm|Invoke-WebRequest|Invoke-RestMethod)\b[^\r\n]*\|[^\r\n]*\b(?:iex|Invoke-Expression)\b/i
+  },
+  { label: "git reset --hard", pattern: /\bgit\s+reset\b(?=.*(?:--hard|-hard)\b)/i, evidencePattern: /\bgit\s+reset\b[^\r\n;&|]*(?:--hard|-hard)\b/i },
+  { label: "git clean -fdx", pattern: /\bgit\s+clean\b(?=.*-[a-z]*f[a-z]*)(?=.*-[a-z]*d[a-z]*)(?=.*-[a-z]*x[a-z]*)/i, evidencePattern: /\bgit\s+clean\b[^\r\n;&|]*-[a-z]*f[a-z]*[^\r\n;&|]*/i }
 ];
 
 const safePatterns = [
@@ -37,7 +41,7 @@ export function classifyPowerShellCommandWithReason(command: string): PowerShell
   }
   const denyMatch = denyPatterns.find(({ pattern }) => pattern.test(stripped));
   if (denyMatch) {
-    return { level: "deny", reason: `command matches blocked pattern '${denyMatch.label}'` };
+    return { level: "deny", reason: `command matches blocked pattern '${denyMatch.label}' with evidence '${matchedEvidence(stripped, denyMatch.evidencePattern)}'` };
   }
   if (chainPattern.test(stripped)) {
     return { level: "ask", reason: "command chaining requires review" };
@@ -47,4 +51,10 @@ export function classifyPowerShellCommandWithReason(command: string): PowerShell
     return { level: "safe", reason: `command matches read-only pattern '${safeMatch.label}'` };
   }
   return { level: "ask", reason: "command is not in the read-only allowlist" };
+}
+
+function matchedEvidence(command: string, pattern: RegExp): string {
+  const match = pattern.exec(command);
+  const evidence = (match?.[0] ?? command).trim().replace(/\s+/g, " ").replace(/'/g, "\"");
+  return evidence.length > 120 ? `${evidence.slice(0, 117)}...` : evidence;
 }

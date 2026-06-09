@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyPowerShellCommand } from "../src/index.js";
+import { classifyPowerShellCommand, classifyPowerShellCommandWithReason } from "../src/index.js";
 
 describe("classifyPowerShellCommand", () => {
   it("allows common read-only commands", () => {
@@ -22,6 +22,13 @@ describe("classifyPowerShellCommand", () => {
     ]) {
       expect(classifyPowerShellCommand(command), command).toBe("deny");
     }
+  });
+
+  it("returns matched evidence for destructive command denials", () => {
+    expect(classifyPowerShellCommandWithReason("Write-Host ok; git reset --hard HEAD")).toEqual({
+      level: "deny",
+      reason: "command matches blocked pattern 'git reset --hard' with evidence 'git reset --hard'"
+    });
   });
 
   it("asks for unclassified or chained commands", () => {

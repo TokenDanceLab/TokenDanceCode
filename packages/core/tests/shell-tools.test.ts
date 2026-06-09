@@ -5,6 +5,25 @@ import { describe, expect, it } from "vitest";
 import { createDefaultToolRegistry, ToolOrchestrator, type SessionState } from "../src/index.js";
 
 describe("run_powershell tool", () => {
+  it("exposes auditable risk and permission metadata", () => {
+    const metadata = createDefaultToolRegistry().metadata().find((tool) => tool.name === "run_powershell");
+
+    expect(metadata).toMatchObject({
+      risk: "shell",
+      riskSummary: "Shell tool: executes local commands and is approval-gated outside yolo mode.",
+      permission: {
+        default: "requires_approval",
+        safe: "denied",
+        auto: "allowed",
+        yolo: "allowed"
+      },
+      permissionReasons: {
+        default: "mode=default tool=run_powershell risk=shell action=approval_required: default mode requires approval before running shell tools; concurrency=exclusive; safety=PowerShell classifier hard-denies destructive commands before execution."
+      },
+      safetyNotes: ["PowerShell classifier hard-denies destructive commands before execution."]
+    });
+  });
+
   it("executes safe commands in the workspace under yolo mode", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-shell-"));
     await writeFile(join(root, "hello.txt"), "hello", "utf8");
@@ -31,11 +50,11 @@ describe("run_powershell tool", () => {
 
     expect(result).toMatchObject({
       ok: false,
-      error: "Tool execution denied by PowerShell risk classifier: command matches blocked pattern 'git reset --hard'",
+      error: "Tool execution denied by PowerShell risk classifier: command matches blocked pattern 'git reset --hard' with evidence 'git reset --hard'",
       safetyEvidence: {
         source: "powershell_classifier",
         status: "denied",
-        reason: "command matches blocked pattern 'git reset --hard'"
+        reason: "command matches blocked pattern 'git reset --hard' with evidence 'git reset --hard'"
       }
     });
   });
@@ -51,7 +70,7 @@ describe("run_powershell tool", () => {
 
     expect(result).toMatchObject({
       ok: false,
-      error: "Tool execution denied by PowerShell risk classifier: command matches blocked pattern 'git reset --hard'",
+      error: "Tool execution denied by PowerShell risk classifier: command matches blocked pattern 'git reset --hard' with evidence 'git reset --hard'",
       safetyEvidence: {
         toolName: "quality_gate",
         source: "powershell_classifier",
@@ -71,7 +90,7 @@ describe("run_powershell tool", () => {
 
     expect(result).toMatchObject({
       ok: false,
-      error: "mode=default tool=run_powershell risk=shell action=approval_required: default mode requires approval before running shell tools",
+      error: "mode=default tool=run_powershell risk=shell action=approval_required: default mode requires approval before running shell tools; concurrency=exclusive; safety=PowerShell classifier hard-denies destructive commands before execution.",
       safetyEvidence: {
         source: "permission_engine",
         status: "requires_approval"

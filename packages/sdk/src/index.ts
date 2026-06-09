@@ -57,6 +57,7 @@ import { join } from "node:path";
 import { collectDoctorInfo } from "./doctor.js";
 
 export * from "./agenthub-events.js";
+export * from "./agenthub-runner.js";
 export * from "./approval-bridge.js";
 export * from "./doctor.js";
 export * from "./package-info.js";

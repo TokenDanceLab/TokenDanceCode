@@ -1089,11 +1089,54 @@ describe("TokenDanceCode CLI", () => {
     const output = io.stdoutText();
 
     expect(exitCode).toBe(0);
-    expect(output.match(/Allow write_file \[write\]\? \(y\/N\):/g)).toHaveLength(2);
+    expect(output.match(/Allow write_file \[write\]\? \(y=yes once, a=always this session, N=deny\):/g)).toHaveLength(2);
     expect(output).toContain("[permission] write_file denied");
     expect(output).toContain("[permission] write_file allowed");
     await expect(readFile(join(root, "approved.txt"), "utf8")).resolves.toBe("approved content");
     await expect(stat(join(root, "denied.txt"))).rejects.toThrow();
+  });
+
+  it("supports session approval for repeated default-mode write and shell tools", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-approval-session-"));
+    const io = createTestIO(
+      [
+        "writefile: first.txt first content",
+        "a",
+        "writefile: second.txt second content",
+        "shell: Write-Output shell-one",
+        "a",
+        "shell: Write-Output shell-two",
+        "/exit"
+      ].join("\n"),
+      root
+    );
+
+    const exitCode = await runCli([], io);
+    const output = io.stdoutText();
+
+    expect(exitCode).toBe(0);
+    expect(output.match(/Allow write_file \[write\]\?/g)).toHaveLength(1);
+    expect(output.match(/Allow run_powershell \[shell\]\?/g)).toHaveLength(1);
+    expect(output.match(/\[permission\] write_file allowed/g)).toHaveLength(2);
+    expect(output.match(/\[permission\] run_powershell allowed/g)).toHaveLength(2);
+    await expect(readFile(join(root, "first.txt"), "utf8")).resolves.toBe("first content");
+    await expect(readFile(join(root, "second.txt"), "utf8")).resolves.toBe("second content");
+  });
+
+  it("does not persist session approval across interactive CLI runs", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-approval-session-reset-"));
+    const first = createTestIO("writefile: first.txt first content\na\n/exit\n", root);
+    const second = createTestIO("writefile: second.txt second content\ny\n/exit\n", root);
+
+    const firstExitCode = await runCli([], first);
+    const secondExitCode = await runCli([], second);
+
+    expect(firstExitCode).toBe(0);
+    expect(secondExitCode).toBe(0);
+    expect(first.stdoutText().match(/Allow write_file \[write\]\?/g)).toHaveLength(1);
+    expect(second.stdoutText().match(/Allow write_file \[write\]\?/g)).toHaveLength(1);
+    await expect(readFile(join(root, "first.txt"), "utf8")).resolves.toBe("first content");
+    await expect(readFile(join(root, "second.txt"), "utf8")).resolves.toBe("second content");
   });
 
   it("keeps top-level run noninteractive when default-mode tools require approval", async () => {

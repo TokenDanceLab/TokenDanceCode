@@ -106,160 +106,174 @@ async function runCommand(args: string[], io: CliIO): Promise<number> {
 async function runInteractive(io: CliIO): Promise<void> {
   const lines = createInterface({ input: io.stdin, crlfDelay: Infinity });
   const lineIterator = lines[Symbol.asyncIterator]();
-  const configured = await createConfiguredClient(io, createLocalApprovalCallback(io, lineIterator));
-  const client = configured.client;
-  let thread = client.startThread({ workingDirectory: io.cwd(), permissionMode: configured.permissionMode });
-  await write(io.stdout, `${brandBanner(styleFromEnv(await readCliEnv(io))).join("\n")}\n\n`);
-  await write(io.stdout, "Type /help for commands, /exit to quit.\n");
+  try {
+    const configured = await createConfiguredClient(io, createLocalApprovalCallback(io, lineIterator));
+    const client = configured.client;
+    let thread = client.startThread({ workingDirectory: io.cwd(), permissionMode: configured.permissionMode });
+    await write(io.stdout, `${brandBanner(styleFromEnv(await readCliEnv(io))).join("\n")}\n\n`);
+    await write(io.stdout, "Type /help for commands, /exit to quit.\n");
 
-  while (true) {
-    const nextLine = await lineIterator.next();
-    if (nextLine.done) {
-      return;
-    }
-    const rawLine = nextLine.value;
-    const line = rawLine.trim();
-    if (!line) {
-      continue;
-    }
+    while (true) {
+      const nextLine = await lineIterator.next();
+      if (nextLine.done) {
+        return;
+      }
+      const rawLine = nextLine.value;
+      const line = rawLine.trim();
+      if (!line) {
+        continue;
+      }
 
-    if (line === "/exit" || line === "/quit") {
-      await warnUncommittedChanges(io);
-      await write(io.stdout, "bye\n");
-      return;
-    }
+      if (line === "/exit" || line === "/quit") {
+        await warnUncommittedChanges(io);
+        await write(io.stdout, "bye\n");
+        return;
+      }
 
-    if (line === "/help") {
-      await printInteractiveHelp(io);
-      continue;
-    }
+      if (line === "/help") {
+        await printInteractiveHelp(io);
+        continue;
+      }
 
-    if (line === "/doctor" || line.startsWith("/doctor ")) {
-      await printDoctor(io, line.split(/\s+/).slice(1));
-      continue;
-    }
+      if (line === "/doctor" || line.startsWith("/doctor ")) {
+        await printDoctor(io, line.split(/\s+/).slice(1));
+        continue;
+      }
 
-    if (line === "/quickstart") {
-      await printQuickstart(io);
-      continue;
-    }
+      if (line === "/quickstart") {
+        await printQuickstart(io);
+        continue;
+      }
 
-    if (line === "/config" || line.startsWith("/config ")) {
-      await configCommand(line.split(/\s+/).slice(1), io);
-      continue;
-    }
+      if (line === "/config" || line.startsWith("/config ")) {
+        await configCommand(line.split(/\s+/).slice(1), io);
+        continue;
+      }
 
-    if (line === "/status") {
-      await printStatus(io, thread);
-      continue;
-    }
+      if (line === "/status") {
+        await printStatus(io, thread);
+        continue;
+      }
 
-    if (line === "/new") {
-      thread = await handleNewThread(io, client, thread);
-      continue;
-    }
+      if (line === "/new") {
+        thread = await handleNewThread(io, client, thread);
+        continue;
+      }
 
-    if (line === "/resume") {
-      thread = await handleResume(io, client);
-      continue;
-    }
+      if (line === "/resume") {
+        thread = await handleResume(io, client);
+        continue;
+      }
 
-    if (line === "/sessions") {
-      await sessionsCommand(io);
-      continue;
-    }
+      if (line === "/sessions") {
+        await sessionsCommand(io);
+        continue;
+      }
 
-    if (line === "/memory" || line.startsWith("/memory ")) {
-      await memoryCommand(line.split(/\s+/).slice(1), io);
-      continue;
-    }
+      if (line === "/memory" || line.startsWith("/memory ")) {
+        await memoryCommand(line.split(/\s+/).slice(1), io);
+        continue;
+      }
 
-    if (line === "/auth" || line.startsWith("/auth ")) {
-      await authCommand(line.split(/\s+/).slice(1), io);
-      continue;
-    }
+      if (line === "/auth" || line.startsWith("/auth ")) {
+        await authCommand(line.split(/\s+/).slice(1), io);
+        continue;
+      }
 
-    if (line === "/agents" || line.startsWith("/agents ")) {
-      await agentsCommand(line.split(/\s+/).slice(1), io);
-      continue;
-    }
+      if (line === "/agents" || line.startsWith("/agents ")) {
+        await agentsCommand(line.split(/\s+/).slice(1), io);
+        continue;
+      }
 
-    if (line === "/diff" || line.startsWith("/diff ")) {
-      await diffCommand(line.split(/\s+/).slice(1), io);
-      continue;
-    }
+      if (line === "/diff" || line.startsWith("/diff ")) {
+        await diffCommand(line.split(/\s+/).slice(1), io);
+        continue;
+      }
 
-    if (line === "/review") {
-      await reviewCommand(io);
-      continue;
-    }
+      if (line === "/review") {
+        await reviewCommand(io);
+        continue;
+      }
 
-    if (line === "/tools") {
-      await toolsCommand(io);
-      continue;
-    }
+      if (line === "/tools") {
+        await toolsCommand(io);
+        continue;
+      }
 
-    if (line.startsWith("/quality")) {
-      await qualityCommand(line.split(/\s+/).slice(1), io);
-      continue;
-    }
+      if (line.startsWith("/quality")) {
+        await qualityCommand(line.split(/\s+/).slice(1), io);
+        continue;
+      }
 
-    if (line === "/tasks" || line.startsWith("/tasks ")) {
-      await tasksCommand(line.split(/\s+/).slice(1), io);
-      continue;
-    }
+      if (line === "/tasks" || line.startsWith("/tasks ")) {
+        await tasksCommand(line.split(/\s+/).slice(1), io);
+        continue;
+      }
 
-    if (line === "/todo" || line.startsWith("/todo ")) {
-      await todoCommand(line.split(/\s+/).slice(1), io);
-      continue;
-    }
+      if (line === "/todo" || line.startsWith("/todo ")) {
+        await todoCommand(line.split(/\s+/).slice(1), io);
+        continue;
+      }
 
-    if (line === "/worktree" || line.startsWith("/worktree ")) {
-      await worktreeCommand(line.split(/\s+/).slice(1), io);
-      continue;
-    }
+      if (line === "/worktree" || line.startsWith("/worktree ")) {
+        await worktreeCommand(line.split(/\s+/).slice(1), io);
+        continue;
+      }
 
-    if (line === "/transcript" || line.startsWith("/transcript ")) {
-      await handleTranscript(io, thread, line);
-      continue;
-    }
+      if (line === "/transcript" || line.startsWith("/transcript ")) {
+        await handleTranscript(io, thread, line);
+        continue;
+      }
 
-    if (line === "/context" || line.startsWith("/context ")) {
-      await handleContext(io, thread, line);
-      continue;
-    }
+      if (line === "/context" || line.startsWith("/context ")) {
+        await handleContext(io, thread, line);
+        continue;
+      }
 
-    if (line === "/compact") {
-      await handleCompact(io, thread);
-      continue;
-    }
+      if (line === "/compact") {
+        await handleCompact(io, thread);
+        continue;
+      }
 
-    if (line.startsWith("/permissions")) {
-      thread = await handlePermissions(io, client, thread, line);
-      continue;
-    }
+      if (line.startsWith("/permissions")) {
+        thread = await handlePermissions(io, client, thread, line);
+        continue;
+      }
 
-    if (line.startsWith("/")) {
-      await write(io.stdout, `Unknown command: ${line}\n`);
-      continue;
-    }
+      if (line.startsWith("/")) {
+        await write(io.stdout, `Unknown command: ${line}\n`);
+        continue;
+      }
 
-    await runPrompt(io, thread, line);
+      await runPrompt(io, thread, line);
+    }
+  } finally {
+    await lineIterator.return?.();
+    lines.close();
   }
 }
 
 function createLocalApprovalCallback(io: CliIO, lineIterator: AsyncIterator<string>): PermissionApprovalCallback {
+  const sessionAllowedTools = new Set<string>();
   return async (request) => {
+    if (sessionAllowedTools.has(request.call.name)) {
+      return { status: "allowed", reason: `approved for this CLI session: ${request.call.name}` };
+    }
+
     await write(io.stdout, `Approval required: ${request.call.name} [${request.tool.risk}]\n`);
     await write(io.stdout, `Reason: ${request.decision.reason}\n`);
     await write(io.stdout, `Input: ${previewToolInput(request.call.input)}\n`);
-    await write(io.stdout, `Allow ${request.call.name} [${request.tool.risk}]? (y/N): `);
+    await write(io.stdout, `Allow ${request.call.name} [${request.tool.risk}]? (y=yes once, a=always this session, N=deny): `);
 
     const answer = await lineIterator.next();
     await write(io.stdout, "\n");
     const normalized = answer.done ? "" : answer.value.trim().toLowerCase();
     if (normalized === "y" || normalized === "yes") {
       return { status: "allowed", reason: "approved by local CLI prompt" };
+    }
+    if (normalized === "a" || normalized === "always") {
+      sessionAllowedTools.add(request.call.name);
+      return { status: "allowed", reason: `approved for this CLI session: ${request.call.name}` };
     }
     return { status: "denied", reason: "denied by local CLI prompt" };
   };

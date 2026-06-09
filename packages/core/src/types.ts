@@ -41,10 +41,27 @@ export interface ToolCall {
   input: unknown;
 }
 
+export type PermissionDecisionAction = "allowed" | "denied" | "approval_required";
+
+export interface PermissionRiskMetadata {
+  mode: PermissionMode;
+  toolName: string;
+  toolRisk: ToolRisk;
+  action: PermissionDecisionAction;
+  concurrency: ToolSpec["concurrency"];
+  safetyNotes: string[];
+}
+
 export type PermissionDecision =
-  | { status: "allowed"; reason: string }
-  | { status: "denied"; reason: string }
-  | { status: "requires_approval"; reason: string };
+  | { status: "allowed"; reason: string; riskMetadata?: PermissionRiskMetadata }
+  | { status: "denied"; reason: string; riskMetadata?: PermissionRiskMetadata }
+  | { status: "requires_approval"; reason: string; riskMetadata?: PermissionRiskMetadata };
+
+export interface ToolSafetyEvidenceDetail {
+  rule: string;
+  matched: string;
+  commandPreview: string;
+}
 
 export interface ToolSafetyEvidence {
   toolName: string;
@@ -52,6 +69,7 @@ export interface ToolSafetyEvidence {
   status: "denied" | "requires_approval";
   reason: string;
   decision?: PermissionDecision;
+  evidence?: ToolSafetyEvidenceDetail;
 }
 
 export interface ToolResult {

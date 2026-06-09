@@ -111,9 +111,11 @@ function assertPowerShellCommandAllowed(command: string): void {
     safetySource: ToolSafetyEvidence["source"];
     safetyStatus: ToolSafetyEvidence["status"];
     safetyReason: string;
+    safetyEvidence?: ToolSafetyEvidence["evidence"];
   };
   error.safetySource = "powershell_classifier";
   error.safetyStatus = "denied";
   error.safetyReason = classification.reason;
+  error.safetyEvidence = classification.evidence;
   throw error;
 }

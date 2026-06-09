@@ -5,7 +5,7 @@ import { buildGitTools } from "./git-tools.js";
 import { createApplyPatchTool } from "./patch-tools.js";
 import { createRunPowerShellTool } from "./shell-tools.js";
 import { buildWorktreeTools } from "./worktrees.js";
-import type { PermissionDecision, PermissionMode, SessionState, ToolCall, ToolResult, ToolSafetyEvidence, ToolSpec, ToolRisk } from "./types.js";
+import type { PermissionDecision, PermissionMode, PermissionRiskMetadata, SessionState, ToolCall, ToolResult, ToolSafetyEvidence, ToolSpec, ToolRisk } from "./types.js";
 
 export interface ToolMetadata {
   name: string;
@@ -15,6 +15,7 @@ export interface ToolMetadata {
   concurrency: ToolSpec["concurrency"];
   permission: Record<PermissionMode, PermissionDecision["status"]>;
   permissionReasons: Record<PermissionMode, string>;
+  permissionRiskMetadata: Record<PermissionMode, PermissionRiskMetadata | undefined>;
   safetyNotes: string[];
 }
 
@@ -46,6 +47,7 @@ export class ToolRegistry {
       concurrency: tool.concurrency,
       permission: permissionMetadata(tool),
       permissionReasons: permissionReasonMetadata(tool),
+      permissionRiskMetadata: permissionRiskMetadata(tool),
       safetyNotes: tool.safetyNotes ?? []
     }));
   }
@@ -119,6 +121,15 @@ function permissionReasonMetadata(tool: ToolSpec): Record<PermissionMode, string
   };
 }
 
+function permissionRiskMetadata(tool: ToolSpec): Record<PermissionMode, PermissionRiskMetadata | undefined> {
+  return {
+    default: new PermissionEngine("default").decide(tool).riskMetadata,
+    safe: new PermissionEngine("safe").decide(tool).riskMetadata,
+    auto: new PermissionEngine("auto").decide(tool).riskMetadata,
+    yolo: new PermissionEngine("yolo").decide(tool).riskMetadata
+  };
+}
+
 function riskSummary(risk: ToolRisk): string {
   switch (risk) {
     case "read":
@@ -152,7 +163,8 @@ function toolSafetyEvidence(toolName: string, error: unknown): ToolSafetyEvidenc
     toolName,
     source: error.safetySource,
     status: error.safetyStatus,
-    reason: error.safetyReason
+    reason: error.safetyReason,
+    evidence: error.safetyEvidence
   };
 }
 
@@ -160,6 +172,7 @@ function isToolSafetyDenial(error: unknown): error is Error & {
   safetySource: ToolSafetyEvidence["source"];
   safetyStatus: ToolSafetyEvidence["status"];
   safetyReason: string;
+  safetyEvidence?: ToolSafetyEvidence["evidence"];
 } {
   return error instanceof Error
     && "safetySource" in error

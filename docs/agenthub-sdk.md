@@ -307,7 +307,7 @@ const client = new TokenDanceCode({
 });
 ```
 
-审批回调只处理 PermissionEngine 判定为 `requires_approval` 的工具。`safe` 模式直接 `denied` 的工具不会通过回调升级；工具执行层自己的硬拒绝规则也不会被回调绕过，例如 PowerShell 高风险命令分类。权限原因统一包含 `mode=<mode> tool=<name> risk=<risk> action=<allowed|approval_required|denied>` 前缀；声明了 `safetyNotes` 的工具还会在原因详情中追加 `concurrency` 和安全说明，便于 AgentHub UI、日志和 transcript 直接展示同一份可审计原因。
+审批回调只处理 PermissionEngine 判定为 `requires_approval` 的工具。`safe` 模式直接 `denied` 的工具不会通过回调升级；工具执行层自己的硬拒绝规则也不会被回调绕过，例如 PowerShell 高风险命令分类。权限原因统一包含 `mode=<mode> tool=<name> risk=<risk> action=<allowed|approval_required|denied>` 前缀；每个 PermissionDecision 也带有可选 `riskMetadata`，记录 mode、tool、risk、action、并发策略和工具安全说明，便于 AgentHub UI、日志和 transcript 直接展示同一份可审计原因。
 
 ### AgentHub 远程审批 Bridge
 
@@ -317,6 +317,7 @@ const client = new TokenDanceCode({
 import { TokenDanceCode, createAgentHubApprovalBridge } from "@tokendance/code-sdk";
 
 const approvalBridge = createAgentHubApprovalBridge({
+  timeoutMs: 30_000,
   async onRequest(request) {
     await hubClient.createApproval({
       approvalId: request.requestId,
@@ -339,9 +340,9 @@ approvalBridge.decide("tool-call-id", "allow", "approved in AgentHub");
 approvalBridge.decide("tool-call-id", "deny", "rejected in AgentHub");
 ```
 
-`approvalCallback` 会在工具执行前等待 `decide()`；等待期间 `pending()` 可读取当前待审批请求快照。`decide()` 找不到对应请求时返回 `false`，便于 AgentHub 忽略重复或过期决策。同一个 tool call id 如果重复进入 bridge，首个请求继续使用原 id，后续请求会追加 `#2`、`#3` 等后缀作为独立 `requestId`，原始 call id 保留在 `callId`。如果 `onRequest` 发布到 Hub 失败，bridge 会清理 pending 项并返回 `denied`，避免 runtime 永久等待；如果 Hub 已经在同一次 `onRequest` 中完成 `decide()`，该已完成决策优先，后续发布错误不会覆盖人工决定。
+`approvalCallback` 会在工具执行前等待 `decide()`；等待期间 `pending()` 可读取当前待审批请求快照。`timeoutMs` 可选，设置后超时请求会被清理并返回 `denied`。`decide()` 找不到对应请求时返回 `false`，便于 AgentHub 忽略重复或过期决策。同一个 tool call id 如果重复进入 bridge，首个请求继续使用原 id，后续请求会追加 `#2`、`#3` 等后缀作为独立 `requestId`，原始 call id 保留在 `callId`。如果 `onRequest` 发布到 Hub 失败，bridge 会清理 pending 项并返回 `denied`，避免 runtime 永久等待；如果 Hub 已经在同一次 `onRequest` 中完成 `decide()`，该已完成决策优先，后续发布错误不会覆盖人工决定。
 
-被拒绝的工具结果会在 `tool.completed` 事件中携带 `safetyEvidence`：权限引擎拒绝使用 `source: "permission_engine"`，PowerShell 硬拒绝使用 `source: "powershell_classifier"`，并在 `reason` 中包含命中的阻断模式和命令片段证据。这份结果会随 transcript 持久化，供 AgentHub 回放拒绝证据。
+被拒绝的工具结果会在 `tool.completed` 事件中携带 `safetyEvidence`：权限引擎拒绝使用 `source: "permission_engine"`，PowerShell 硬拒绝使用 `source: "powershell_classifier"`，并在 `reason` 中包含命中的阻断模式和命令片段证据。PowerShell hard deny 还会带 `evidence: { rule, matched, commandPreview }`，这份结果会随 transcript 持久化，供 AgentHub 回放拒绝证据。
 
 ## 9. AgentHub 最小集成样例包
 
@@ -776,7 +777,7 @@ const quality = await tools.execute(
 );
 ```
 
-`tools.list()` 返回不含 executor/parse 函数的工具能力 metadata：`name`、`description`、`risk`、`riskSummary`、`concurrency`、各权限模式下的 `permission` 状态、对应的 `permissionReasons`，以及工具级 `safetyNotes`。AgentHub 可以用它渲染调试面板、权限说明、拒绝原因预览或工具开关。
+`tools.list()` 返回不含 executor/parse 函数的工具能力 metadata：`name`、`description`、`risk`、`riskSummary`、`concurrency`、各权限模式下的 `permission` 状态、对应的 `permissionReasons`、`permissionRiskMetadata`，以及工具级 `safetyNotes`。AgentHub 可以用它渲染调试面板、权限说明、拒绝原因预览或工具开关。
 
 这个 facade 的 `execute()` 返回 core `ToolResult`，用于 AgentHub 调试面板、手动质量门、Git diff/review、worktree/subagent 管理工作流和受控工具执行。`quality_gate` 不传 `command` 时会自动发现 `package.json` 的 `verify` 脚本，缺少 `verify` 时回退到 `test`；传入 `command` 时使用显式命令覆盖。即使用 `yolo` 让质量命令运行，PowerShell 工具层仍会拒绝已知高风险命令。`worktree_create`、`worktree_remove`、`subagent_run`、`subagent_accept` 和 `subagent_discard` 是 shell 风险工具，默认模式下需要审批或显式 tool facade 覆盖权限。
 
@@ -784,7 +785,7 @@ const quality = await tools.execute(
 
 - `packages/sdk/tests/sdk.test.ts` 覆盖 buffered turn、streamed events、多轮 thread、context preview/history limit、latest/by-id resume、session list facade、latest/by-id compact、transcript metadata/search、config facade、doctor facade/startup checks、AgentHub readiness 汇总、memory facade、task/todo facade、subagent facade、worktree facade、tool metadata facade、tool execution facade、worktree/subagent tools、审批允许/拒绝、provider env 配置错误、event sink。
 - `packages/sdk/tests/package-metadata.test.ts` 覆盖 public package metadata、`pack:check` 脚本、tarball ignore 规则和 SDK 导出的 AgentHub-readable package manifest / feature flags。
-- `packages/sdk/tests/approval-bridge.test.ts` 覆盖 AgentHub 远程审批 bridge、pending 快照、allow/deny 决策回填。
+- `packages/sdk/tests/approval-bridge.test.ts` 覆盖 AgentHub 远程审批 bridge、pending 快照、allow/deny 决策回填、timeout 和重复决策边界。
 - `packages/sdk/tests/agenthub-events.test.ts` 覆盖 `TDCodeEvent` 到 AgentHub `run.agent.*` 的映射、sink 包装和 `agent.stream` payload fixture。
 - `packages/agenthub-example/tests/agenthub-runner.test.ts` 覆盖 AgentHub runner 示例、e2e fixture、runner bootstrap、runner options、context preview history limit、远程审批桥接、`agent.stream` payload 序列、emitter 形态、runner package manifest 和 doctor 启动诊断。
 - `packages/core/tests/*` 覆盖 runtime、permission、provider adapter、file/shell/patch/git/subagent/worktree/tool metadata/context/resume/config/memory/task/todo。

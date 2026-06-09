@@ -27,7 +27,24 @@ describe("classifyPowerShellCommand", () => {
   it("returns matched evidence for destructive command denials", () => {
     expect(classifyPowerShellCommandWithReason("Write-Host ok; git reset --hard HEAD")).toEqual({
       level: "deny",
-      reason: "command matches blocked pattern 'git reset --hard' with evidence 'git reset --hard'"
+      reason: "command matches blocked pattern 'git reset --hard' with evidence 'git reset --hard'",
+      evidence: {
+        rule: "git reset --hard",
+        matched: "git reset --hard",
+        commandPreview: "Write-Host ok; git reset --hard HEAD"
+      }
+    });
+  });
+
+  it("keeps high-risk PowerShell evidence bounded and quote-safe", () => {
+    expect(classifyPowerShellCommandWithReason("Remove-Item -Recurse '.\\build output' -Force")).toEqual({
+      level: "deny",
+      reason: "command matches blocked pattern 'Remove-Item/rm/del/erase' with evidence 'Remove-Item'",
+      evidence: {
+        rule: "Remove-Item/rm/del/erase",
+        matched: "Remove-Item",
+        commandPreview: "Remove-Item -Recurse \".\\build output\" -Force"
+      }
     });
   });
 

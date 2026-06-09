@@ -116,10 +116,10 @@ node packages/cli/dist/main.js run "hello"
 - [x] Provider adapter：OpenAI Responses API。
 - [x] Provider adapter：Anthropic-compatible Messages API。
 - [x] File tools：read/write/edit/glob，全部走 permission engine。
-- [x] PowerShell shell tool：风险分类、工作区边界、输出截断。
+- [x] PowerShell shell tool：风险分类、工作区边界、输出截断，并对高危命令 hard deny 输出结构化 evidence。
 - [x] Patch tool：结构化 apply patch，失败可诊断。
 - [x] Git tool：status/diff/review quality gate 的最小集合；quality gate 可自动发现 `package.json` 的 `verify`/`test` 脚本，显式命令可覆盖。
-- [x] Tool metadata：默认 registry 和 SDK/CLI 可列出工具名称、说明、风险等级和并发属性。
+- [x] Tool metadata：默认 registry 和 SDK/CLI 可列出工具名称、说明、风险等级、并发属性、权限原因和 per-mode risk metadata。
 - [x] Worktree manager/tool：受控 `.worktrees` list/create/remove，dirty 删除需显式 `--discard`，并暴露 `worktree_list/create/remove` 默认 registry tools。
 - [x] Subagent manager/tool：readonly investigator/reviewer、coding worktree delegation、agent transcript/index、accept/discard 生命周期管理、target dirty 保护、dirty worktree 丢弃保护、`subagent_run/list/get/accept/discard` 默认 registry tools。
 - [x] Config loader：合并 defaults/global/project JSON 配置，只暴露 provider、model、permissionMode 白名单字段。
@@ -140,7 +140,7 @@ node packages/cli/dist/main.js run "hello"
 - [x] 固化 `TokenDanceCodeOptions`：provider、storageRoot、env、approval callback、event sink。
 - [x] 输出 AgentHub 可直接消费的 typed event union。
 - [x] SDK 审批回调与 event sink 集成测试。
-- [x] SDK 远程审批 bridge：把 requires_approval 暴露给 AgentHub，再等待 allow/deny 决策回填。
+- [x] SDK 远程审批 bridge：把 requires_approval 暴露给 AgentHub，再等待 allow/deny 决策回填，覆盖 timeout、重复决策和重复 request id 边界。
 - [x] 编写 AgentHub 接入示例：启动 thread、流式事件、审批回调、读取 transcript。
 - [x] 提供 `TDCodeEvent` -> AgentHub `run.agent.*` runtime event mapper。
 - [x] 提供 AgentHub `agent.stream` payload sink fixture。
@@ -191,5 +191,5 @@ node packages/cli/dist/main.js run "hello"
 - [ ] AgentHub consuming fixture：把 SDK manifest、doctor、resume-or-start、event sink、approval bridge 和 TokenDanceID login facade 串成更接近 AgentHub 的可复制样例。
 - [ ] 滚动式 TUI polish：继续改善颜色、错误块、权限/风险/usage 输出，同时保持无颜色输出可测试。
 - [ ] 真实 provider smoke gate：只做显式 opt-in 预检和 skip gate，不默认读取项目 `.env`，不在 CI 或 pack smoke 中使用真实 key。
-- [ ] 权限策略审计：完善拒绝原因、PowerShell 高危命令 evidence、approval bridge 边界和 tool risk metadata。
+- [x] 权限策略审计：完善拒绝原因、PowerShell 高危命令 evidence、approval bridge 边界和 tool risk metadata。
 - [ ] 线程生命周期：完善 session/resume/search/export/prune 候选和 AgentHub 调试面板所需只读元数据，除非有必要不改变 transcript schema。

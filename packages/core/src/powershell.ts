@@ -3,6 +3,13 @@ export type PowerShellRiskLevel = "safe" | "ask" | "deny";
 export interface PowerShellRiskClassification {
   level: PowerShellRiskLevel;
   reason: string;
+  evidence?: PowerShellRiskEvidence;
+}
+
+export interface PowerShellRiskEvidence {
+  rule: string;
+  matched: string;
+  commandPreview: string;
 }
 
 const commandSeparator = "(?:^|[\\s;&|])";
@@ -41,7 +48,12 @@ export function classifyPowerShellCommandWithReason(command: string): PowerShell
   }
   const denyMatch = denyPatterns.find(({ pattern }) => pattern.test(stripped));
   if (denyMatch) {
-    return { level: "deny", reason: `command matches blocked pattern '${denyMatch.label}' with evidence '${matchedEvidence(stripped, denyMatch.evidencePattern)}'` };
+    const evidence = matchedEvidence(stripped, denyMatch.label, denyMatch.evidencePattern);
+    return {
+      level: "deny",
+      reason: `command matches blocked pattern '${denyMatch.label}' with evidence '${evidence.matched}'`,
+      evidence
+    };
   }
   if (chainPattern.test(stripped)) {
     return { level: "ask", reason: "command chaining requires review" };
@@ -53,8 +65,16 @@ export function classifyPowerShellCommandWithReason(command: string): PowerShell
   return { level: "ask", reason: "command is not in the read-only allowlist" };
 }
 
-function matchedEvidence(command: string, pattern: RegExp): string {
+function matchedEvidence(command: string, rule: string, pattern: RegExp): PowerShellRiskEvidence {
   const match = pattern.exec(command);
-  const evidence = (match?.[0] ?? command).trim().replace(/\s+/g, " ").replace(/'/g, "\"");
+  return {
+    rule,
+    matched: boundedEvidence(match?.[0] ?? command),
+    commandPreview: boundedEvidence(command)
+  };
+}
+
+function boundedEvidence(value: string): string {
+  const evidence = value.trim().replace(/\s+/g, " ").replace(/'/g, "\"");
   return evidence.length > 120 ? `${evidence.slice(0, 117)}...` : evidence;
 }

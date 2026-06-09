@@ -26,16 +26,32 @@ describe("PermissionEngine", () => {
   });
 
   it("explains the mode, tool, risk, and next action in approval reasons", () => {
-    expect(new PermissionEngine("default").decide(shellTool)).toEqual({
+    const decision = new PermissionEngine("default").decide(shellTool);
+
+    expect(decision).toMatchObject({
       status: "requires_approval",
-      reason: "mode=default tool=shell risk=shell action=approval_required: default mode requires approval before running shell tools"
+      reason: "mode=default tool=shell risk=shell action=approval_required: default mode requires approval before running shell tools",
+      riskMetadata: {
+        mode: "default",
+        toolName: "shell",
+        toolRisk: "shell",
+        action: "approval_required",
+        concurrency: "exclusive",
+        safetyNotes: []
+      }
     });
   });
 
   it("blocks shell tools in safe mode", () => {
-    expect(new PermissionEngine("safe").decide(shellTool)).toEqual({
+    expect(new PermissionEngine("safe").decide(shellTool)).toMatchObject({
       status: "denied",
-      reason: "mode=safe tool=shell risk=shell action=denied: safe mode only allows read-only tools"
+      reason: "mode=safe tool=shell risk=shell action=denied: safe mode only allows read-only tools",
+      riskMetadata: {
+        mode: "safe",
+        toolName: "shell",
+        toolRisk: "shell",
+        action: "denied"
+      }
     });
   });
 

@@ -54,7 +54,12 @@ describe("run_powershell tool", () => {
       safetyEvidence: {
         source: "powershell_classifier",
         status: "denied",
-        reason: "command matches blocked pattern 'git reset --hard' with evidence 'git reset --hard'"
+        reason: "command matches blocked pattern 'git reset --hard' with evidence 'git reset --hard'",
+        evidence: {
+          rule: "git reset --hard",
+          matched: "git reset --hard",
+          commandPreview: "git reset --hard"
+        }
       }
     });
   });
@@ -93,7 +98,15 @@ describe("run_powershell tool", () => {
       error: "mode=default tool=run_powershell risk=shell action=approval_required: default mode requires approval before running shell tools; concurrency=exclusive; safety=PowerShell classifier hard-denies destructive commands before execution.",
       safetyEvidence: {
         source: "permission_engine",
-        status: "requires_approval"
+        status: "requires_approval",
+        decision: expect.objectContaining({
+          riskMetadata: expect.objectContaining({
+            mode: "default",
+            toolName: "run_powershell",
+            toolRisk: "shell",
+            action: "approval_required"
+          })
+        })
       }
     });
   });

@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { Readable, Writable } from "node:stream";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -290,6 +290,40 @@ describe("TokenDanceCode CLI", () => {
     expect(interactive.stdoutText()).toContain("TokenDanceID login tokens are not TokenDance Gateway model API keys.");
     expect(missingArgsExitCode).toBe(1);
     expect(missingArgs.stderrText()).toContain("Usage: tokendance auth tokendanceid login-url --client-id <id> --redirect-uri <uri>");
+  });
+
+  it("prints read-only quickstart steps in top-level and interactive commands", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-quickstart-"));
+    const home = await mkdtemp(join(tmpdir(), "tdcode-cli-home-"));
+    const env = {
+      TOKENDANCE_GATEWAY_API_KEY: "gateway-super-secret",
+      OPENAI_API_KEY: "openai-super-secret"
+    };
+    const topLevel = createTestIO("", root, home, env);
+    const interactive = createTestIO("/quickstart\n/exit\n", root, home, env);
+
+    const topLevelExitCode = await runCli(["quickstart"], topLevel);
+    const interactiveExitCode = await runCli([], interactive);
+
+    expect(topLevelExitCode).toBe(0);
+    expect(interactiveExitCode).toBe(0);
+    for (const output of [topLevel.stdoutText(), interactive.stdoutText()]) {
+      expect(output).toContain("Quickstart");
+      expect(output).toContain("1. Verify install");
+      expect(output).toContain("tokendance --version");
+      expect(output).toContain("2. Choose provider");
+      expect(output).toContain("3. TokenDance Gateway preset");
+      expect(output).toContain("tokendance gateway init --model deepseek-v4-pro");
+      expect(output).toContain("4. TokenDanceID login URL helper");
+      expect(output).toContain("tokendance auth tokendanceid login-url --client-id agenthub-local --redirect-uri http://127.0.0.1:48731/callback");
+      expect(output).toContain("5. Doctor and config checks");
+      expect(output).toContain("tokendance doctor");
+      expect(output).toContain("tokendance config");
+      expect(output).toContain("Read-only: does not write env files, print secrets, open a browser, publish packages, or touch production.");
+      expect(output).not.toContain("gateway-super-secret");
+      expect(output).not.toContain("openai-super-secret");
+    }
+    await expect(stat(join(home, ".tokendance", ".env"))).rejects.toThrow();
   });
 
   it("starts interactive sessions with the configured permission mode", async () => {

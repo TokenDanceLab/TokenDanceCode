@@ -664,6 +664,8 @@ describe("TokenDanceCode SDK", () => {
 
     expect(doctor.agentHub).toMatchObject({
       contractVersion: "agenthub-sdk.v1",
+      sdkContractVersion: "agenthub-sdk.v1",
+      readinessContract: "agenthub.doctor-readiness.v1",
       agentStreamSchemaVersion: 1,
       ready: true,
       blockingChecks: []
@@ -710,7 +712,7 @@ describe("TokenDanceCode SDK", () => {
     });
     expect(doctor.startup.hub).toMatchObject({ ok: true });
     expect(doctor.startup.hub.checks.map((check) => check.name)).toEqual(
-      expect.arrayContaining(["package-info", "config-readable", "state-dir-writable", "provider-ready"])
+      expect.arrayContaining(["package-info", "sdk-contract", "config-readable", "state-dir-writable", "provider-ready"])
     );
     expect(doctor.startup.edge).toMatchObject({ ok: true });
     expect(doctor.startup.edge.checks.map((check) => check.name)).toEqual(

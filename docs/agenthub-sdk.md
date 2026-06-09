@@ -92,12 +92,13 @@ console.log(TOKEN_DANCE_CODE_PACKAGE.packages.sdk.import);
 console.log(TOKEN_DANCE_CODE_PACKAGE.packages.cli.bin);
 console.log(TOKEN_DANCE_CODE_PACKAGE.agentHub.sdkContractVersion);
 console.log(TOKEN_DANCE_CODE_PACKAGE.agentHub.agentStreamSchemaVersion);
+console.log(TOKEN_DANCE_CODE_PACKAGE.agentHub.features);
 console.log(TOKEN_DANCE_CODE_PACKAGE.verification.package);
 console.log(TOKEN_DANCE_CODE_PACKAGE.verification.tarballSmoke);
 console.log(TOKEN_DANCE_CODE_PACKAGE.verification.prerelease);
 ```
 
-当前 manifest 覆盖 core/sdk/cli 包名、SDK/Core import specifier、CLI bin 名、AgentHub SDK contract version、`agent.stream` schema version、SDK feature flags 和推荐验证命令：`pnpm verify`、`pnpm pack:check`、`pnpm pack:smoke`、`pnpm release:next:check`。它不包含本机路径、密钥或 workspace 私有路径，适合进入 AgentHub UI 或日志。AgentHub Hub/Edge 启动检查可以把 `agentHub.sdkContractVersion === "agenthub-sdk.v1"` 和 `agentHub.agentStreamSchemaVersion === 1` 当作当前稳定契约的快速断言。`agentHub.features` 当前还显式标记 `doctor-readiness`、`runner-bootstrap` 和 `agenthub-consumer-fixture`，用于区分是否能读取 `doctor.agentHub` 汇总、样例 runner 的一键启动检查，以及复制消费侧 fixture 链路。
+当前 manifest 覆盖 core/sdk/cli 包名、SDK/Core import specifier、CLI bin 名、AgentHub SDK contract version、`agent.stream` schema version、SDK feature flags 和推荐验证命令：`pnpm verify`、`pnpm pack:check`、`pnpm pack:smoke`、`pnpm release:next:check`。它不包含本机路径、密钥或 workspace 私有路径，适合进入 AgentHub UI 或日志。AgentHub Hub/Edge 启动检查可以把 `agentHub.sdkContractVersion === "agenthub-sdk.v1"` 和 `agentHub.agentStreamSchemaVersion === 1` 当作当前稳定契约的快速断言。SDK 同时导出 `AGENTHUB_FEATURE_FLAGS` 和 `supportsAgentHubFeature(feature)`，避免 AgentHub 复制 feature flag 字符串。`agentHub.features` 当前还显式标记 `doctor-readiness`、`runner-bootstrap`、`agenthub-consumer-fixture`、`agenthub-package-feature-flags`、`agenthub-event-envelope-schema`、`agenthub-approval-bridge`、`agenthub-doctor-readiness` 和 `agenthub-contract-readiness`，用于区分是否能读取 manifest feature flags、`agent.stream` envelope schema、approval bridge request schema、`doctor.agentHub` 汇总和样例 runner/fixture 链路。
 
 ## 4. TokenDanceID OIDC 登录启动
 
@@ -281,12 +282,13 @@ const client = new TokenDanceCode({
   agent_instance_id: string;
   event_seq: number;
   event_type: "run.agent.text_delta" | "...";
+  source_event_type: TDCodeEvent["type"];
   payload: Record<string, unknown>;
   created_at: string;
 }
 ```
 
-`schema_version`、`sdk_contract_version` 和 `source` 是稳定 envelope 字段，方便 Hub/Edge 在启动检查、事件落库和前端调试中快速区分 SDK 契约版本。`event_seq` 只对这个 sink 实例递增；如果 AgentHub 有自己的全局 event sequence 或 ID 生成器，可以通过 `idFactory` 和外层 emitter 继续覆盖。
+`schema_version`、`sdk_contract_version` 和 `source` 是稳定 envelope 字段，方便 Hub/Edge 在启动检查、事件落库和前端调试中快速区分 SDK 契约版本。`source_event_type` 保留原始 `TDCodeEvent.type`，用于落库回放和调试时追踪 `run.agent.*` 事件来自哪一种 SDK runtime event。SDK 还导出 `AGENTHUB_AGENT_STREAM_REQUIRED_FIELDS` 和 `AGENTHUB_AGENT_STREAM_EVENT_TYPES`，供 Hub/Edge 启动检查或消费侧 fixture 做本地 schema 断言。`event_seq` 只对这个 sink 实例递增；如果 AgentHub 有自己的全局 event sequence 或 ID 生成器，可以通过 `idFactory` 和外层 emitter 继续覆盖。
 
 ## 8. 审批回调
 
@@ -321,6 +323,10 @@ const approvalBridge = createAgentHubApprovalBridge({
   async onRequest(request) {
     await hubClient.createApproval({
       approvalId: request.requestId,
+      schemaVersion: request.schemaVersion,
+      sdkContractVersion: request.sdkContractVersion,
+      source: request.source,
+      decisionChannel: request.decisionChannel,
       sessionId: request.sessionId,
       turnId: request.turnId,
       toolName: request.toolName,
@@ -340,7 +346,7 @@ approvalBridge.decide("tool-call-id", "allow", "approved in AgentHub");
 approvalBridge.decide("tool-call-id", "deny", "rejected in AgentHub");
 ```
 
-`approvalCallback` 会在工具执行前等待 `decide()`；等待期间 `pending()` 可读取当前待审批请求快照。`timeoutMs` 可选，设置后超时请求会被清理并返回 `denied`。`decide()` 找不到对应请求时返回 `false`，便于 AgentHub 忽略重复或过期决策。同一个 tool call id 如果重复进入 bridge，首个请求继续使用原 id，后续请求会追加 `#2`、`#3` 等后缀作为独立 `requestId`，原始 call id 保留在 `callId`。如果 `onRequest` 发布到 Hub 失败，bridge 会清理 pending 项并返回 `denied`，避免 runtime 永久等待；如果 Hub 已经在同一次 `onRequest` 中完成 `decide()`，该已完成决策优先，后续发布错误不会覆盖人工决定。
+`approvalCallback` 会在工具执行前等待 `decide()`；等待期间 `pending()` 可读取当前待审批请求快照。每个 request 都带 `schemaVersion: 1`、`sdkContractVersion: "agenthub-sdk.v1"`、`source: "tokendance-code-sdk"` 和 `decisionChannel: "agenthub.approval.v1"`，AgentHub 可以把这些字段作为审批通道的 contract guard。`onRequest()` 和 `pending()` 返回的是 SDK 内部 pending 状态的隔离快照；Hub 侧修改 request 或 `input` 不会反写到 bridge。`timeoutMs` 可选，设置后超时请求会被清理并返回 `denied`。`decide()` 找不到对应请求时返回 `false`，便于 AgentHub 忽略重复或过期决策。同一个 tool call id 如果重复进入 bridge，首个请求继续使用原 id，后续请求会追加 `#2`、`#3` 等后缀作为独立 `requestId`，原始 call id 保留在 `callId`。如果 `onRequest` 发布到 Hub 失败，bridge 会清理 pending 项并返回 `denied`，避免 runtime 永久等待；如果 Hub 已经在同一次 `onRequest` 中完成 `decide()`，该已完成决策优先，后续发布错误不会覆盖人工决定。
 
 被拒绝的工具结果会在 `tool.completed` 事件中携带 `safetyEvidence`：权限引擎拒绝使用 `source: "permission_engine"`，PowerShell 硬拒绝使用 `source: "powershell_classifier"`，并在 `reason` 中包含命中的阻断模式和命令片段证据。PowerShell hard deny 还会带 `evidence: { rule, matched, commandPreview }`，这份结果会随 transcript 持久化，供 AgentHub 回放拒绝证据。
 
@@ -640,6 +646,8 @@ console.log(doctor.stateDir.writable);
 console.log(doctor.packageInfo.agentHub.sdkContractVersion);
 console.log(doctor.startup.hub.ok);
 console.log(doctor.startup.edge.ok);
+console.log(doctor.agentHub.sdkContractVersion);
+console.log(doctor.agentHub.readinessContract);
 console.log(doctor.agentHub.ready);
 console.log(doctor.agentHub.blockingChecks);
 console.log(doctor.agentHub.warningChecks);
@@ -647,7 +655,7 @@ console.log(doctor.agentHub.warningChecks);
 
 `doctor.apiKeys` 只返回 `present`/`missing`，不会返回实际 API key。诊断结果还包括版本、Node、cwd、platform、Git 仓库状态、PowerShell 可用性、config 路径/source、有效 provider/model、provider readiness、`.tokendance` 状态目录可写性、只读 `packageInfo` manifest，以及 `startup.hub` / `startup.edge` 检查组。Hub 侧当前检查 package manifest、config 可读性、状态目录可写性和 `provider-ready`；真实 provider 缺少 key/model 时 `provider-ready` 为 `warn`，`startup.hub.ok` 仍保持 `true`，方便 AgentHub 启动后在设置页引导补齐配置。Edge 侧当前检查 `agent.stream` envelope 契约、Git 可用性和 PowerShell 可用性。`warn` 级检查不会让 `ok` 变成 `false`；`fail` 代表启动前必须处理的阻断项。
 
-`doctor.agentHub` 是给 Hub/Edge 启动检查和调试面板使用的聚合视图：`contractVersion`、`agentStreamSchemaVersion` 和 `features` 来自同一份 package manifest；`ready` 等于 Hub 与 Edge 检查组都没有 `fail`；`blockingChecks` 和 `warningChecks` 用 `hub.<check-name>` / `edge.<check-name>` 标记阻断项和告警项。调用方如果只需要判断是否能启动，可以先看 `doctor.agentHub.ready`；如果要展示详细原因，再展开 `startup.hub.checks` 和 `startup.edge.checks`。
+`doctor.agentHub` 是给 Hub/Edge 启动检查和调试面板使用的聚合视图：`contractVersion` 是旧兼容名，`sdkContractVersion` 是推荐读取名；`readinessContract` 当前为 `"agenthub.doctor-readiness.v1"`；`agentStreamSchemaVersion` 和 `features` 来自同一份 package manifest。`ready` 等于 Hub 与 Edge 检查组都没有 `fail`；`blockingChecks` 和 `warningChecks` 用 `hub.<check-name>` / `edge.<check-name>` 标记阻断项和告警项。Hub 检查组包含 `sdk-contract`，用于单独展示 SDK contract readiness。调用方如果只需要判断是否能启动，可以先看 `doctor.agentHub.ready`；如果要展示详细原因，再展开 `startup.hub.checks` 和 `startup.edge.checks`。
 
 ## 13. Task / Todo
 

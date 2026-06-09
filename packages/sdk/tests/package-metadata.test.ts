@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { TOKEN_DANCE_CODE_PACKAGE } from "../src/index.js";
+import { AGENTHUB_FEATURE_FLAGS, TOKEN_DANCE_CODE_PACKAGE, supportsAgentHubFeature } from "../src/index.js";
 
 const workspaceRoot = new URL("../../../", import.meta.url);
 
@@ -130,7 +130,12 @@ describe("package metadata", () => {
           "remote-approval",
           "tokendanceid-oidc-login",
           "config-writer",
-          "config-validation"
+          "config-validation",
+          "agenthub-package-feature-flags",
+          "agenthub-event-envelope-schema",
+          "agenthub-approval-bridge",
+          "agenthub-doctor-readiness",
+          "agenthub-contract-readiness"
         ]
       },
       packages: {
@@ -156,6 +161,22 @@ describe("package metadata", () => {
         prerelease: "pnpm release:next:check"
       }
     });
+  });
+
+  it("exports a stable AgentHub feature flag set for contract negotiation", () => {
+    expect(AGENTHUB_FEATURE_FLAGS).toEqual(TOKEN_DANCE_CODE_PACKAGE.agentHub.features);
+    expect(AGENTHUB_FEATURE_FLAGS).toEqual(
+      expect.arrayContaining([
+        "agenthub-package-feature-flags",
+        "agenthub-event-envelope-schema",
+        "agenthub-approval-bridge",
+        "agenthub-doctor-readiness",
+        "agenthub-contract-readiness"
+      ])
+    );
+    expect(new Set(AGENTHUB_FEATURE_FLAGS).size).toBe(AGENTHUB_FEATURE_FLAGS.length);
+    expect(supportsAgentHubFeature("agenthub-event-envelope-schema")).toBe(true);
+    expect(supportsAgentHubFeature("missing-feature")).toBe(false);
   });
 
   it("documents the next prerelease and tarball install gates", async () => {

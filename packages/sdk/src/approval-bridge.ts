@@ -1,9 +1,19 @@
 import type { PermissionApprovalCallback, PermissionApprovalRequest, PermissionDecision, ToolRisk } from "@tokendance/code-core";
+import {
+  AGENTHUB_AGENT_STREAM_SOURCE,
+  AGENTHUB_APPROVAL_BRIDGE_SCHEMA_VERSION,
+  AGENTHUB_APPROVAL_DECISION_CHANNEL,
+  AGENTHUB_SDK_CONTRACT_VERSION
+} from "./package-info.js";
 
 export type AgentHubApprovalDecision = "allow" | "deny";
 
 export interface AgentHubApprovalRequest {
   requestId: string;
+  schemaVersion: typeof AGENTHUB_APPROVAL_BRIDGE_SCHEMA_VERSION;
+  sdkContractVersion: typeof AGENTHUB_SDK_CONTRACT_VERSION;
+  source: typeof AGENTHUB_AGENT_STREAM_SOURCE;
+  decisionChannel: typeof AGENTHUB_APPROVAL_DECISION_CHANNEL;
   callId: string;
   sessionId: string;
   turnId: string;
@@ -68,7 +78,7 @@ export function createAgentHubApprovalBridge(options: AgentHubApprovalBridgeOpti
         }
       });
       try {
-        await options.onRequest(approvalRequest);
+        await options.onRequest(cloneAgentHubApprovalRequest(approvalRequest));
       } catch (error) {
         if (approval.settledDecision) {
           return approval.settledDecision;
@@ -90,7 +100,7 @@ export function createAgentHubApprovalBridge(options: AgentHubApprovalBridgeOpti
     },
 
     pending(): AgentHubApprovalRequest[] {
-      return [...pending.values()].map(({ request }) => ({ ...request }));
+      return [...pending.values()].map(({ request }) => cloneAgentHubApprovalRequest(request));
     }
   };
 }
@@ -98,12 +108,16 @@ export function createAgentHubApprovalBridge(options: AgentHubApprovalBridgeOpti
 function toAgentHubApprovalRequest(request: PermissionApprovalRequest, requestId: string, createdAt: string): AgentHubApprovalRequest {
   return {
     requestId,
+    schemaVersion: AGENTHUB_APPROVAL_BRIDGE_SCHEMA_VERSION,
+    sdkContractVersion: AGENTHUB_SDK_CONTRACT_VERSION,
+    source: AGENTHUB_AGENT_STREAM_SOURCE,
+    decisionChannel: AGENTHUB_APPROVAL_DECISION_CHANNEL,
     callId: request.call.id,
     sessionId: request.session.id,
     turnId: request.turnId,
     toolName: request.tool.name,
     toolRisk: request.tool.risk,
-    input: request.call.input,
+    input: cloneUnknown(request.call.input),
     status: "requires_approval",
     reason: request.decision.reason,
     createdAt
@@ -131,4 +145,19 @@ function toPermissionDecision(decision: AgentHubApprovalDecision, reason?: strin
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function cloneAgentHubApprovalRequest(request: AgentHubApprovalRequest): AgentHubApprovalRequest {
+  return {
+    ...request,
+    input: cloneUnknown(request.input)
+  };
+}
+
+function cloneUnknown<T>(value: T): T {
+  try {
+    return structuredClone(value);
+  } catch {
+    return value;
+  }
 }

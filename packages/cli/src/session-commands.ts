@@ -13,9 +13,17 @@ import { heading, styleFromEnv } from "./format.js";
 import { write, readCliEnv, type CliIO } from "./cli-io.js";
 import { slashCommandUsage } from "./slash-commands.js";
 
-export async function sessionsCommand(io: CliIO): Promise<number> {
+// --- sessions command (with --json) ---
+
+export async function sessionsCommand(args: string[], io: CliIO): Promise<number> {
+  const json = args.includes("--json");
   try {
-    await printSessions(io, await new TokenDanceCode().sessions({ storageRoot: io.cwd() }).list());
+    const sessions = await new TokenDanceCode().sessions({ storageRoot: io.cwd() }).list();
+    if (json) {
+      await write(io.stdout, `${JSON.stringify(sessions, null, 2)}\n`);
+      return 0;
+    }
+    await printSessions(io, sessions);
     return 0;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -24,16 +32,35 @@ export async function sessionsCommand(io: CliIO): Promise<number> {
   }
 }
 
+// --- transcript command (with --json, export, --jsonl) ---
+
 export async function transcriptCommand(args: string[], io: CliIO): Promise<number> {
-  const client = new TokenDanceCode();
   const parsed = parseTranscriptArgs(args);
+  const client = new TokenDanceCode();
+
+  // transcript export <session-id> [--jsonl]
+  if (parsed.subcommand === "export") {
+    return transcriptExportCommand(parsed.sessionId, parsed.jsonl, io);
+  }
+
   try {
     const thread = await client.resume({ sessionId: parsed.sessionId, storageRoot: io.cwd() });
     if (parsed.query) {
-      await printTranscriptSearchResults(io, await thread.searchTranscript(parsed.query));
-    } else {
-      await printTranscriptInfo(io, await thread.transcript());
+      const results = await thread.searchTranscript(parsed.query);
+      if (parsed.json) {
+        await write(io.stdout, `${JSON.stringify(results, null, 2)}\n`);
+        return 0;
+      }
+      await printTranscriptSearchResults(io, results);
+      return 0;
     }
+
+    const info = await thread.transcript();
+    if (parsed.json) {
+      await write(io.stdout, `${JSON.stringify(info, null, 2)}\n`);
+      return 0;
+    }
+    await printTranscriptInfo(io, info);
     return 0;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -41,6 +68,33 @@ export async function transcriptCommand(args: string[], io: CliIO): Promise<numb
     return 1;
   }
 }
+
+async function transcriptExportCommand(sessionId: string | undefined, jsonl: boolean, io: CliIO): Promise<number> {
+  if (!sessionId) {
+    await write(io.stderr, "Usage: tokendance transcript export <session-id> [--jsonl]\n");
+    return 1;
+  }
+  try {
+    const exported = await new TokenDanceCode().sessions({ storageRoot: io.cwd() }).export(sessionId);
+    if (jsonl) {
+      // transcriptJsonl is raw JSONL string, write line by line
+      for (const line of exported.transcriptJsonl.split("\n")) {
+        if (line.trim()) {
+          await write(io.stdout, `${line}\n`);
+        }
+      }
+      return 0;
+    }
+    await write(io.stdout, `${JSON.stringify(exported, null, 2)}\n`);
+    return 0;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await write(io.stderr, `${message}\n`);
+    return 1;
+  }
+}
+
+// --- context command ---
 
 export async function contextCommand(args: string[], io: CliIO): Promise<number> {
   const parsed = parseContextArgs(args);
@@ -60,6 +114,8 @@ export async function contextCommand(args: string[], io: CliIO): Promise<number>
     return 1;
   }
 }
+
+// --- compact command ---
 
 export async function compactCommand(args: string[], io: CliIO): Promise<number> {
   const client = new TokenDanceCode();
@@ -102,15 +158,44 @@ export async function handleCompact(io: CliIO, thread: Thread): Promise<void> {
 
 // --- arg parsing ---
 
-function parseTranscriptArgs(args: string[]): { sessionId?: string; query?: string } {
-  if (args[0] === "search") {
-    return { query: args.slice(1).join(" ").trim() };
+interface TranscriptParsedArgs {
+  sessionId?: string;
+  query?: string;
+  json: boolean;
+  jsonl: boolean;
+  subcommand?: "export" | "search";
+}
+
+function parseTranscriptArgs(args: string[]): TranscriptParsedArgs {
+  let json = false;
+  let jsonl = false;
+  const positional: string[] = [];
+
+  for (const arg of args) {
+    if (arg === "--json") { json = true; continue; }
+    if (arg === "--jsonl") { jsonl = true; continue; }
+    positional.push(arg);
   }
-  const sessionId = args[0]?.trim() || undefined;
-  if (args[1] === "search") {
-    return { sessionId, query: args.slice(2).join(" ").trim() };
+
+  const [first, second, ...rest] = positional;
+
+  // transcript export <session-id>
+  if (first === "export") {
+    return { sessionId: second?.trim() || undefined, json: false, jsonl, subcommand: "export" };
   }
-  return { sessionId };
+
+  // transcript search <query>
+  if (first === "search") {
+    return { query: [second, ...rest].join(" ").trim(), json, jsonl: false, subcommand: "search" };
+  }
+
+  // transcript [session-id] search <query>
+  const sessionId = first?.trim() || undefined;
+  if (second === "search") {
+    return { sessionId, query: rest.join(" ").trim(), json, jsonl: false, subcommand: "search" };
+  }
+
+  return { sessionId, json, jsonl };
 }
 
 function parseContextArgs(args: string[]): { sessionId?: string; prompt: string } {

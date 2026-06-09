@@ -40,7 +40,7 @@ function createTopLevelCommandHandlers(io: CliIO): Record<TopLevelCommandId, Top
     gateway: (args) => gatewayCommand(args, io),
     auth: (args) => authCommand(args, io),
     resume: (args) => resumeCommand(args, io),
-    sessions: () => sessionsCommand(io),
+    sessions: (args) => sessionsCommand(args, io),
     memory: (args) => memoryCommand(args, io),
     agents: (args) => agentsCommand(args, io),
     diff: (args) => diffCommand(args, io),
@@ -90,7 +90,7 @@ async function runInteractive(io: CliIO): Promise<void> {
       if (line === "/status") { await printStatus(io, thread); continue; }
       if (line === "/new") { thread = await handleNewThread(io, client, thread); continue; }
       if (line === "/resume") { thread = await handleResume(io, client); continue; }
-      if (line === "/sessions") { await sessionsCommand(io); continue; }
+      if (line === "/sessions" || line.startsWith("/sessions ")) { await sessionsCommand(line.split(/\s+/).slice(1), io); continue; }
       if (line === "/memory" || line.startsWith("/memory ")) { await memoryCommand(line.split(/\s+/).slice(1), io); continue; }
       if (line === "/auth" || line.startsWith("/auth ")) { await authCommand(line.split(/\s+/).slice(1), io); continue; }
       if (line === "/agents" || line.startsWith("/agents ")) { await agentsCommand(line.split(/\s+/).slice(1), io); continue; }

@@ -1,10 +1,12 @@
 import type { Writable } from "node:stream";
 import type { TDCodeEvent } from "@tokendance/code-sdk";
+import { dim, error, label, ok, warn, type CliStyle } from "./format.js";
 
 const maxToolSummaryLength = 120;
 
 export interface EventRendererIO {
   stdout: Writable;
+  color?: boolean;
 }
 
 export interface EventRenderer {
@@ -32,6 +34,7 @@ export function createEventRenderer(io: EventRendererIO): EventRenderer {
 }
 
 async function renderEvent(io: EventRendererIO, event: TDCodeEvent, state: RendererState): Promise<void> {
+  const style = rendererStyle(io);
   switch (event.type) {
     case "assistant.delta":
       state.renderedAssistantText = true;
@@ -44,21 +47,21 @@ async function renderEvent(io: EventRendererIO, event: TDCodeEvent, state: Rende
     case "tool.started":
       await flushAssistantLine(io, state);
       state.toolStarts.set(event.call.id, Date.now());
-      await write(io.stdout, `tool ${event.call.name} started\n`);
+      await write(io.stdout, `${label("tool", style)} ${event.call.name} started\n`);
       return;
     case "tool.permission":
       await flushAssistantLine(io, state);
-      await write(io.stdout, `permission ${event.decision.status}: ${event.decision.reason}\n`);
+      await write(io.stdout, `${permissionLabel(event.decision.status, style)} ${event.decision.status}: ${event.decision.reason}\n`);
       return;
     case "tool.completed":
       await flushAssistantLine(io, state);
       const duration = renderToolDuration(state, event.result.callId);
       if (event.result.ok) {
         const summary = summarizeToolOutput(event.result.output);
-        await write(io.stdout, `tool ${event.result.toolName} completed${summary ? `: ${summary}` : ""}${duration}\n`);
+        await write(io.stdout, `${ok("tool", style)} ${event.result.toolName} completed${summary ? `: ${summary}` : ""}${duration}\n`);
         return;
       }
-      await write(io.stdout, `tool ${event.result.toolName} failed: ${event.result.error ?? "unknown error"}${duration}\n`);
+      await write(io.stdout, `${error("tool", style)} ${event.result.toolName} failed: ${event.result.error ?? "unknown error"}${duration}\n`);
       return;
     case "turn.completed":
       await flushAssistantLine(io, state);
@@ -66,12 +69,26 @@ async function renderEvent(io: EventRendererIO, event: TDCodeEvent, state: Rende
         await write(io.stdout, `${event.finalResponse}\n`);
       }
       if (event.usage) {
-        await write(io.stdout, `usage input=${event.usage.inputTokens} output=${event.usage.outputTokens}\n`);
+        await write(io.stdout, `${dim(`usage input=${event.usage.inputTokens} output=${event.usage.outputTokens}`, style)}\n`);
       }
       return;
     default:
       return;
   }
+}
+
+function rendererStyle(io: EventRendererIO): CliStyle {
+  return { color: io.color === true };
+}
+
+function permissionLabel(status: string, style: CliStyle): string {
+  if (status === "allowed") {
+    return ok("permission", style);
+  }
+  if (status === "denied") {
+    return error("permission", style);
+  }
+  return warn("permission", style);
 }
 
 async function flushAssistantLine(io: EventRendererIO, state: RendererState): Promise<void> {

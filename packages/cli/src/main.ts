@@ -6,6 +6,7 @@ import type { Readable, Writable } from "node:stream";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import {
   createTokenDanceIdLoginRequest,
+  diagnoseTokenDanceIdLoginRequest,
   TokenDanceCode,
   type DoctorInfo,
   type AgentRunRecord,
@@ -463,7 +464,7 @@ async function authCommand(args: string[], io: CliIO): Promise<number> {
     });
 
     if (parsed.json) {
-      await write(io.stdout, `${JSON.stringify(login, null, 2)}\n`);
+      await write(io.stdout, `${JSON.stringify({ ...login, diagnostics: diagnoseTokenDanceIdLoginRequest(login) }, null, 2)}\n`);
       return 0;
     }
 

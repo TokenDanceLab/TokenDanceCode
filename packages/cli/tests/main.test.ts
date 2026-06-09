@@ -566,7 +566,32 @@ describe("TokenDanceCode CLI", () => {
     expect(parsed.codeVerifier).toBe("verifier-cli");
     expect(parsed.authorizationUrl).toContain("response_type=code");
     expect(parsed.authorizationUrl).toContain("code_challenge_method=S256");
+    expect(parsed.diagnostics).toMatchObject({
+      ok: true,
+      pkce: {
+        ok: true,
+        method: "S256",
+        codeVerifierLength: "verifier-cli".length
+      },
+      state: {
+        ok: true,
+        present: true,
+        length: "state-cli".length
+      },
+      callback: {
+        exchangeOwner: "AgentHub Hub Server",
+        jwksOwner: "AgentHub Hub Server",
+        sessionOwner: "AgentHub Hub Server"
+      },
+      boundaries: {
+        exchangesAuthorizationCode: false,
+        storesTokenDanceIdTokens: false,
+        acceptsGatewayApiKey: false
+      }
+    });
     expect(parsed.authorizationUrl).not.toContain("TOKENDANCE_GATEWAY_API_KEY");
+    expect(parsed).not.toHaveProperty("accessToken");
+    expect(parsed).not.toHaveProperty("refreshToken");
     expect(interactive.stdoutText()).toContain("TokenDanceID authorize URL:");
     expect(interactive.stdoutText()).toContain("Code verifier: verifier-cli");
     expect(interactive.stdoutText()).toContain("TokenDanceID login tokens are not TokenDance Gateway model API keys.");

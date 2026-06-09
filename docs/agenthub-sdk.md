@@ -102,12 +102,12 @@ console.log(TOKEN_DANCE_CODE_PACKAGE.verification.prerelease);
 
 ## 4. TokenDanceID OIDC 登录启动
 
-SDK 提供轻量 TokenDanceID OIDC helper，帮助 AgentHub Hub/Desktop/Web 或本地壳层启动 Authorization Code + PKCE S256 登录流。它只生成登录 URL、`state`、`nonce`、`codeVerifier` 并校验 callback state；不交换 authorization code、不验证 ID token、不保存 access/refresh token。
+SDK 提供轻量 TokenDanceID OIDC helper，帮助 AgentHub Hub/Desktop/Web 或本地壳层启动 Authorization Code + PKCE S256 登录流。它只生成登录 URL、`state`、`nonce`、`codeVerifier`，提供 PKCE/state/callback 诊断，并校验 callback state；不交换 authorization code、不验证 ID token、不保存 access/refresh token。
 
 AgentHub Hub Server 仍然负责 code exchange、JWKS/issuer/audience/expiration 验证、`tokendance_sub` 映射和 Hub-local session 签发。
 
 ```ts
-import { createTokenDanceIdLoginRequest, verifyTokenDanceIdCallback } from "@tokendance/code-sdk";
+import { createTokenDanceIdLoginRequest, diagnoseTokenDanceIdCallback, diagnoseTokenDanceIdLoginRequest, verifyTokenDanceIdCallback } from "@tokendance/code-sdk";
 
 const login = createTokenDanceIdLoginRequest({
   clientId: "agenthub-local",
@@ -120,6 +120,12 @@ const login = createTokenDanceIdLoginRequest({
 
 openSystemBrowser(login.authorizationUrl);
 
+const loginDiagnostic = diagnoseTokenDanceIdLoginRequest(login);
+console.log(loginDiagnostic.pkce.ok, loginDiagnostic.state.present);
+
+const callbackDiagnostic = diagnoseTokenDanceIdCallback(callbackUrlFromLoopbackServer, login);
+console.log(callbackDiagnostic.reason, callbackDiagnostic.callback.exchangeOwner);
+
 const callback = verifyTokenDanceIdCallback(callbackUrlFromLoopbackServer, login);
 
 await hub.exchangeTokenDanceIdCode({
@@ -128,6 +134,8 @@ await hub.exchangeTokenDanceIdCode({
   redirectUri: callback.redirectUri
 });
 ```
+
+`diagnoseTokenDanceIdLoginRequest()` 返回 `pkce`、`state`、`callback` 和 `boundaries`，用于 AgentHub 调试面板展示本轮 `codeVerifier` 长度、S256 challenge、state 是否存在，以及 ownership。`diagnoseTokenDanceIdCallback()` 返回 `ready_for_hub_exchange`、`provider_error`、`missing_code`、`missing_state`、`state_mismatch` 或 `invalid_callback`，供 loopback/backend callback 页面给出可读原因。诊断对象只描述本轮登录请求和 callback 形状；它不包含 TokenDanceID access/refresh token，也不会完成 code exchange。
 
 默认 issuer 是 `https://id.vectorcontrol.tech`，默认 scope 是 `openid profile email`。Desktop/native 场景应使用 TokenDanceID 已登记的 loopback callback 策略；生产 Hub/Web 场景应使用 Hub-owned backend callback。TokenDanceID/OIDC 登录 token 只用于身份和 Hub session，不是 TokenDance Gateway 模型 API key。
 
@@ -142,7 +150,7 @@ tokendance auth tokendanceid login-url `
   --json
 ```
 
-`--json` 输出适合 AgentHub 调试面板或 Desktop shell 读取；纯文本输出适合人工复制。CLI 不会打开浏览器、不写入本地 token 文件，也不会把 TokenDanceID 登录 token 当作 TokenDance Gateway 模型 API key。
+`--json` 输出适合 AgentHub 调试面板或 Desktop shell 读取；除登录请求字段外还包含 `diagnostics.pkce`、`diagnostics.state`、`diagnostics.callback` 和 `diagnostics.boundaries`。其中 `exchangeOwner`、`jwksOwner`、`sessionOwner` 都指向 AgentHub Hub Server，且 `exchangesAuthorizationCode`、`storesTokenDanceIdTokens`、`acceptsGatewayApiKey` 均为 `false`。纯文本输出适合人工复制。CLI 不会打开浏览器、不写入本地 token 文件，也不会把 TokenDanceID 登录 token 当作 TokenDance Gateway 模型 API key。
 
 ## 5. 启动 Thread
 

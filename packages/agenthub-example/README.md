@@ -1,11 +1,11 @@
 # AgentHub Example
 
-`@tokendance/code-agenthub-example` is a private workspace package for copying AgentHub integration patterns into Hub, Edge, Desktop, or Web shells. It is not a public package and should not be published.
+`@tokendance/code-agenthub-example` is a private workspace compatibility package for AgentHub tests and local demos. It re-exports the public AgentHub runner facade from `@tokendance/code-sdk`; it is not a public package and should not be published.
 
-Use `createAgentHubTokenDanceRunner()` when you want the smallest wrapper around `@tokendance/code-sdk`:
+Production AgentHub code should import `createAgentHubTokenDanceRunner()` from `@tokendance/code-sdk`. This package remains available for private workspace examples:
 
 ```ts
-import { createAgentHubTokenDanceRunner } from "@tokendance/code-agenthub-example";
+import { createAgentHubTokenDanceRunner } from "@tokendance/code-sdk";
 
 const runner = createAgentHubTokenDanceRunner({
   storageRoot: ".tokendance-code",
@@ -30,7 +30,7 @@ await runner.run({
 Use `createAgentHubTokenDanceConsumerFixture()` when you need a copyable consumer-side chain for AgentHub tests or demos. It creates the runner, exposes startup manifest/doctor checks, forwards TokenDanceID login callback helpers, resumes or starts the supplied Hub session id, collects emitted `agent.stream` payloads, and records remote approval requests.
 
 ```ts
-import { createAgentHubTokenDanceConsumerFixture } from "@tokendance/code-agenthub-example";
+import { createAgentHubTokenDanceConsumerFixture } from "@tokendance/code-sdk";
 
 const fixture = createAgentHubTokenDanceConsumerFixture({
   storageRoot: ".tokendance-code",
@@ -60,6 +60,6 @@ console.log(fixture.events().map((event) => event.event_type));
 console.log(fixture.approvals());
 ```
 
-Production AgentHub code should copy the pattern and replace the fixture arrays with its own event bus, approval store, startup checks, and Hub-local TokenDanceID session exchange. Do not save TokenDanceID access or refresh tokens in this runner, and do not use TokenDanceID tokens as TokenDance Gateway model API keys.
+Production AgentHub code should replace the fixture arrays with its own event bus, approval store, startup checks, and Hub-local TokenDanceID session exchange. Do not save TokenDanceID access or refresh tokens in this runner, and do not use TokenDanceID tokens as TokenDance Gateway model API keys.
 
 `createAgentHubTokenDanceE2EFixture()` remains available for tests that want direct mutable `agentStream` and `approvalRequests` arrays.

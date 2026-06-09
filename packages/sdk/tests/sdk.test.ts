@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { FileTranscriptStore, type ModelProvider, type ModelTurnRequest, type ModelTurnResponse, type SessionState } from "@tokendance/code-core";
+import * as sdk from "../src/index.js";
 import { TOKEN_DANCE_CODE_PACKAGE, TokenDanceCode } from "../src/index.js";
 
 const execFileAsync = promisify(execFile);
@@ -881,6 +882,65 @@ describe("TokenDanceCode SDK", () => {
     await thread.run("stream to sink");
 
     expect(received).toEqual(["user.message", "assistant.delta", "assistant.completed", "turn.completed"]);
+  });
+
+  it("exports the stable AgentHub runner and consumer fixture from the public SDK", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-runner-"));
+    const events: sdk.AgentHubAgentStreamPayload[] = [];
+
+    const runner = sdk.createAgentHubTokenDanceRunner({
+      storageRoot: root,
+      emitAgentStream(payload) {
+        events.push(payload);
+      },
+      streamIdFactory: (seq) => `sdk-runner-${seq}`,
+      clock: () => "2026-06-09T00:00:00.000Z"
+    });
+
+    const startup = await runner.bootstrap({ workingDirectory: root });
+    const turn = await runner.run({
+      prompt: "public sdk runner",
+      workingDirectory: root,
+      taskId: "task-sdk-runner",
+      edgeRunId: "edge-sdk-runner",
+      sessionId: "hub-session-sdk-runner",
+      agentInstanceId: "agent-sdk-runner"
+    });
+
+    expect(startup.packageInfo.packages.sdk.name).toBe("@tokendance/code-sdk");
+    expect(startup.doctor.agentHub.ready).toBe(true);
+    expect(turn.threadId).toBe("hub-session-sdk-runner");
+    expect(events.map((event) => event.event_type)).toEqual(["run.agent.text_delta", "run.agent.text_block", "run.agent.result"]);
+    expect(events[0]).toMatchObject({
+      id: "sdk-runner-1",
+      task_id: "task-sdk-runner",
+      session_id: "hub-session-sdk-runner",
+      agent_instance_id: "agent-sdk-runner"
+    });
+
+    const fixture = sdk.createAgentHubTokenDanceConsumerFixture({
+      storageRoot: root,
+      defaultRun: {
+        workingDirectory: root,
+        taskId: "task-fixture",
+        edgeRunId: "edge-fixture",
+        sessionId: "hub-session-fixture",
+        agentInstanceId: "agent-fixture"
+      },
+      defaultLogin: {
+        clientId: "agenthub-client",
+        redirectUri: "http://127.0.0.1:48731/callback",
+        state: "fixture-state",
+        codeVerifier: "fixture-verifier"
+      }
+    });
+
+    const login = fixture.login();
+    const callback = fixture.verifyLoginCallback("http://127.0.0.1:48731/callback?code=fixture-code&state=fixture-state", login);
+    await fixture.run({ prompt: "public sdk fixture" });
+
+    expect(callback).toMatchObject({ code: "fixture-code", codeVerifier: "fixture-verifier" });
+    expect(fixture.events().map((event) => event.event_type)).toEqual(["run.agent.text_delta", "run.agent.text_block", "run.agent.result"]);
   });
 });
 

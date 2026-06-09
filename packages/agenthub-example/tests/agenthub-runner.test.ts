@@ -1,6 +1,6 @@
 import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { AgentHubAgentStreamPayload, ModelProvider } from "@tokendance/code-sdk";
 import {
@@ -689,6 +689,81 @@ describe("AgentHub TokenDanceCode runner example", () => {
     await expect(readTranscriptSeqs(root, "hub-session-same-session")).resolves.toEqual([1, 2, 3, 4]);
   });
 
+  it("rejects same-session runner calls when storageRoot path variants resolve to the same directory", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-agenthub-storage-root-variant-"));
+    const variantRoot = equivalentStorageRootVariant(root);
+    const frames: AgentHubAgentStreamPayload[] = [];
+    const provider = new SameSessionConcurrencyProvider();
+    const firstRunner = createAgentHubTokenDanceRunner({
+      storageRoot: root,
+      provider,
+      emitAgentStream(payload) {
+        frames.push(payload);
+      },
+      clock: () => "2026-06-09T00:00:00.000Z"
+    });
+    const secondRunner = createAgentHubTokenDanceRunner({
+      storageRoot: variantRoot,
+      provider,
+      emitAgentStream(payload) {
+        frames.push(payload);
+      },
+      clock: () => "2026-06-09T00:00:00.000Z"
+    });
+
+    const firstRun = firstRunner.run({
+      prompt: "first storage-root variant turn",
+      workingDirectory: root,
+      permissionMode: "default",
+      taskId: "task-storage-root-first",
+      edgeRunId: "edge-storage-root-first",
+      sessionId: "hub-session-storage-root-variant",
+      agentInstanceId: "agent-storage-root"
+    });
+    await provider.firstProviderEntered.promise;
+
+    const secondRun = secondRunner.run({
+      prompt: "second storage-root variant turn",
+      workingDirectory: root,
+      permissionMode: "default",
+      taskId: "task-storage-root-second",
+      edgeRunId: "edge-storage-root-second",
+      sessionId: "hub-session-storage-root-variant",
+      agentInstanceId: "agent-storage-root"
+    });
+
+    await expect(secondRun).rejects.toMatchObject({
+      name: "AgentHubSessionRunInProgressError",
+      code: "AGENTHUB_SESSION_RUN_IN_PROGRESS",
+      sessionId: "hub-session-storage-root-variant",
+      edgeRunId: "edge-storage-root-second",
+      activeEdgeRunId: "edge-storage-root-first"
+    });
+    expect(provider.prompts).toEqual(["first storage-root variant turn"]);
+    expect(frames.filter((frame) => frame.edge_run_id === "edge-storage-root-second")).toEqual([
+      expect.objectContaining({
+        event_seq: 1,
+        event_type: "run.agent.result",
+        source_event_type: "turn.failed",
+        session_id: "hub-session-storage-root-variant",
+        payload: expect.objectContaining({
+          success: false,
+          errorCode: "AGENTHUB_SESSION_RUN_IN_PROGRESS",
+          reason: "same_session_run_in_progress",
+          activeEdgeRunId: "edge-storage-root-first",
+          requestedEdgeRunId: "edge-storage-root-second"
+        })
+      })
+    ]);
+
+    provider.releaseFirstTurn.resolve();
+    await expect(firstRun).resolves.toMatchObject({
+      threadId: "hub-session-storage-root-variant",
+      finalResponse: "first same-session run completed"
+    });
+    await expect(readTranscriptSeqs(root, "hub-session-storage-root-variant")).resolves.toEqual([1, 2, 3, 4]);
+  });
+
   it("provides a copyable AgentHub e2e fixture for startup, login, events, and approvals", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-agenthub-fixture-"));
     let releaseRequest!: () => void;
@@ -958,4 +1033,19 @@ function deferred<T = void>() {
     reject = innerReject;
   });
   return { promise, resolve, reject };
+}
+
+function equivalentStorageRootVariant(root: string): string {
+  const withTrailingSeparator = root.endsWith(sep) ? root : `${root}${sep}`;
+  if (process.platform !== "win32") {
+    return join(withTrailingSeparator, ".");
+  }
+  return toggleFirstAsciiLetterCase(withTrailingSeparator);
+}
+
+function toggleFirstAsciiLetterCase(value: string): string {
+  return value.replace(/[A-Za-z]/, (letter) => {
+    const upper = letter.toUpperCase();
+    return letter === upper ? letter.toLowerCase() : upper;
+  });
 }

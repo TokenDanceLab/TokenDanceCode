@@ -1,5 +1,7 @@
 import type { ContextBudget, ModelProvider, PermissionMode } from "@tokendance/code-core";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { realpathSync } from "node:fs";
+import { resolve } from "node:path";
 import {
   createAgentHubAgentStreamEmitter,
   createAgentHubEventSink,
@@ -295,7 +297,17 @@ export function createAgentHubTokenDanceRunner(options: AgentHubTokenDanceRunner
 }
 
 function toSessionRunKey(storageRoot: string, sessionId: string): string {
-  return `${storageRoot}\0${sessionId}`;
+  return `${normalizeStorageRootKey(storageRoot)}\0${sessionId}`;
+}
+
+function normalizeStorageRootKey(storageRoot: string): string {
+  let resolvedRoot: string;
+  try {
+    resolvedRoot = resolve(realpathSync.native(storageRoot));
+  } catch {
+    resolvedRoot = resolve(storageRoot);
+  }
+  return process.platform === "win32" ? resolvedRoot.toLowerCase() : resolvedRoot;
 }
 
 function toSameSessionRunRejectedRuntimeEvent(

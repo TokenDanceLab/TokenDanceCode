@@ -39,5 +39,9 @@ function requiresApproval(mode: PermissionMode, tool: ToolSpec, detail: string):
 }
 
 function reason(mode: PermissionMode, tool: ToolSpec, action: string, detail: string): string {
-  return `mode=${mode} tool=${tool.name} risk=${tool.risk} action=${action}: ${detail}`;
+  const safetyNotes = tool.safetyNotes ?? [];
+  const auditContext = safetyNotes.length > 0
+    ? `; concurrency=${tool.concurrency}; safety=${safetyNotes.join(" ")}`
+    : "";
+  return `mode=${mode} tool=${tool.name} risk=${tool.risk} action=${action}: ${detail}${auditContext}`;
 }

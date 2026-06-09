@@ -142,6 +142,22 @@ describe("AgentHub approval bridge", () => {
     await expect(second).resolves.toEqual({ status: "allowed", reason: "second approved" });
     expect(bridge.pending()).toEqual([]);
   });
+
+  it("keeps an in-flight decision when request publishing fails after a decision", async () => {
+    let bridge!: ReturnType<typeof createAgentHubApprovalBridge>;
+    bridge = createAgentHubApprovalBridge({
+      onRequest(request) {
+        expect(bridge.decide(request.requestId, "allow", "approved before publish failed")).toBe(true);
+        throw new Error("publish failed after decision");
+      }
+    });
+
+    await expect(bridge.approvalCallback(fakeApprovalRequest("pre-decided"))).resolves.toEqual({
+      status: "allowed",
+      reason: "approved before publish failed"
+    });
+    expect(bridge.pending()).toEqual([]);
+  });
 });
 
 function fakeApprovalRequest(callId: string): PermissionApprovalRequest {

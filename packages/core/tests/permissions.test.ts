@@ -10,6 +10,16 @@ const shellTool: ToolSpec = {
   execute: async () => "ok"
 };
 
+const annotatedWriteTool: ToolSpec = {
+  name: "write_file",
+  description: "write a file",
+  risk: "write",
+  concurrency: "exclusive",
+  safetyNotes: ["Workspace-relative paths only."],
+  parse: (input) => input,
+  execute: async () => "ok"
+};
+
 describe("PermissionEngine", () => {
   it("requires approval for shell tools in default mode", () => {
     expect(new PermissionEngine("default").decide(shellTool).status).toBe("requires_approval");
@@ -31,5 +41,11 @@ describe("PermissionEngine", () => {
 
   it("allows shell tools in yolo mode", () => {
     expect(new PermissionEngine("yolo").decide(shellTool).status).toBe("allowed");
+  });
+
+  it("includes tool execution context and safety notes in reasons", () => {
+    expect(new PermissionEngine("default").decide(annotatedWriteTool).reason).toBe(
+      "mode=default tool=write_file risk=write action=approval_required: default mode requires approval before running write tools; concurrency=exclusive; safety=Workspace-relative paths only."
+    );
   });
 });

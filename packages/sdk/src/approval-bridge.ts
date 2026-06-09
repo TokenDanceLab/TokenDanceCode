@@ -29,6 +29,7 @@ export interface AgentHubApprovalBridge {
 interface PendingApproval {
   request: AgentHubApprovalRequest;
   resolve: (decision: PermissionDecision) => void;
+  settledDecision?: PermissionDecision;
 }
 
 export function createAgentHubApprovalBridge(options: AgentHubApprovalBridgeOptions): AgentHubApprovalBridge {
@@ -39,12 +40,23 @@ export function createAgentHubApprovalBridge(options: AgentHubApprovalBridgeOpti
     async approvalCallback(request: PermissionApprovalRequest): Promise<PermissionDecision> {
       const requestId = allocateRequestId(request.call.id, pending);
       const approvalRequest = toAgentHubApprovalRequest(request, requestId, clock());
+      let approval!: PendingApproval;
       const decisionPromise = new Promise<PermissionDecision>((resolve) => {
-        pending.set(approvalRequest.requestId, { request: approvalRequest, resolve });
+        approval = {
+          request: approvalRequest,
+          resolve(decision) {
+            approval.settledDecision = decision;
+            resolve(decision);
+          }
+        };
+        pending.set(approvalRequest.requestId, approval);
       });
       try {
         await options.onRequest(approvalRequest);
       } catch (error) {
+        if (approval.settledDecision) {
+          return approval.settledDecision;
+        }
         pending.delete(approvalRequest.requestId);
         return { status: "denied", reason: `AgentHub approval request failed: ${errorMessage(error)}` };
       }

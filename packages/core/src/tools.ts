@@ -11,8 +11,10 @@ export interface ToolMetadata {
   name: string;
   description: string;
   risk: ToolRisk;
+  riskSummary: string;
   concurrency: ToolSpec["concurrency"];
   permission: Record<PermissionMode, PermissionDecision["status"]>;
+  permissionReasons: Record<PermissionMode, string>;
   safetyNotes: string[];
 }
 
@@ -40,8 +42,10 @@ export class ToolRegistry {
       name: tool.name,
       description: tool.description,
       risk: tool.risk,
+      riskSummary: riskSummary(tool.risk),
       concurrency: tool.concurrency,
       permission: permissionMetadata(tool),
+      permissionReasons: permissionReasonMetadata(tool),
       safetyNotes: tool.safetyNotes ?? []
     }));
   }
@@ -104,6 +108,30 @@ function permissionMetadata(tool: ToolSpec): Record<PermissionMode, PermissionDe
     auto: new PermissionEngine("auto").decide(tool).status,
     yolo: new PermissionEngine("yolo").decide(tool).status
   };
+}
+
+function permissionReasonMetadata(tool: ToolSpec): Record<PermissionMode, string> {
+  return {
+    default: new PermissionEngine("default").decide(tool).reason,
+    safe: new PermissionEngine("safe").decide(tool).reason,
+    auto: new PermissionEngine("auto").decide(tool).reason,
+    yolo: new PermissionEngine("yolo").decide(tool).reason
+  };
+}
+
+function riskSummary(risk: ToolRisk): string {
+  switch (risk) {
+    case "read":
+      return "Read-only tool: inspects workspace state without writing.";
+    case "write":
+      return "Write tool: can modify workspace files or state.";
+    case "shell":
+      return "Shell tool: executes local commands and is approval-gated outside yolo mode.";
+    case "network":
+      return "Network tool: can contact external services.";
+    case "dangerous":
+      return "Dangerous tool: high-impact action requiring explicit approval outside yolo mode.";
+  }
 }
 
 function permissionSafetyEvidence(toolName: string, decision: Exclude<PermissionDecision, { status: "allowed" }>): ToolSafetyEvidence {

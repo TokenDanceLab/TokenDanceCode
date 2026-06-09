@@ -18,6 +18,7 @@ describe("package metadata", () => {
       "pnpm --filter @tokendance/code-cli pack --dry-run"
     ].join(" && "));
     expect(rootPackage.scripts?.["pack:smoke"]).toBe("node scripts/smoke-tarball-install.mjs");
+    expect(rootPackage.scripts?.["wave4:status"]).toBe("node scripts/verify-wave4-worktrees.mjs");
     expect(rootPackage.scripts?.["pack:check"]).toBe([
       "pnpm build",
       "pnpm pack:dry-run",
@@ -38,6 +39,15 @@ describe("package metadata", () => {
     expect(smokeScript).toContain("quality --json");
     expect(smokeScript).toContain("agentHub.ready");
     expect(smokeScript).toContain("provider-ready");
+
+    const wave4Script = await readText("scripts/verify-wave4-worktrees.mjs");
+    expect(wave4Script).toContain("codex/wave4-cli-command-architecture");
+    expect(wave4Script).toContain("codex/wave4-sdk-agenthub-consumer-fixture");
+    expect(wave4Script).toContain("codex/wave4-tui-interaction-polish");
+    expect(wave4Script).toContain("codex/wave4-llm-real-smoke-gates");
+    expect(wave4Script).toContain("codex/wave4-permission-policy-audit");
+    expect(wave4Script).toContain("codex/wave4-thread-session-lifecycle");
+    expect(wave4Script).toContain("82096a6");
 
     const publicPackages = [
       { directory: "packages/core", packageJson: await readJson("packages/core/package.json") },

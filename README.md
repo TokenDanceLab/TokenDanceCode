@@ -23,7 +23,7 @@ tokendance
 - `@tokendance/code-core`：session、event、runtime、tool registry、permission engine、JSONL transcript store、task/todo/subagent/worktree store、MockProvider。
 - `@tokendance/code-sdk`：AgentHub 可消费的 `TokenDanceCode -> Thread -> run/runStreamed/context` 编程接口，支持 provider 配置、审批回调、事件下沉、AgentHub runtime event 映射、recent transcript resume、transcript search、task/todo/subagent/worktree facade，以及 TokenDanceID OIDC Authorization Code + PKCE 登录启动 helper。
 - `@tokendance/code-cli`：薄 CLI 入口，支持 `--version`、`doctor`、`run <prompt>`、分组帮助、可读 status/config/doctor 输出、Gateway 首次配置提示、最小交互式 REPL、context preview、task/todo/subagent/worktree 管理和工具事件渲染。
-- `@tokendance/code-agenthub-example`：私有示例包，演示 AgentHub emitter 如何通过 SDK 接收 `agent.stream` payload 并桥接远程审批。
+- `@tokendance/code-agenthub-example`：私有示例包，演示 AgentHub emitter 如何通过 SDK 接收 `agent.stream` payload、桥接远程审批，并从 AgentHub shell 启动 TokenDanceID OIDC 登录 URL。
 - `pnpm verify`：同时执行 TypeScript typecheck 和 Vitest 测试。
 
 旧 Python `src/tokendance` 和 `tests/` 暂时保留为功能迁移参考，不再作为 TS 重构分支新增能力的默认落点。后续迁移按 [docs/TS重构路线图.md](docs/TS重构路线图.md) 推进。

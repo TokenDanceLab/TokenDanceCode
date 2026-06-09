@@ -28,6 +28,42 @@ class WriteFileProvider implements ModelProvider {
 }
 
 describe("AgentHub TokenDanceCode runner example", () => {
+  it("exposes TokenDanceID OIDC login helpers for AgentHub shells", () => {
+    const runner = createAgentHubTokenDanceRunner({
+      emitAgentStream() {}
+    });
+
+    const login = runner.createTokenDanceIdLogin({
+      clientId: "agenthub-local",
+      redirectUri: "http://127.0.0.1:48731/callback",
+      state: "state-runner",
+      nonce: "nonce-runner",
+      codeVerifier: "verifier-runner",
+      deviceType: "desktop",
+      deviceId: "00000000-0000-4000-8000-000000000001"
+    });
+    const url = new URL(login.authorizationUrl);
+    const callback = runner.verifyTokenDanceIdCallback("http://127.0.0.1:48731/callback?code=runner-code&state=state-runner", login);
+
+    expect(url.origin).toBe("https://id.vectorcontrol.tech");
+    expect(url.pathname).toBe("/oidc/authorize");
+    expect(url.searchParams.get("response_type")).toBe("code");
+    expect(url.searchParams.get("client_id")).toBe("agenthub-local");
+    expect(url.searchParams.get("redirect_uri")).toBe("http://127.0.0.1:48731/callback");
+    expect(url.searchParams.get("code_challenge_method")).toBe("S256");
+    expect(url.searchParams.get("device_type")).toBe("desktop");
+    expect(url.searchParams.get("device_id")).toBe("00000000-0000-4000-8000-000000000001");
+    expect(callback).toMatchObject({
+      code: "runner-code",
+      state: "state-runner",
+      codeVerifier: "verifier-runner",
+      redirectUri: "http://127.0.0.1:48731/callback"
+    });
+    expect(() => runner.verifyTokenDanceIdCallback("http://127.0.0.1:48731/callback?code=runner-code&state=wrong", login)).toThrow(
+      "TokenDanceID callback state mismatch."
+    );
+  });
+
   it("runs a TokenDanceCode thread and emits AgentHub agent.stream payloads", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-agenthub-example-"));
     const frames: AgentHubAgentStreamPayload[] = [];

@@ -143,6 +143,7 @@ node packages/cli/dist/main.js run "hello"
 - [x] AgentHub 样例 runner 按 Hub `sessionId` resume-or-start，连续 run 会恢复 provider 可见消息历史，并保持 transcript `seq` 连续递增。
 - [x] AgentHub 样例 runner 暴露 `context()`，供 Hub 调试面板按 Hub `sessionId` 预览下一轮 provider context，且不发 `agent.stream`、不写 transcript。
 - [x] 增加 TokenDanceID OIDC login helper：生成 Authorization Code + PKCE S256 登录 URL、`state/nonce/codeVerifier`，校验 callback state；不交换 token、不保存 TokenDanceID access/refresh token，供 AgentHub Hub/Desktop/Web 启动登录流。
+- [x] AgentHub 样例 runner 暴露 TokenDanceID OIDC login facade：AgentHub shell 可生成登录 URL、校验 callback state，并把 code/codeVerifier 交给 Hub Server 做 exchange、JWKS 验证和 Hub-local session。
 - [x] 增加 AgentHub 侧最小集成样例包，覆盖 SDK 事件映射、Hub/Edge emitter 形态、package manifest 和 doctor 启动诊断。
 - [x] 增加发布前 `pack:check`：构建后 dry-run 打包 core/sdk/cli，保护 AgentHub SDK/CLI 包只发布 `dist` 和 `package.json`。
 - [x] 增加 SDK `TOKEN_DANCE_CODE_PACKAGE` manifest，供 AgentHub 读取包名、入口、CLI bin 和推荐验证命令。

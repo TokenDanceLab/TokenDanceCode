@@ -399,11 +399,30 @@ console.log(doctor.startup.edge.ok);
 // Hub / Edge 收到人工决策后：
 console.log(runner.pendingApprovals());
 runner.decideApproval("tool-call-id", "allow", "approved in AgentHub");
+
+const login = runner.createTokenDanceIdLogin({
+  clientId: "agenthub-local",
+  redirectUri: "http://127.0.0.1:48731/callback",
+  deviceType: "desktop",
+  deviceId: "00000000-0000-4000-8000-000000000001"
+});
+
+openSystemBrowser(login.authorizationUrl);
+
+const callback = runner.verifyTokenDanceIdCallback(callbackUrlFromLoopbackServer, login);
+
+await hub.exchangeTokenDanceIdCode({
+  code: callback.code,
+  codeVerifier: callback.codeVerifier,
+  redirectUri: callback.redirectUri
+});
 ```
 
 样例 runner 每次 `run()` 都会创建一个新的 `TokenDanceCode` client，并用同一套 AgentHub stream envelope helper 把 runtime events 投递为递增 `event_seq` 的 `agent.stream` payload。传入的 AgentHub `sessionId` 会同时作为 TokenDanceCode thread id 使用；runner 会先按该 id `resume()`，没有现存 session 时才 `startThread()`，保证 Hub 事件、SDK `TurnResult.threadId`、provider 可见的消息历史和 transcript 目录使用同一个 session 标识。`defaultPermissionMode` 只作用于新建 thread；已存在 session 继续使用 session 内保存的权限模式。`streamIdFactory` 可接管 `agent.stream.id` 生成，`contextMaxRecentMessages` 可作为 runner 级 preview 历史上限，单次 `runner.context({ maxRecentMessages })` 可以覆盖该默认值。`runner.context()` 复用同一条按 Hub `sessionId` resume-or-start 的路径，返回下一轮 transient provider context preview；它不会发出 `agent.stream` 事件，也不会把 preview prompt 或 system context 追加进 transcript。`packageInfo()` 和 `doctor()` 只是把 SDK manifest/doctor facade 暴露给 Hub/Edge 启动检查，真实 AgentHub 集成可以直接复制这个组合方式，再替换为自己的 Hub client、任务状态和 session 生命周期。
 
 当 runner 配置了 `onApprovalRequest` 时，远程审批请求会先发出 `run.agent.permission_requested` envelope，再等待 Hub/Edge 调用 `runner.decideApproval()`。决策返回后，runtime 会继续发出 `run.agent.permission_decided`、`run.agent.tool_result` 和最终结果事件。`pendingApprovals()` 返回待处理请求快照；`decideApproval()` 对重复、过期或未知 request id 返回 `false`。
+
+`createTokenDanceIdLogin()` 和 `verifyTokenDanceIdCallback()` 是对 SDK TokenDanceID helper 的样例层封装，便于 AgentHub Desktop/Web shell 或调试面板复用同一套 PKCE S256 URL 生成与 callback `state` 校验。runner 只返回 `code`、`codeVerifier` 和 `redirectUri` 给 Hub；Hub Server 仍拥有 authorization code exchange、JWKS/issuer/audience/expiration 验证、`tokendance_sub` 映射和 Hub-local session 签发。不要在 runner 或 shell 中保存 TokenDanceID access/refresh token，也不要把 TokenDanceID token 当作 TokenDance Gateway 模型 API key。
 
 ## 10. Resume
 

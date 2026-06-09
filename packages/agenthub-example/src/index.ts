@@ -4,6 +4,8 @@ import {
   createAgentHubAgentStreamEmitter,
   createAgentHubEventSink,
   createAgentHubApprovalBridge,
+  createTokenDanceIdLoginRequest,
+  verifyTokenDanceIdCallback,
   type AgentHubAgentStreamEmitter,
   type AgentHubApprovalDecision,
   type AgentHubApprovalRequest,
@@ -12,6 +14,8 @@ import {
   type ModelProvider,
   type PermissionMode,
   type ThreadContext,
+  type TokenDanceIdCallbackResult,
+  type TokenDanceIdLoginRequest,
   type TokenDanceCodePackageInfo,
   type TokenDanceProviderConfig,
   type TurnResult
@@ -52,11 +56,25 @@ export interface AgentHubTokenDanceDoctorOptions {
   homeDir?: string;
 }
 
+export interface AgentHubTokenDanceIdLoginOptions {
+  issuerUrl?: string;
+  clientId: string;
+  redirectUri: string;
+  scope?: string | string[];
+  state?: string;
+  nonce?: string;
+  codeVerifier?: string;
+  deviceType?: string;
+  deviceId?: string;
+}
+
 export interface AgentHubTokenDanceRunner {
   run(options: AgentHubTokenDanceRunOptions): Promise<TurnResult>;
   context(options: AgentHubTokenDanceContextOptions): Promise<ThreadContext>;
   packageInfo(): TokenDanceCodePackageInfo;
   doctor(options?: AgentHubTokenDanceDoctorOptions): Promise<DoctorInfo>;
+  createTokenDanceIdLogin(options: AgentHubTokenDanceIdLoginOptions): TokenDanceIdLoginRequest;
+  verifyTokenDanceIdCallback(callbackUrl: string | URL | URLSearchParams, request: TokenDanceIdLoginRequest): TokenDanceIdCallbackResult;
   decideApproval(requestId: string, decision: AgentHubApprovalDecision, reason?: string): boolean;
   pendingApprovals(): AgentHubApprovalRequest[];
 }
@@ -87,6 +105,26 @@ export function createAgentHubTokenDanceRunner(options: AgentHubTokenDanceRunner
         projectRoot: doctorOptions.workingDirectory ?? options.storageRoot ?? process.cwd(),
         homeDir: doctorOptions.homeDir
       });
+    },
+
+    createTokenDanceIdLogin(loginOptions) {
+      return createTokenDanceIdLoginRequest({
+        issuerUrl: loginOptions.issuerUrl,
+        clientId: loginOptions.clientId,
+        redirectUri: loginOptions.redirectUri,
+        scope: loginOptions.scope,
+        state: loginOptions.state,
+        nonce: loginOptions.nonce,
+        codeVerifier: loginOptions.codeVerifier,
+        extraParams: {
+          device_type: loginOptions.deviceType,
+          device_id: loginOptions.deviceId
+        }
+      });
+    },
+
+    verifyTokenDanceIdCallback(callbackUrl, request) {
+      return verifyTokenDanceIdCallback(callbackUrl, request);
     },
 
     async run(runOptions) {

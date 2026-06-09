@@ -118,12 +118,30 @@ describe("package metadata", () => {
     const readme = await readText("README.md");
     const roadmap = await readText("docs/TS重构路线图.md");
     const acceptance = await readText("docs/端到端验收清单.md");
+    const packageReadmes = await Promise.all([
+      readText("packages/core/README.md"),
+      readText("packages/sdk/README.md"),
+      readText("packages/cli/README.md")
+    ]);
 
     for (const text of [readme, roadmap, acceptance]) {
       expect(text).toContain("pnpm release:next:check");
       expect(text).toContain("pnpm pack:smoke");
       expect(text).toContain("npm publish --tag next");
       expect(text).toContain("不要在检查脚本中执行 npm publish");
+    }
+
+    for (const text of [readme, roadmap, acceptance]) {
+      expect(text).toContain("Release owner 检查清单");
+      expect(text).toContain("AgentHub consumption story");
+      expect(text).toContain("Residual risk matrix");
+      expect(text).toContain("Manual approval gate");
+    }
+
+    for (const text of packageReadmes) {
+      expect(text).toContain("Manual approval gate");
+      expect(text).toContain("package-local README");
+      expect(text).toContain("npm publish --tag next");
     }
   });
 

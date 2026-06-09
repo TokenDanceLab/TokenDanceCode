@@ -19,6 +19,7 @@ describe("package metadata", () => {
     ].join(" && "));
     expect(rootPackage.scripts?.["pack:smoke"]).toBe("node scripts/smoke-tarball-install.mjs");
     expect(rootPackage.scripts?.["wave4:status"]).toBe("node scripts/verify-wave4-worktrees.mjs");
+    expect(rootPackage.scripts?.["wave5:status"]).toBe("node scripts/verify-wave5-worktrees.mjs");
     expect(rootPackage.scripts?.["pack:check"]).toBe([
       "pnpm build",
       "pnpm pack:dry-run",
@@ -49,6 +50,20 @@ describe("package metadata", () => {
     expect(wave4Script).toContain("codex/wave4-thread-session-lifecycle");
     expect(wave4Script).toContain("82096a6");
     expect(wave4Script).toContain("merge-base");
+
+    const wave5Script = await readText("scripts/verify-wave5-worktrees.mjs");
+    expect(wave5Script).toContain("codex/wave5-reference-architecture");
+    expect(wave5Script).toContain("codex/wave5-release-npm-baseline");
+    expect(wave5Script).toContain("codex/wave5-sdk-agenthub-contract");
+    expect(wave5Script).toContain("codex/wave5-agenthub-consumer-fixture");
+    expect(wave5Script).toContain("codex/wave5-gateway-quickstart");
+    expect(wave5Script).toContain("codex/wave5-tokendanceid-oidc");
+    expect(wave5Script).toContain("codex/wave5-provider-hardening");
+    expect(wave5Script).toContain("codex/wave5-permission-safety");
+    expect(wave5Script).toContain("codex/wave5-cli-tui-polish");
+    expect(wave5Script).toContain("codex/wave5-session-subagent");
+    expect(wave5Script).toContain("0f631f3");
+    expect(wave5Script).toContain("merge-base");
 
     const publicPackages = [
       { directory: "packages/core", packageJson: await readJson("packages/core/package.json") },

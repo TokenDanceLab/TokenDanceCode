@@ -193,3 +193,12 @@ node packages/cli/dist/main.js run "hello"
 - [x] 真实 provider smoke gate：`preflightProviderSmoke()` / `shouldRunProviderIntegration()` 使用 `TOKENDANCE_RUN_REAL_PROVIDER_SMOKE=1` 做显式 opt-in 预检和 skip gate，不默认读取项目 `.env`，不在 CI 或 pack smoke 中使用真实 key。
 - [x] 权限策略审计：完善拒绝原因、PowerShell 高危命令 evidence、approval bridge 边界和 tool risk metadata。
 - [x] 线程生命周期：完善 session/resume/search/export/prune 候选和 AgentHub 调试面板所需只读元数据，除非有必要不改变 transcript schema。
+
+### P6：Wave 5 对标收敛与长期基线
+
+- [ ] 架构对标评估：整理 ClaudeCode / Codex / OpenCode 中适合自用 Agent 框架吸收的薄 CLI、事件流、权限、session/transcript、provider、SDK/release 模式，并明确拒绝过重模式。
+- [ ] Release/npm baseline：保持 `pnpm release:next:check` 和 tarball smoke 作为发布前本地 gate；`npm publish --tag next` 继续只允许 release owner 人工执行。
+- [ ] AgentHub SDK contract：继续强化 `agenthub-sdk.v1` manifest、event envelope、approval bridge、doctor readiness 和生产接入边界。
+- [ ] Gateway/OIDC onboarding：把 `gateway init`、`doctor`、`config validate`、TokenDanceID OIDC login URL helper 串成可读 quickstart；继续区分 TokenDance API key 与 TokenDanceID session token。
+- [ ] Provider protocol hardening：OpenAI Responses、OpenAI-compatible Chat/Gateway、Anthropic Messages 保持统一错误和工具调用结果形态；真实 smoke 继续显式 opt-in。
+- [ ] Permission/session/subagent/TUI polish：在不引入 full-screen 复杂 TUI 或常驻 team-agent 系统的前提下，补可审计性、可读性和 AgentHub 调试面板数据。

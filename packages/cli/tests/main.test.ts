@@ -966,14 +966,14 @@ describe("TokenDanceCode CLI", () => {
     const output = io.stdoutText();
 
     expect(exitCode).toBe(0);
-    expect(output).toContain("[tool] tool echo started [status=running]");
+    expect(output).toContain("[tool] echo started [status=running]");
     expect(output).toContain("[permission] permission allowed");
-    expect(output).toContain("[ok] tool echo completed");
+    expect(output).toContain("[ok] echo completed [output=json]");
     expect(output).toContain("[usage] usage input=1 output=10");
-    expect(output).toContain("tool echo started");
+    expect(output).toContain("echo started");
     expect(output).toContain("permission allowed");
-    expect(output).toContain("tool echo completed");
-    expect(output).toMatch(/tool echo completed: .* duration=\d+ms/);
+    expect(output).toContain("echo completed");
+    expect(output).toMatch(/echo completed \[output=json\]: .* duration=\d+ms/);
     expect(output).toContain('Tool result: {"text":"hello renderer"}');
     expect(output).toContain("usage input=1 output=10");
   });
@@ -996,7 +996,7 @@ describe("TokenDanceCode CLI", () => {
     const output = io.stdoutText();
 
     expect(exitCode).toBe(0);
-    expect(output).toContain('tool echo completed: {"text":"short result"}');
+    expect(output).toContain('echo completed [output=json]: {"text":"short result"}');
   });
 
   it("truncates long successful tool result summaries", async () => {
@@ -1005,7 +1005,7 @@ describe("TokenDanceCode CLI", () => {
 
     const exitCode = await runCli([], io);
     const output = io.stdoutText();
-    const summaryLine = output.split("\n").find((line) => line.startsWith("[ok] tool echo completed:"));
+    const summaryLine = output.split("\n").find((line) => line.startsWith("[ok] echo completed [output=json]:"));
 
     expect(exitCode).toBe(0);
     expect(summaryLine).toBeDefined();
@@ -1021,8 +1021,8 @@ describe("TokenDanceCode CLI", () => {
     const output = io.stdoutText();
 
     expect(exitCode).toBe(0);
-    expect(output).toContain("tool missing_tool started");
-    expect(output).toMatch(/tool missing_tool failed: Unknown tool: missing_tool duration=\d+ms/);
+    expect(output).toContain("[tool] missing_tool started [status=running]");
+    expect(output).toMatch(/missing_tool failed duration=\d+ms\n  reason: Unknown tool: missing_tool/);
   });
 
   it("starts a fresh interactive session with /new", async () => {

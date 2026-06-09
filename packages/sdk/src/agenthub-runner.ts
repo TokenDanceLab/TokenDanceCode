@@ -43,6 +43,7 @@ export interface AgentHubTokenDanceRunOptions {
   edgeRunId: string;
   sessionId: string;
   agentInstanceId: string;
+  contextBudget?: ContextBudget;
 }
 
 export interface AgentHubTokenDanceContextOptions {
@@ -204,7 +205,8 @@ export function createAgentHubTokenDanceRunner(options: AgentHubTokenDanceRunner
         storageRoot,
         env: options.env,
         approvalCallback: approvalBridge?.approvalCallback,
-        eventSink: createAgentHubEventSink(emitAgentStream)
+        eventSink: createAgentHubEventSink(emitAgentStream),
+        contextBudget: runOptions.contextBudget
       });
       return approvalEmitterStorage.run((request) => emitAgentStream(toPermissionRequestedRuntimeEvent(request)), async () => {
         const thread = await resumeOrStartThread(client, runOptions, storageRoot, options.defaultPermissionMode);

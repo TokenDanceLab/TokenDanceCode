@@ -187,6 +187,42 @@ describe("TokenDanceCode SDK", () => {
     expect(secondRequestContents.at(-1)).toBe("second turn");
   });
 
+  it("applies per-run AgentHub context budgets to runtime provider requests", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-runner-budget-"));
+    const provider = new CapturingProvider();
+    const runner = sdk.createAgentHubTokenDanceRunner({
+      storageRoot: root,
+      provider,
+      emitAgentStream() {
+        // Test only needs the provider request captured by the runner.
+      }
+    });
+    await runner.run({
+      prompt: `runner-user-anchor ${"x".repeat(120)} runner-user-hidden`,
+      workingDirectory: root,
+      taskId: "task-runner-budget",
+      edgeRunId: "edge-runner-budget",
+      sessionId: "runner-budget-session",
+      agentInstanceId: "agent-runner-budget"
+    });
+
+    await runner.run({
+      prompt: "runner second turn",
+      workingDirectory: root,
+      taskId: "task-runner-budget",
+      edgeRunId: "edge-runner-budget-2",
+      sessionId: "runner-budget-session",
+      agentInstanceId: "agent-runner-budget",
+      contextBudget: { recentMessages: 80 }
+    });
+    const secondRequestContents = provider.requests[1]?.session.messages.map((message) => message.content) ?? [];
+
+    expect(secondRequestContents).toContainEqual(expect.stringContaining("assistant-anchor"));
+    expect(secondRequestContents).not.toContainEqual(expect.stringContaining("assistant-hidden"));
+    expect(secondRequestContents).not.toContainEqual(expect.stringContaining("runner-user-anchor"));
+    expect(secondRequestContents.at(-1)).toBe("runner second turn");
+  });
+
   it("loads latest thread with recent transcript for AgentHub callers", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
     const client = new TokenDanceCode({ storageRoot: root });

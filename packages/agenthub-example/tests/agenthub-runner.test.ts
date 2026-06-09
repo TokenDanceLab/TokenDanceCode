@@ -417,6 +417,24 @@ describe("AgentHub TokenDanceCode runner example", () => {
     });
   });
 
+  it("requires AgentHub fixture TokenDanceID login client and redirect inputs", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-agenthub-fixture-login-"));
+    const fixture = createAgentHubTokenDanceE2EFixture({
+      storageRoot: root,
+      defaultRun: {
+        workingDirectory: root,
+        taskId: "task-fixture",
+        edgeRunId: "edge-fixture",
+        sessionId: "hub-session-fixture",
+        agentInstanceId: "agent-fixture"
+      }
+    });
+
+    expect(() => fixture.createTokenDanceIdLogin()).toThrow(
+      "AgentHub fixture TokenDanceID login requires clientId and redirectUri via defaultLogin or createTokenDanceIdLogin()."
+    );
+  });
+
   it("exposes package metadata and doctor diagnostics for AgentHub startup checks", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-agenthub-example-"));
     const runner = createAgentHubTokenDanceRunner({

@@ -264,10 +264,7 @@ export function createAgentHubTokenDanceE2EFixture(options: AgentHubTokenDanceE2
     },
 
     createTokenDanceIdLogin(loginOptions = {}) {
-      return runner.createTokenDanceIdLogin({
-        ...options.defaultLogin,
-        ...loginOptions
-      } as AgentHubTokenDanceIdLoginOptions);
+      return runner.createTokenDanceIdLogin(mergeTokenDanceIdLoginOptions(options.defaultLogin, loginOptions));
     },
 
     verifyTokenDanceIdCallback(callbackUrl, request) {
@@ -281,6 +278,24 @@ export function createAgentHubTokenDanceE2EFixture(options: AgentHubTokenDanceE2
     pendingApprovals() {
       return runner.pendingApprovals();
     }
+  };
+}
+
+function mergeTokenDanceIdLoginOptions(
+  defaults: Partial<AgentHubTokenDanceIdLoginOptions> | undefined,
+  overrides: Partial<AgentHubTokenDanceIdLoginOptions>
+): AgentHubTokenDanceIdLoginOptions {
+  const merged = {
+    ...defaults,
+    ...overrides
+  };
+  if (!merged.clientId || !merged.redirectUri) {
+    throw new Error("AgentHub fixture TokenDanceID login requires clientId and redirectUri via defaultLogin or createTokenDanceIdLogin().");
+  }
+  return {
+    ...merged,
+    clientId: merged.clientId,
+    redirectUri: merged.redirectUri
   };
 }
 

@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { AgentRuntime, FileTranscriptStore, MockProvider, type ModelProvider, type ModelTurnRequest, type ModelTurnResponse, type RuntimeHookCommand, type TDMessage } from "../src/index.js";
 
+const itWindows = process.platform === "win32" ? it : it.skip;
+
 class WriteFileOnceProvider implements ModelProvider {
   async createTurn(request: ModelTurnRequest): Promise<ModelTurnResponse> {
     if (request.toolResults.length > 0) {
@@ -421,6 +423,72 @@ describe("AgentRuntime", () => {
     });
   });
 
+  itWindows("runs a Windows .cmd shim hook with JSON on stdin", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-core-hooks-cmd-"));
+    const recorder = await createHookRecorder(root);
+    const shimPath = join(root, "record-hook.cmd");
+    await writeFile(
+      shimPath,
+      [
+        "@echo off",
+        `"${process.execPath}" "${recorder.scriptPath}" "${recorder.logPath}"`,
+        ""
+      ].join("\r\n"),
+      "utf8"
+    );
+    const runtime = new AgentRuntime({
+      cwd: root,
+      provider: new MockProvider(),
+      hooks: {
+        enabled: true,
+        commands: [
+          { event: "PreToolUse", command: "record-hook" }
+        ]
+      }
+    });
+
+    for await (const _event of runtime.runTurn("echo: shim hook")) {
+      // Drain the event stream.
+    }
+
+    const payloads = await readHookPayloads(recorder.logPath);
+    expect(payloads).toEqual([
+      expect.objectContaining({
+        event: "PreToolUse",
+        toolCall: expect.objectContaining({
+          name: "echo",
+          input: { text: "shim hook" }
+        })
+      })
+    ]);
+  });
+
+  it("wraps bad hook command spawn validation errors as hook failures", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-core-hooks-bad-command-"));
+    const runtime = new AgentRuntime({
+      cwd: root,
+      provider: new MockProvider(),
+      hooks: {
+        enabled: true,
+        commands: [
+          { event: "PreToolUse", command: "\0bad-hook-command" }
+        ]
+      }
+    });
+    const events = [];
+
+    await expect(async () => {
+      for await (const event of runtime.runTurn("echo: bad hook command")) {
+        events.push(event);
+      }
+    }).rejects.toThrow("Hook PreToolUse failed");
+
+    expect(events.at(-1)).toMatchObject({
+      type: "turn.failed",
+      error: expect.stringContaining("Hook PreToolUse failed")
+    });
+  });
+
   it("emits turn.failed when an enabled hook command fails", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-core-hooks-fail-"));
     const runtime = new AgentRuntime({
@@ -477,12 +545,12 @@ describe("AgentRuntime", () => {
 
     expect(events.at(-1)).toMatchObject({
       type: "turn.failed",
-      error: expect.stringContaining("timed out after 2000ms")
+      error: expect.stringContaining("process closed after timeout")
     });
   });
 });
 
-async function createHookRecorder(root: string): Promise<Pick<RuntimeHookCommand, "command" | "args"> & { logPath: string }> {
+async function createHookRecorder(root: string): Promise<Pick<RuntimeHookCommand, "command" | "args"> & { scriptPath: string; logPath: string }> {
   const hookPath = join(root, "record-hook.mjs");
   const logPath = join(root, "hooks.jsonl");
   await writeFile(
@@ -499,7 +567,7 @@ async function createHookRecorder(root: string): Promise<Pick<RuntimeHookCommand
     ].join("\n"),
     "utf8"
   );
-  return { command: process.execPath, args: [hookPath, logPath], logPath };
+  return { command: process.execPath, args: [hookPath, logPath], scriptPath: hookPath, logPath };
 }
 
 async function readHookPayloads(logPath: string): Promise<Array<Record<string, unknown>>> {

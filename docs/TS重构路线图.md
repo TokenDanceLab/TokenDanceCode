@@ -17,8 +17,8 @@
 本轮只读参考了 AgentHub 的源码镜像：
 
 - `<workspace>\AgentHub\reference\claude-code-source\claude-code-main`
-- `<workspace>\AgentHub\reference\claude-code-viewer`
 - `<workspace>\AgentHub\reference\codex`
+- `<workspace>\AgentHub\reference\opencode`
 
 可借鉴但不照搬的结论：
 
@@ -215,3 +215,19 @@ node packages/cli/dist/main.js run "hello"
 - [x] Provider protocol hardening：OpenAI Responses、OpenAI-compatible Chat/Gateway、Anthropic Messages 保持统一错误和工具调用结果形态；真实 smoke 继续显式 opt-in。
 - [x] Permission/session/subagent/TUI polish：在不引入 full-screen 复杂 TUI 或常驻 team-agent 系统的前提下，补可审计性、可读性和 AgentHub 调试面板数据；subagent 专属日志使用 `events.jsonl`，避免与 session transcript schema 混淆。
 - [x] Tool-first permission renderer：`tool.permission` 输出与工具生命周期行对齐，保留 risk/action/mode metadata，方便 CLI scrollback 和 AgentHub 日志面板扫描。
+
+### P7：Wave 6 架构对标和复杂度控制
+
+- [x] 只读对比 ClaudeCode、Codex、OpenCode 中 CLI agent 架构相关目录，确认 TokenDanceCode 继续保留薄 CLI、core runtime、SDK facade、provider adapter、tool permission pipeline、JSONL transcript 和本地 release gate。
+- [x] 明确拒绝 app-server daemon、remote-control 平台、plugin marketplace、OpenTUI/full-screen provider tree、desktop/IDE/browser bridge、企业/云任务/共享控制面、真实 provider key 自动发现。
+- [x] 把 slash command registry、层级 instruction discovery、provider history normalization、更强 Windows sandbox、session export/prune UI 标记为延后项，避免 Wave 6 把参考仓库的产品外壳搬进本地 CLI harness。
+- [x] 保持 AgentHub 边界：TokenDanceCode 只输出 SDK、event mapper、approval bridge、doctor/readiness、session/transcript metadata；Hub Server 继续负责生产 event bus、approval store、TokenDanceID token exchange/JWKS/session 生命周期。
+- [x] 保持发布边界：本仓库只做 `pnpm contract:check`、`pnpm verify`、`pnpm pack:check`、`pnpm pack:smoke` 和 package metadata regression；`npm publish --tag next` 仍由 release owner 手工执行。
+
+Wave 6 后的默认实现顺序：
+
+1. 命令 registry 不变量：新增 command 必须先落 metadata、usage、JSON contract 和 handler 测试，再接 CLI wiring。
+2. Event/transcript drift gate：`TDCodeEvent`、AgentHub envelope、transcript schema、CLI JSON 输出变化先由 focused tests 捕获。
+3. Provider/tool schema hardening：只维护当前三个 provider 协议和本地工具 schema，不新增 provider 矩阵。
+4. Permission/session replay：补 permission reason、tool lifecycle、session metadata、resume/search/compact 的回放测试。
+5. AgentHub package metadata：SDK manifest 和 feature flags 继续作为 AgentHub 启动检查入口。

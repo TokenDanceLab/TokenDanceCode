@@ -47,7 +47,7 @@ export class AgentRuntime {
   async *runTurn(input: string): AsyncGenerator<TDCodeEvent> {
     const turnId = randomUUID();
     const userMessage: TDMessage = { role: "user", content: input };
-    const context = await new ContextBuilder().build({ session: this.session, userMessage: input, workspaceRoot: this.session.cwd });
+    const context = await new ContextBuilder().build({ session: this.session, userMessage: input });
     this.session = appendMessage(this.session, userMessage);
     await this.persistSession();
     yield* this.emit({ type: "user.message", sessionId: this.session.id, turnId, message: userMessage });

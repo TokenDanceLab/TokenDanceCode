@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -35,6 +35,60 @@ describe("ContextBuilder", () => {
       { role: "user", content: "old 3" },
       { role: "user", content: "next task" }
     ]);
+  });
+
+  it("discovers layered workspace instructions from git root to working directory", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-context-"));
+    const child = join(root, "packages", "app");
+    await mkdir(join(root, ".git"), { recursive: true });
+    await mkdir(join(root, ".tokendance"), { recursive: true });
+    await mkdir(child, { recursive: true });
+    await writeFile(join(root, "AGENTS.md"), "Root agent rules.\n", "utf8");
+    await writeFile(join(root, "CLAUDE.md"), "Root Claude rules.\n", "utf8");
+    await writeFile(join(root, ".tokendance", "instructions.md"), "Root local instructions.\n", "utf8");
+    await writeFile(join(child, "AGENTS.md"), "Package agent rules.\n", "utf8");
+    await writeFile(join(child, "CLAUDE.md"), "Package Claude rules.\n", "utf8");
+
+    const context = await new ContextBuilder().build({
+      session: createSession(child),
+      userMessage: "next task"
+    });
+
+    expect(context.includedFiles).toEqual([
+      "AGENTS.md",
+      "CLAUDE.md",
+      ".tokendance/instructions.md",
+      "packages/app/AGENTS.md",
+      "packages/app/CLAUDE.md"
+    ]);
+    const systemContent = context.messages[0]?.content ?? "";
+    expect(systemContent.indexOf("Root agent rules.")).toBeLessThan(systemContent.indexOf("Package agent rules."));
+    expect(systemContent.indexOf("Root Claude rules.")).toBeLessThan(systemContent.indexOf("Package Claude rules."));
+    expect(systemContent).toContain("Root local instructions.");
+  });
+
+  it("stops instruction discovery at the explicit workspace root and limits file reads", async () => {
+    const outer = await mkdtemp(join(tmpdir(), "tdcode-context-"));
+    const stopRoot = join(outer, "repo");
+    const child = join(stopRoot, "nested");
+    await mkdir(child, { recursive: true });
+    await writeFile(join(outer, "AGENTS.md"), "Outer rules must not be read.\n", "utf8");
+    await writeFile(join(stopRoot, "AGENTS.md"), "Stop root rules.\n", "utf8");
+    await writeFile(join(child, "AGENTS.md"), "Child rules include only this prefix and then a long suffix.\n", "utf8");
+
+    const context = await new ContextBuilder({ maxInstructionFileBytes: 24 }).build({
+      session: createSession(child),
+      userMessage: "next task",
+      workspaceRoot: stopRoot
+    });
+
+    expect(context.includedFiles).toEqual(["AGENTS.md", "nested/AGENTS.md"]);
+    const systemContent = context.messages[0]?.content ?? "";
+    expect(systemContent).toContain("Stop root rules.");
+    expect(systemContent).toContain("Child rules include only");
+    expect(systemContent).toContain("[truncated");
+    expect(systemContent).not.toContain("Outer rules must not be read.");
+    expect(systemContent).not.toContain("long suffix");
   });
 });
 

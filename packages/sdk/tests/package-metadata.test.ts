@@ -269,7 +269,11 @@ describe("package metadata", () => {
       expect(text).toContain("拒绝 native installer");
     }
 
-    expect(readme).toContain("不是 app-server daemon、OpenTUI 前端、plugin marketplace 或 native installer");
+    expect(readme).toContain("TokenDanceCode is not a hosted agent platform");
+    expect(readme).toContain("IDE plugin");
+    expect(readme).toContain("plugin marketplace");
+    expect(readme).toContain("native installer");
+    expect(readme).toContain("app-server daemon");
     expect(acceptance).toContain("未配置时默认是 `mock` provider、`mock` model 和 `default` permission mode");
     expect(acceptance).not.toContain("当前默认值应为 `openai`、`gpt-5.4`、`default`、`local`、`local`");
   });

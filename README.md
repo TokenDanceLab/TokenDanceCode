@@ -1,18 +1,32 @@
 # TokenDanceCode
 
-TokenDanceCode 是一个面向个人开发者的本地命令行 Coding Agent。
+```text
+ _______  _______  ___   _  _______  __    _  ______   _______  __    _  _______  _______
+|       ||       ||   | | ||       ||  |  | ||      | |   _   ||  |  | ||       ||       |
+|_     _||   _   ||   |_| ||    ___||   |_| ||  _    ||  |_|  ||   |_| ||       ||    ___|
+  |   |  |  | |  ||      _||   |___ |       || | |   ||       ||       ||       ||   |___
+  |   |  |  |_|  ||     |_ |    ___||  _    || |_|   ||       ||  _    ||      _||    ___|
+  |   |  |       ||    _  ||   |___ | | |   ||       ||   _   || | |   ||     |_ |   |___
+  |___|  |_______||___| |_||_______||_|  |__||______| |__| |__||_|  |__||_______||_______|
 
-你可以在任意本地代码仓库中打开终端，运行 `tokendance`，然后让它阅读项目、修改文件、运行 PowerShell 命令、检查 Git diff、管理任务和 Todo，并把会话过程保存为 transcript。
+                                  local coding agent CLI
+```
 
-`codex/ts-refactor` 分支正在把项目重构为 TypeScript monorepo。目标体验接近 Claude Code / Codex CLI，但实现保持自用 Agent 框架的克制范围：薄 CLI、可嵌入 SDK、结构化事件流、JSONL transcript、统一工具权限管线、Windows / PowerShell 优先。
+TokenDanceCode is a local command-line coding agent for personal repositories. Open a terminal in a repo, run `tokendance`, and use it to read code, edit files, run guarded PowerShell tools, inspect Git diffs, track tasks, and save every turn to a JSONL transcript.
 
-当前定位很窄：TokenDanceCode 是本地 CLI / harness，不是云平台、团队协作系统、IDE 插件、插件市场或 AgentHub 的替代品；也不是 app-server daemon、OpenTUI 前端、plugin marketplace 或 native installer。团队协作和多 Agent 工作流由 AgentHub 承担，TokenDanceCode 专注个人开发者在本地仓库里的编码代理体验。
+The `codex/ts-refactor` branch is now a TypeScript monorepo. The target experience is close to Claude Code and Codex CLI in the areas that matter for a self-hosted agent harness: a thin CLI, embeddable SDK, structured runtime events, transcripts, provider adapters, and a permission pipeline that works well on Windows and PowerShell.
 
-包名和全局命令都是：
+The scope is intentionally narrow. TokenDanceCode is not a hosted agent platform, IDE plugin, plugin marketplace, native installer, app-server daemon, or replacement for AgentHub. AgentHub owns team workflows and multi-agent orchestration. TokenDanceCode owns the local coding-agent runtime and the SDK surface AgentHub can call.
+
+The global command is:
 
 ```powershell
 tokendance
 ```
+
+Current release status: `8af8ab1` is the local npm first-candidate commit. `pnpm release:next:check` passes, but the public npm registry still returns `E404` for `@tokendance/code-core`, `@tokendance/code-sdk`, and `@tokendance/code-cli` as of 2026-06-09 17:02 HKT. Treat the package as ready for release review, not as published.
+
+Release checklist: [docs/release-readiness.md](docs/release-readiness.md).
 
 ![TokenDanceCode 启动界面](docs/images/image-01.png)
 

@@ -1,5 +1,17 @@
 # @tokendance/code-cli
 
+```text
+ _______  _______  ___   _  _______  __    _  ______   _______  __    _  _______  _______
+|       ||       ||   | | ||       ||  |  | ||      | |   _   ||  |  | ||       ||       |
+|_     _||   _   ||   |_| ||    ___||   |_| ||  _    ||  |_|  ||   |_| ||       ||    ___|
+  |   |  |  | |  ||      _||   |___ |       || | |   ||       ||       ||       ||   |___
+  |   |  |  |_|  ||     |_ |    ___||  _    || |_|   ||       ||  _    ||      _||    ___|
+  |   |  |       ||    _  ||   |___ | | |   ||       ||   _   || | |   ||     |_ |   |___
+  |___|  |_______||___| |_||_______||_|  |__||______| |__| |__||_|  |__||_______||_______|
+
+                                  local coding agent CLI
+```
+
 Command line interface for TokenDanceCode.
 
 The package installs the `tokendance` bin. It provides local coding-agent sessions, doctor/config checks, mock runs, transcript commands, memory/task helpers, AgentHub-oriented tooling, quality gates, and Windows/PowerShell-first local workflow support.

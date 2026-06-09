@@ -6,6 +6,7 @@ const maxToolSummaryLength = 120;
 const toolRisks = new Set<RendererToolRisk>(["read", "write", "shell", "network", "dangerous"]);
 
 type PermissionDecision = Extract<TDCodeEvent, { type: "tool.permission" }>["decision"];
+type RendererToolCall = Extract<TDCodeEvent, { type: "tool.started" }>["call"];
 type RendererToolResult = Extract<TDCodeEvent, { type: "tool.completed" }>["result"];
 type RendererTokenUsage = NonNullable<Extract<TDCodeEvent, { type: "turn.completed" }>["usage"]>;
 type RendererToolRisk = "read" | "write" | "shell" | "network" | "dangerous";
@@ -53,7 +54,7 @@ async function renderEvent(io: EventRendererIO, event: TDCodeEvent, state: Rende
     case "tool.started":
       await flushAssistantLine(io, state);
       state.toolStarts.set(event.call.id, Date.now());
-      await write(io.stdout, `${badge("tool", "info", style)} tool ${event.call.name} started [status=running]\n`);
+      await write(io.stdout, `${badge("tool", "info", style)} ${event.call.name} started [status=running]${formatToolInput(event.call)}\n`);
       return;
     case "tool.permission":
       await flushAssistantLine(io, state);
@@ -64,10 +65,13 @@ async function renderEvent(io: EventRendererIO, event: TDCodeEvent, state: Rende
       const duration = renderToolDuration(state, event.result.callId);
       if (event.result.ok) {
         const summary = summarizeToolOutput(event.result.output);
-        await write(io.stdout, `${badge("ok", "success", style)} tool ${event.result.toolName} completed${summary ? `: ${summary}` : ""}${duration}\n`);
+        await write(
+          io.stdout,
+          `${badge("ok", "success", style)} ${event.result.toolName} completed${summary.metadata}${summary.text ? `: ${summary.text}` : ""}${duration}\n`
+        );
         return;
       }
-      await write(io.stdout, `${badge("error", "danger", style)} ${formatToolFailure(event.result, style)}${duration}\n`);
+      await write(io.stdout, `${formatToolFailure(event.result, style, duration)}\n`);
       return;
     case "turn.completed":
       await flushAssistantLine(io, state);
@@ -93,12 +97,22 @@ function formatPermission(decision: PermissionDecision, style: CliStyle): string
   return `permission ${permissionStatus(decision.status, style)}${metadata} ${reason.detail}`;
 }
 
-function formatToolFailure(result: RendererToolResult, style: CliStyle): string {
+function formatToolFailure(result: RendererToolResult, style: CliStyle, duration: string): string {
   const failureText = result.error ?? "unknown error";
   const reason = parsePermissionReason(failureText);
   const evidenceReason = result.safetyEvidence?.reason ? parsePermissionReason(result.safetyEvidence.reason) : undefined;
   const metadata = formatToolFailureMetadata(reason, evidenceReason, result.safetyEvidence?.source, style);
-  return `tool ${result.toolName} ${error("failed", style)}${metadata}: ${reason.detail}`;
+  const evidence = result.safetyEvidence?.evidence;
+  const lines = [
+    `${badge("error", "danger", style)} ${result.toolName} ${error("failed", style)}${metadata}${duration}`,
+    `  reason: ${reason.detail}`
+  ];
+  if (evidence) {
+    lines.push(
+      `  evidence: rule=${evidence.rule} matched=${quoteValue(evidence.matched)} command=${quoteValue(evidence.commandPreview)}`
+    );
+  }
+  return lines.join("\n");
 }
 
 interface ParsedPermissionReason {
@@ -218,6 +232,27 @@ function formatTokenCount(value: number): string {
   return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
+function formatToolInput(call: RendererToolCall): string {
+  if (typeof call.input !== "object" || call.input === null) {
+    return "";
+  }
+
+  const input = call.input as Record<string, unknown>;
+  if (typeof input.command === "string") {
+    return ` command=${quoteValue(previewInline(input.command))}`;
+  }
+  if (typeof input.path === "string") {
+    return ` path=${quoteValue(previewInline(input.path))}`;
+  }
+  if (typeof input.paths === "object" && Array.isArray(input.paths)) {
+    return ` paths=${input.paths.length}`;
+  }
+  if (typeof input.prompt === "string") {
+    return ` prompt=${quoteValue(previewInline(input.prompt))}`;
+  }
+  return "";
+}
+
 async function flushAssistantLine(io: EventRendererIO, state: RendererState): Promise<void> {
   if (!state.assistantTextOpen) {
     return;
@@ -232,18 +267,20 @@ function renderToolDuration(state: RendererState, callId: string): string {
   return startedAt === undefined ? "" : ` duration=${Math.max(0, Date.now() - startedAt)}ms`;
 }
 
-function summarizeToolOutput(output: unknown): string {
+function summarizeToolOutput(output: unknown): { metadata: string; text: string } {
   if (output === undefined) {
-    return "";
+    return { metadata: "", text: "" };
   }
 
+  const metadata = formatToolOutputMetadata(output);
   const serialized = serializeToolOutput(output);
-  if (serialized.length <= maxToolSummaryLength) {
-    return serialized;
+  const text = previewInline(serialized);
+  if (text.length <= maxToolSummaryLength) {
+    return { metadata, text };
   }
 
-  const omitted = serialized.length - maxToolSummaryLength;
-  return `${serialized.slice(0, maxToolSummaryLength)}... omitted ${omitted} chars`;
+  const omitted = text.length - maxToolSummaryLength;
+  return { metadata, text: `${text.slice(0, maxToolSummaryLength)}... omitted ${omitted} chars` };
 }
 
 function serializeToolOutput(output: unknown): string {
@@ -255,6 +292,31 @@ function serializeToolOutput(output: unknown): string {
   } catch {
     return String(output);
   }
+}
+
+function formatToolOutputMetadata(output: unknown): string {
+  if (typeof output === "string") {
+    return ` [output=text chars=${output.length} lines=${countTextLines(output)}]`;
+  }
+  if (typeof output === "object" && output !== null) {
+    return " [output=json]";
+  }
+  return ` [output=${typeof output}]`;
+}
+
+function countTextLines(text: string): number {
+  if (text.length === 0) {
+    return 0;
+  }
+  return text.split(/\r?\n/).filter((line, index, lines) => line.length > 0 || index < lines.length - 1).length;
+}
+
+function previewInline(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function quoteValue(value: string): string {
+  return JSON.stringify(value);
 }
 
 function write(stream: Writable, text: string): Promise<void> {

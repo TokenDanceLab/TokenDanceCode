@@ -84,16 +84,16 @@ impl TranscriptStore {
             };
         };
 
-        let mut last_seq = 0;
+        let mut max_seq = 0;
         let mut last_uuid = None;
         for line in content.lines().filter(|line| !line.trim().is_empty()) {
             let Ok(value) = serde_json::from_str::<serde_json::Value>(line) else {
                 continue;
             };
             if let Some(seq) = value.get("seq").and_then(serde_json::Value::as_u64) {
-                last_seq = seq;
+                max_seq = max_seq.max(seq);
             } else {
-                last_seq += 1;
+                max_seq += 1;
             }
             if let Some(uuid) = value.get("uuid").and_then(serde_json::Value::as_str) {
                 last_uuid = Some(uuid.to_string());
@@ -101,7 +101,7 @@ impl TranscriptStore {
         }
 
         TranscriptPosition {
-            next_seq: last_seq + 1,
+            next_seq: max_seq + 1,
             last_uuid,
         }
     }
@@ -164,5 +164,6 @@ async fn append_jsonl<T: Serialize>(path: PathBuf, value: &T) -> anyhow::Result<
     let mut line = serde_json::to_vec(value)?;
     line.push(b'\n');
     file.write_all(&line).await?;
+    file.flush().await?;
     Ok(())
 }

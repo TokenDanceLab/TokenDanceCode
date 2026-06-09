@@ -6,9 +6,6 @@ TokenDanceCode has a local npm first-candidate commit, but the public registry d
 
 ## Candidate
 
-- Branch: `codex/ts-refactor`
-- Candidate pointer: `release/npm-first`
-- Candidate commit: `8af8ab1f1440bcee742cedf663549eabbd336e1a`
 - Version: `0.2.0-ts.0`
 - Packages:
   - `@tokendance/code-core`
@@ -48,7 +45,7 @@ Latest known local result:
 
 ## Publish Boundary
 
-The verification scripts must not run `npm publish`. Publishing is a separate release-owner action after package content review.
+The verification scripts must not run `npm publish`. Publishing is a separate release-owner action after package content review. When project docs say `npm publish --tag next`, they refer to this manual step, run with `--access public` for scoped packages.
 
 Before publishing:
 
@@ -85,4 +82,4 @@ tokendance --version
 tokendance doctor --json
 ```
 
-Do not print npm tokens in logs or docs. Keep the npm userconfig path in the operator secret store, not in public project docs. Rotate any token that was exposed outside the local secret store.
+Do not print npm tokens in logs or docs. Keep npm userconfig files outside this repository and do not commit their paths. Rotate any token that was exposed.

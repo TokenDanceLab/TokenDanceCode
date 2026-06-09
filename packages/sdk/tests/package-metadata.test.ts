@@ -203,6 +203,7 @@ describe("package metadata", () => {
 
   it("documents the next prerelease and tarball install gates", async () => {
     const readme = await readText("README.md");
+    const releaseReadiness = await readText("docs/release-readiness.md");
     const roadmap = await readText("docs/TS重构路线图.md");
     const acceptance = await readText("docs/端到端验收清单.md");
     const packageReadmes = await Promise.all([
@@ -211,31 +212,44 @@ describe("package metadata", () => {
       readText("packages/cli/README.md")
     ]);
 
-    for (const text of [readme, roadmap, acceptance]) {
+    for (const text of [readme, releaseReadiness, roadmap, acceptance]) {
       expect(text).toContain("pnpm contract:check");
       expect(text).toContain("pnpm release:next:check");
       expect(text).toContain("pnpm pack:smoke");
       expect(text).toContain("npm publish --tag next");
-      expect(text).toContain("不要在检查脚本中执行 npm publish");
     }
 
     for (const text of [readme, roadmap, acceptance]) {
+      expect(text).toContain("不要在检查脚本中执行 npm publish");
+    }
+
+    for (const text of [roadmap, acceptance]) {
       expect(text).toContain("Release owner 检查清单");
       expect(text).toContain("AgentHub consumption story");
       expect(text).toContain("Residual risk matrix");
       expect(text).toContain("Manual approval gate");
     }
+    expect(readme).toContain("[发布准备](docs/release-readiness.md)");
+    expect(readme).toContain("不要在检查脚本中执行 npm publish");
+    expect(readme).toContain("AgentHub 应优先依赖 `@tokendance/code-sdk`");
+    expect(readme).not.toContain("E404");
+    expect(releaseReadiness).toContain("Publish Boundary");
+    expect(releaseReadiness).toContain("Post-Publish Smoke");
 
     for (const text of packageReadmes) {
       expect(text).toContain("pnpm contract:check");
       expect(text).toContain("Manual approval gate");
       expect(text).toContain("package-local README");
       expect(text).toContain("npm publish --tag next");
+      expect(text).toContain("The `next` tag may not be public while release review is in progress");
     }
+    expect(packageReadmes.join("\n")).not.toContain("It is published");
+    expect(packageReadmes.join("\n")).not.toContain("https://api.vectorcontrol.tech/v1");
   });
 
   it("keeps TS branch docs aligned with Node packaging and global provider env boundaries", async () => {
     const readme = await readText("README.md");
+    const englishReadme = await readText("README.en.md");
     const agents = await readText("AGENTS.md");
 
     expect(agents).toContain("Runtime: Node.js 20.18+");
@@ -246,6 +260,18 @@ describe("package metadata", () => {
 
     expect(readme).toContain("OpenAI Responses API、OpenAI Chat Completions API 与 Anthropic-compatible Messages API");
     expect(readme).toContain("TokenDanceCode 默认不读取项目根目录 `.env`");
+    expect(readme).toContain("[English](README.en.md)");
+    expect(readme).toContain("![Screenshot: TokenDanceCode CLI terminal session](docs/images/image-01.png)");
+    expect(readme).toContain("截图展示了 `tokendance` 在 PowerShell 中启动后的本地 CLI 体验。");
+    expect(readme).toContain("当前代码库已经重构为 TypeScript monorepo");
+    expect(readme).not.toContain("`codex/ts-refactor` 分支");
+    expect(englishReadme).toContain("[中文](README.md)");
+    expect(englishReadme).toContain("![Screenshot: TokenDanceCode CLI terminal session](docs/images/image-01.png)");
+    expect(englishReadme).toContain("The screenshot shows `tokendance` running as a local CLI inside PowerShell.");
+    expect(englishReadme).toContain("The current codebase is a TypeScript monorepo");
+    expect(englishReadme).toContain("TokenDance Gateway");
+    expect(englishReadme).toContain("Subagent / worktree");
+    expect(englishReadme).not.toContain("The `codex/ts-refactor` branch");
     expect(readme).not.toContain("当前实现会在启动时读取当前项目根目录的 `.env`");
     expect(readme).not.toContain("正式发布到 PyPI");
     expect(readme).not.toContain("pipx install");
@@ -253,6 +279,7 @@ describe("package metadata", () => {
 
   it("documents Wave 5 reference architecture decisions and removes stale provider defaults", async () => {
     const readme = await readText("README.md");
+    const englishReadme = await readText("README.en.md");
     const architectureBenchmark = await readText("docs/架构对标评估.md");
     const roadmap = await readText("docs/TS重构路线图.md");
     const parallelPlan = await readText("docs/并行推进计划.md");
@@ -269,11 +296,12 @@ describe("package metadata", () => {
       expect(text).toContain("拒绝 native installer");
     }
 
-    expect(readme).toContain("TokenDanceCode is not a hosted agent platform");
-    expect(readme).toContain("IDE plugin");
-    expect(readme).toContain("plugin marketplace");
-    expect(readme).toContain("native installer");
-    expect(readme).toContain("app-server daemon");
+    expect(readme).toContain("TokenDanceCode 聚焦本地 coding-agent runtime");
+    expect(readme).toContain("团队协作、多 Agent 编排和产品侧工作流由 AgentHub 承担");
+    expect(englishReadme).toContain("TokenDanceCode focuses on the local coding-agent runtime");
+    expect(englishReadme).toContain("AgentHub owns team workflows");
+    expect(englishReadme).toContain("Common Commands");
+    expect(englishReadme).toContain("Packages");
     expect(acceptance).toContain("未配置时默认是 `mock` provider、`mock` model 和 `default` permission mode");
     expect(acceptance).not.toContain("当前默认值应为 `openai`、`gpt-5.4`、`default`、`local`、`local`");
   });

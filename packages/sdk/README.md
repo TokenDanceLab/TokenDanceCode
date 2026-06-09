@@ -6,6 +6,8 @@ The SDK exposes `TokenDanceCode -> Thread -> run() / runStreamed() / context()` 
 
 ## Install
 
+The `next` tag may not be public while release review is in progress. Use workspace source or packed tarballs until `npm view @tokendance/code-sdk dist-tags --json` confirms registry visibility. After that:
+
 ```powershell
 pnpm add @tokendance/code-sdk@next
 ```
@@ -26,7 +28,7 @@ console.log(doctor.agentHub.ready, doctor.agentHub.warningChecks);
 console.log(turn.finalResponse);
 
 const config = await client.setConfig(
-  { provider: "openai-chat-completions", model: "deepseek-v4-pro", permissionMode: "safe" },
+  { provider: "openai-chat-completions", model: "<model-name>", permissionMode: "safe" },
   { projectRoot: process.cwd() }
 );
 console.log(config.config.provider, config.projectConfigPath);

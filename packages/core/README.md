@@ -2,7 +2,7 @@
 
 Core runtime package for TokenDanceCode.
 
-This package owns session state, runtime events, tool orchestration, permission decisions, transcript storage, memory/task helpers, worktree helpers, and provider adapters. It is published so the SDK and CLI can share the same runtime contract; most applications should consume `@tokendance/code-sdk` instead of importing core internals directly.
+This package owns session state, runtime events, tool orchestration, permission decisions, transcript storage, memory/task helpers, worktree helpers, and provider adapters. It is packaged so the SDK and CLI can share the same runtime contract; most applications should consume `@tokendance/code-sdk` instead of importing core internals directly.
 
 ## Provider Hardening
 
@@ -11,7 +11,7 @@ Core exposes provider adapters for OpenAI Responses, OpenAI Chat Completions / T
 | Provider | API key precedence | Base URL precedence |
 |---|---|---|
 | `openai-responses` | `OPENAI_API_KEY` | `OPENAI_BASE_URL`, default `https://api.openai.com/v1` |
-| `openai-chat-completions` with Gateway key | `TOKENDANCE_GATEWAY_API_KEY` | `TOKENDANCE_GATEWAY_BASE_URL`, default `https://api.vectorcontrol.tech/v1` |
+| `openai-chat-completions` with Gateway key | `TOKENDANCE_GATEWAY_API_KEY` | `TOKENDANCE_GATEWAY_BASE_URL` |
 | `openai-chat-completions` with OpenAI fallback key | `OPENAI_API_KEY` | `OPENAI_BASE_URL`, default `https://api.openai.com/v1` |
 | `anthropic-messages` | `ANTHROPIC_API_KEY` | `ANTHROPIC_BASE_URL`, default `https://api.anthropic.com` |
 
@@ -29,6 +29,8 @@ Provider HTTP failures and malformed successful payloads are normalized as `Prov
 `TOKENDANCE_ID_ACCESS_TOKEN`, OIDC ID tokens, and Hub session tokens are never accepted as Gateway model API keys. Gateway smoke requires a TokenDance API key on the model API plane.
 
 ## Install
+
+The `next` tag may not be public while release review is in progress. Use workspace source or packed tarballs until `npm view @tokendance/code-core dist-tags --json` confirms registry visibility. After that:
 
 ```powershell
 pnpm add @tokendance/code-core@next

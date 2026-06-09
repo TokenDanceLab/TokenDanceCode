@@ -16,6 +16,7 @@ type ToolSubjectGuard = Arc<
         + Sync,
 >;
 
+#[derive(Clone)]
 pub struct ToolDefinition {
     pub name: String,
     pub description: String,
@@ -132,6 +133,29 @@ impl ToolRegistry {
 
     pub fn list(&self) -> Vec<&ToolDefinition> {
         self.tools.values().collect()
+    }
+
+    /// Create a new registry containing only tools whose names are in the given set.
+    /// If `allowed` is empty, all tools are included (minus any in `excluded`).
+    /// If `allowed` is non-empty, only those tools are included (minus excluded).
+    pub fn filter_by_names(&self, allowed: &[String], excluded: &[String]) -> ToolRegistry {
+        let excluded_set: std::collections::HashSet<&str> =
+            excluded.iter().map(|s| s.as_str()).collect();
+        let tools = self
+            .tools
+            .iter()
+            .filter(|(name, _)| {
+                if excluded_set.contains(name.as_str()) {
+                    return false;
+                }
+                if allowed.is_empty() {
+                    return true;
+                }
+                allowed.iter().any(|a| a == *name)
+            })
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        ToolRegistry { tools }
     }
 
     pub fn metadata(&self) -> Vec<ToolMetadata> {
@@ -300,6 +324,32 @@ impl ToolRegistry {
                 error: Some(error.to_string()),
                 safety_evidence: None,
             }),
+        }
+    }
+
+    /// Register all tools from an MCP manager as Deferred tools.
+    /// Tool names are namespaced as "mcp__{server}__{tool}".
+    pub fn register_mcp_tools(&mut self, manager: &crate::mcp::McpManager) {
+        for (namespaced_name, tool_info) in manager.all_tools() {
+            let name = namespaced_name.clone();
+            let executor_name = name.clone();
+            let _ = self.register(
+                ToolDefinition::new(
+                    name,
+                    tool_info.description.clone().unwrap_or_default(),
+                    ToolRisk::Network,
+                    ToolConcurrency::Serial,
+                    move |input| {
+                        // Placeholder: actual MCP execution is handled by the runtime.
+                        Ok(serde_json::json!({
+                            "status": "mcp_call_needed",
+                            "tool": executor_name,
+                            "input": input,
+                        }))
+                    },
+                )
+                .with_exposure(ToolExposure::Deferred),
+            );
         }
     }
 }

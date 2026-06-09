@@ -101,6 +101,18 @@ impl<P: ModelProvider> Runtime<P> {
             last_uuid: position.last_uuid,
         }
     }
+
+    pub fn provider(&self) -> &P {
+        &self.provider
+    }
+
+    pub fn tools(&self) -> &ToolRegistry {
+        &self.tools
+    }
+
+    pub fn storage_root(&self) -> &std::path::Path {
+        self.store.root()
+    }
 }
 
 pub struct Thread<'a, P> {

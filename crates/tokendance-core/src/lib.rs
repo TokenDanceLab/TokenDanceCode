@@ -1,12 +1,15 @@
+pub mod compact;
 pub mod config;
 pub mod context;
 pub mod hooks;
+pub mod mcp;
 pub mod memory;
 pub mod permissions;
 pub mod provider;
 pub mod providers;
 pub mod runtime;
 pub mod streaming;
+pub mod subagent;
 pub mod tools;
 pub mod transcript;
 pub mod types;

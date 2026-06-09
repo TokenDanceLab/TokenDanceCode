@@ -27,12 +27,12 @@ await runner.run({
 });
 ```
 
-Use `createAgentHubTokenDanceE2EFixture()` when you need a copyable local fixture for tests or demos. It creates the runner, collects emitted `agent.stream` payloads, records remote approval requests, exposes runner `bootstrap()` output, and forwards TokenDanceID login callback helpers.
+Use `createAgentHubTokenDanceConsumerFixture()` when you need a copyable consumer-side chain for AgentHub tests or demos. It creates the runner, exposes startup manifest/doctor checks, forwards TokenDanceID login callback helpers, resumes or starts the supplied Hub session id, collects emitted `agent.stream` payloads, and records remote approval requests.
 
 ```ts
-import { createAgentHubTokenDanceE2EFixture } from "@tokendance/code-agenthub-example";
+import { createAgentHubTokenDanceConsumerFixture } from "@tokendance/code-agenthub-example";
 
-const fixture = createAgentHubTokenDanceE2EFixture({
+const fixture = createAgentHubTokenDanceConsumerFixture({
   storageRoot: ".tokendance-code",
   defaultRun: {
     workingDirectory: process.cwd(),
@@ -48,16 +48,18 @@ const fixture = createAgentHubTokenDanceE2EFixture({
   }
 });
 
-const startup = await fixture.bootstrap({ workingDirectory: process.cwd() });
-const login = fixture.createTokenDanceIdLogin({ state: "state-for-test" });
+const startup = await fixture.startup({ workingDirectory: process.cwd() });
+const login = fixture.login({ state: "state-for-test" });
 await fixture.run({ prompt: "write a status summary" });
 
 console.log(startup.packageInfo.agentHub.sdkContractVersion);
 console.log(startup.doctor.agentHub.ready);
 console.log(startup.doctor.agentHub.warningChecks);
 console.log(login.authorizationUrl);
-console.log(fixture.agentStream.map((event) => event.event_type));
-console.log(fixture.approvalRequests);
+console.log(fixture.events().map((event) => event.event_type));
+console.log(fixture.approvals());
 ```
 
 Production AgentHub code should copy the pattern and replace the fixture arrays with its own event bus, approval store, startup checks, and Hub-local TokenDanceID session exchange. Do not save TokenDanceID access or refresh tokens in this runner, and do not use TokenDanceID tokens as TokenDance Gateway model API keys.
+
+`createAgentHubTokenDanceE2EFixture()` remains available for tests that want direct mutable `agentStream` and `approvalRequests` arrays.

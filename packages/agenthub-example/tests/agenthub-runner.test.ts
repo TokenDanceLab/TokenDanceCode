@@ -3,7 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { AgentHubAgentStreamPayload, ModelProvider } from "@tokendance/code-sdk";
-import { createAgentHubTokenDanceE2EFixture, createAgentHubTokenDanceRunner } from "../src/index.js";
+import {
+  createAgentHubTokenDanceConsumerFixture,
+  createAgentHubTokenDanceE2EFixture,
+  createAgentHubTokenDanceRunner
+} from "../src/index.js";
 
 class WriteFileProvider implements ModelProvider {
   async createTurn(request: Parameters<ModelProvider["createTurn"]>[0]) {
@@ -23,6 +27,40 @@ class WriteFileProvider implements ModelProvider {
           input: { path: "runner-approved.txt", content: "approved through AgentHub runner" }
         }
       ]
+    };
+  }
+}
+
+class ConsumerFixtureProvider implements ModelProvider {
+  readonly seenMessages: string[][] = [];
+
+  async createTurn(request: Parameters<ModelProvider["createTurn"]>[0]) {
+    this.seenMessages.push(request.session.messages.map((message) => message.content));
+    const lastMessage = request.session.messages.at(-1)?.content ?? "";
+
+    if (request.toolResults.length > 0) {
+      const result = request.toolResults.at(-1);
+      return {
+        assistantMessage: `consumer write ${result?.ok ? "ok" : "failed"}`,
+        toolCalls: []
+      };
+    }
+
+    if (lastMessage.includes("write")) {
+      return {
+        toolCalls: [
+          {
+            id: "consumer-write-remote",
+            name: "write_file",
+            input: { path: "consumer-approved.txt", content: "approved through consumer fixture" }
+          }
+        ]
+      };
+    }
+
+    return {
+      assistantMessage: "consumer startup ok",
+      toolCalls: []
     };
   }
 }
@@ -414,6 +452,97 @@ describe("AgentHub TokenDanceCode runner example", () => {
       edge_run_id: "edge-fixture",
       session_id: "hub-session-fixture",
       agent_instance_id: "agent-fixture"
+    });
+  });
+
+  it("chains the AgentHub consumer fixture through startup, login, resume, events, and approvals", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-agenthub-consumer-fixture-"));
+    const provider = new ConsumerFixtureProvider();
+    let releaseRequest!: () => void;
+    const requestSeen = new Promise<void>((resolve) => {
+      releaseRequest = resolve;
+    });
+    const fixture = createAgentHubTokenDanceConsumerFixture({
+      storageRoot: root,
+      provider,
+      clock: () => "2026-06-09T00:00:00.000Z",
+      defaultRun: {
+        workingDirectory: root,
+        taskId: "task-consumer",
+        edgeRunId: "edge-consumer-1",
+        sessionId: "hub-session-consumer",
+        agentInstanceId: "agent-consumer"
+      },
+      defaultLogin: {
+        clientId: "agenthub-local",
+        redirectUri: "http://127.0.0.1:48731/callback",
+        deviceType: "desktop"
+      },
+      onApprovalRequest() {
+        releaseRequest();
+      }
+    });
+
+    const startup = await fixture.startup({ workingDirectory: root });
+    const login = fixture.login({
+      state: "consumer-state",
+      codeVerifier: "consumer-verifier",
+      deviceId: "00000000-0000-4000-8000-000000000003"
+    });
+    const callback = fixture.verifyLoginCallback("http://127.0.0.1:48731/callback?code=consumer-code&state=consumer-state", login);
+    const first = await fixture.run({ prompt: "first consumer turn", permissionMode: "default" });
+    const writePromise = fixture.run({
+      prompt: "write through consumer fixture",
+      edgeRunId: "edge-consumer-2",
+      permissionMode: "default"
+    });
+    await requestSeen;
+
+    expect(startup.packageInfo.agentHub.features).toContain("agenthub-consumer-fixture");
+    expect(startup.doctor.agentHub.ready).toBe(true);
+    expect(new URL(login.authorizationUrl).searchParams.get("device_id")).toBe("00000000-0000-4000-8000-000000000003");
+    expect(callback).toMatchObject({
+      code: "consumer-code",
+      codeVerifier: "consumer-verifier",
+      redirectUri: "http://127.0.0.1:48731/callback"
+    });
+    expect(first).toMatchObject({
+      threadId: "hub-session-consumer",
+      finalResponse: "consumer startup ok"
+    });
+    expect(provider.seenMessages[1]?.slice(1)).toEqual(["first consumer turn", "consumer startup ok", "write through consumer fixture"]);
+    expect(fixture.approvals()).toEqual([
+      expect.objectContaining({
+        requestId: "consumer-write-remote",
+        sessionId: "hub-session-consumer",
+        toolName: "write_file"
+      })
+    ]);
+    expect(fixture.pendingApprovals()).toEqual([expect.objectContaining({ requestId: "consumer-write-remote" })]);
+    await expect(readFile(join(root, "consumer-approved.txt"), "utf8")).rejects.toThrow();
+
+    expect(fixture.decideApproval("consumer-write-remote", "allow", "approved by AgentHub consumer")).toBe(true);
+    const write = await writePromise;
+
+    expect(write.finalResponse).toBe("consumer write ok");
+    await expect(readFile(join(root, "consumer-approved.txt"), "utf8")).resolves.toBe("approved through consumer fixture");
+    expect(fixture.events().map((frame) => frame.event_type)).toEqual([
+      "run.agent.text_delta",
+      "run.agent.text_block",
+      "run.agent.result",
+      "run.agent.tool_call",
+      "run.agent.permission_requested",
+      "run.agent.permission_decided",
+      "run.agent.tool_result",
+      "run.agent.text_delta",
+      "run.agent.text_block",
+      "run.agent.result"
+    ]);
+    expect(fixture.events().at(-1)).toMatchObject({
+      task_id: "task-consumer",
+      edge_run_id: "edge-consumer-2",
+      session_id: "hub-session-consumer",
+      agent_instance_id: "agent-consumer"
     });
   });
 

@@ -36,20 +36,6 @@ Planned public packages:
 
 `@tokendance/code-agenthub-example` remains a private workspace example package.
 
-## Common Commands
-
-```powershell
-tokendance
-tokendance run "summarize this repo"
-tokendance doctor --json
-tokendance config validate --json
-tokendance gateway init --model <model-name>
-tokendance auth tokendanceid login-url --client-id agenthub-local --redirect-uri http://127.0.0.1:48731/callback --json
-tokendance sessions
-tokendance transcript search "needle"
-tokendance quality "pnpm verify"
-```
-
 ## Quick Start
 
 ```powershell
@@ -65,6 +51,20 @@ node packages/cli/dist/main.js run "hello"
 ```
 
 Without API keys, the CLI uses MockProvider. That is enough for install checks, SDK smoke tests, transcripts, and package smoke tests.
+
+## Common Commands
+
+```powershell
+tokendance
+tokendance run "summarize this repo"
+tokendance doctor --json
+tokendance config validate --json
+tokendance gateway init --model <model-name>
+tokendance auth tokendanceid login-url --client-id agenthub-local --redirect-uri http://127.0.0.1:48731/callback --json
+tokendance sessions
+tokendance transcript search "needle"
+tokendance quality "pnpm verify"
+```
 
 ## Provider Boundary
 

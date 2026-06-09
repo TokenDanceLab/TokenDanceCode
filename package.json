@@ -21,6 +21,7 @@
     "contract:check": "node scripts/check-release-contract.mjs",
     "wave4:status": "node scripts/verify-wave4-worktrees.mjs",
     "wave5:status": "node scripts/verify-wave5-worktrees.mjs",
+    "wave7:status": "node scripts/verify-wave7-worktrees.mjs",
     "pack:check": "pnpm build && pnpm pack:dry-run && pnpm pack:smoke",
     "release:next:check": "pnpm contract:check && pnpm verify && pnpm pack:check"
   },

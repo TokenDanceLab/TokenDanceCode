@@ -44,10 +44,10 @@ Do not describe TokenDanceCode as:
 - `README.md` is the public entry point: positioning, install, model configuration, commands, project structure, current maturity, and docs map.
 - `docs/产品功能需求文档.md` owns product requirements and non-goals.
 - `docs/架构设计文档.md` owns runtime boundaries and data flow.
-- `docs/开发流程文档.md` owns implementation phases.
+- `docs/开发流程文档.md` owns the current TypeScript development loop.
 - `docs/端到端验收清单.md` owns manual acceptance checks.
-- `docs/并行推进计划.md` owns active multi-agent workstream planning and the next candidate queue.
-- `docs/并行执行状态.md` owns merge evidence, focused test evidence, and current release-gate evidence.
+- `docs/并行推进计划.md` owns maintainer workstream planning and the next candidate queue.
+- `docs/并行执行状态.md` is a public progress log with user-visible changes, merge commits, and verification summaries. Do not add agent IDs, private paths, token-bearing commands, or local operator runbooks.
 - If behavior changes, update the smallest complete set of README plus the owning docs in the same pass.
 
 ## Current Development Baseline

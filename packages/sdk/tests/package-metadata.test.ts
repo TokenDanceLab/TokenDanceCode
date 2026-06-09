@@ -23,6 +23,7 @@ describe("package metadata", () => {
     expect(rootPackage.scripts?.["registry:next:check"]).toBe("node scripts/check-registry-next.mjs");
     expect(rootPackage.scripts?.["wave4:status"]).toBe("node scripts/verify-wave4-worktrees.mjs");
     expect(rootPackage.scripts?.["wave5:status"]).toBe("node scripts/verify-wave5-worktrees.mjs");
+    expect(rootPackage.scripts?.["wave7:status"]).toBe("node scripts/verify-wave7-worktrees.mjs");
     expect(rootPackage.scripts?.["pack:check"]).toBe([
       "pnpm build",
       "pnpm pack:dry-run",
@@ -119,6 +120,17 @@ describe("package metadata", () => {
     expect(wave5Script).toContain("codex/wave5-session-subagent");
     expect(wave5Script).toContain("0f631f3");
     expect(wave5Script).toContain("merge-base");
+
+    const wave7Script = await readText("scripts/verify-wave7-worktrees.mjs");
+    expect(wave7Script).toContain("codex/wave7-cli-approval");
+    expect(wave7Script).toContain("codex/wave7-run-json");
+    expect(wave7Script).toContain("codex/wave7-permission-subjects");
+    expect(wave7Script).toContain("codex/wave7-context-budget");
+    expect(wave7Script).toContain("codex/wave7-runtime-hooks");
+    expect(wave7Script).toContain("codex/wave7-session-concurrency");
+    expect(wave7Script).toContain("34e93cc");
+    expect(wave7Script).toContain("merge-base");
+    expect(wave7Script).toContain("strictClean");
 
     const publicPackages = [
       { directory: "packages/core", packageJson: await readJson("packages/core/package.json") },
@@ -280,6 +292,8 @@ describe("package metadata", () => {
     expect(releaseReadiness).toContain("npm publish \"<tarballPath>\" --access public --tag next");
     expect(releaseReadiness).toContain("Do not run `npm publish` from package source directories");
     expect(releaseReadiness).not.toContain("Run it from each package directory");
+    expect(releaseReadiness).not.toContain("--userconfig");
+    expect(releaseReadiness).not.toContain(".config/tokendance/gateway-smoke.env");
 
     for (const text of packageReadmes) {
       expect(text).toContain("pnpm contract:check");
@@ -349,6 +363,40 @@ describe("package metadata", () => {
     expect(englishReadme).toContain("Packages");
     expect(acceptance).toContain("未配置时默认是 `mock` provider、`mock` model 和 `default` permission mode");
     expect(acceptance).not.toContain("当前默认值应为 `openai`、`gpt-5.4`、`default`、`local`、`local`");
+  });
+
+  it("keeps public docs free of internal coordination and stale Python planning", async () => {
+    const agents = await readText("AGENTS.md");
+    const development = await readText("docs/开发流程文档.md");
+    const parallelPlan = await readText("docs/并行推进计划.md");
+    const parallelStatus = await readText("docs/并行执行状态.md");
+    const releaseReadiness = await readText("docs/release-readiness.md");
+    const englishReadme = await readText("README.en.md");
+
+    expect(development).toContain("当前 TypeScript monorepo 的开发循环");
+    expect(development).toContain("Do not extend it when adding TypeScript behavior");
+    expect(development).not.toContain("Python 项目结构");
+    expect(development).not.toContain("pyproject.toml");
+    expect(development).not.toContain("pipx install");
+    expect(development).not.toContain("python -m unittest");
+
+    expect(parallelPlan).toContain("Wave 7 Candidate Queue");
+    expect(parallelPlan).toContain("Wave 7 建议合并顺序");
+    expect(parallelPlan).not.toContain("GPT-5.5 High Agent Prompts");
+    expect(parallelPlan).not.toContain("You are working in the assigned TokenDanceCode worktree only");
+    expect(parallelPlan).not.toContain("五个 subagent");
+    expect(parallelPlan).not.toContain("Wave 3: `W14 -> W15");
+
+    for (const text of [agents, parallelPlan, parallelStatus, releaseReadiness]) {
+      expect(text).not.toMatch(/019e[a-f0-9-]{20,}/);
+      expect(text).not.toContain("Agent ID");
+      expect(text).not.toContain("--userconfig");
+      expect(text).not.toContain(".config/tokendance/gateway-smoke.env");
+      expect(text).not.toContain("D:/Code/TokenDance/TokenDanceCode");
+      expect(text).not.toContain("D:\\Code\\TokenDance\\TokenDanceCode");
+    }
+
+    expect(englishReadme.indexOf("## Quick Start")).toBeLessThan(englishReadme.indexOf("## Common Commands"));
   });
 
   it("keeps active acceptance docs aligned with TS release and AgentHub v2 contracts", async () => {

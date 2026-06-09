@@ -127,6 +127,20 @@ Provider key/base URL 优先级按协议隔离：
 
 Provider HTTP 失败会统一抛出 `ProviderApiError`，包含 `provider`、`protocol`、`status`、可用的 upstream `type/code` 和不含密钥的诊断 message。非 JSON 错误响应会归一化为同一异常类型。
 
+真实 provider / TokenDance Gateway smoke 是显式 opt-in：默认测试只跑 mock fetch、配置预检和 skip gate，不读取项目根目录 `.env`，也不会使用真实 key。需要真实模型 smoke 时，只在受控 PowerShell 会话或全局 `~/.tokendance/.env` 设置：
+
+```powershell
+$env:TOKENDANCE_RUN_REAL_PROVIDER_SMOKE = "1"
+$env:OPENAI_API_KEY = "your-api-key"
+$env:TOKENDANCE_OPENAI_RESPONSES_TEST_MODEL = "gpt-5.4"
+$env:TOKENDANCE_GATEWAY_API_KEY = "your-tokenDance-api-key"
+$env:TOKENDANCE_OPENAI_CHAT_TEST_MODEL = "deepseek-v4-pro"
+$env:ANTHROPIC_API_KEY = "your-api-key"
+$env:TOKENDANCE_ANTHROPIC_TEST_MODEL = "claude-sonnet-4-6"
+```
+
+`preflightProviderSmoke()` / `shouldRunProviderIntegration()` 只返回 `ready` 或 `skip`、缺失的 env 名和不含 secret 的提示。TokenDance Gateway smoke 使用 `TOKENDANCE_GATEWAY_API_KEY` 或 OpenAI fallback key；TokenDanceID/OIDC access token 和 Hub session token 仍属于身份会话平面，不是模型 API key。
+
 配置可以放在以下位置：
 
 - 当前 PowerShell 会话环境变量。
@@ -552,7 +566,7 @@ AgentHub 只应把 `@tokendance/code-sdk` 当作稳定消费入口。Hub/Edge/De
 
 | 风险 | 当前状态 | 发布前处理 |
 |---|---|---|
-| 真实 provider 环境未配置 | MockProvider 和 provider readiness 覆盖本地验证，真实模型集成测试默认跳过 | release owner 只在需要真实模型 smoke 时显式配置环境变量，不把 key 写入仓库 |
+| 真实 provider 环境未配置 | MockProvider、provider readiness 和 real-smoke preflight 覆盖本地验证，真实模型 smoke 默认跳过 | release owner 只在需要真实模型 smoke 时显式配置 `TOKENDANCE_RUN_REAL_PROVIDER_SMOKE=1`、API key 和测试模型 env，不把 key 写入仓库或项目 `.env` |
 | npm 账号和 dist-tag 状态不可由 CI 证明 | 本地检查不触碰 npm registry 写操作 | Manual approval gate 后由 release owner 逐包确认 npm login、2FA 和 `next` tag |
 | AgentHub 生产接入仍需产品侧验证 | SDK contract、event sink、approval bridge 和私有 example 已测试 | AgentHub 合并时复用 SDK 边界，并用 Hub 自己的 event bus、approval store 和 session 生命周期替换样例数组 |
 | Python v0.1 参考实现仍保留 | TS 分支不再扩展旧 Python runtime | 后续迁移时继续用路线图和验收清单清理旧验收项 |
@@ -577,7 +591,7 @@ tokendance doctor
 - `glob` 工具默认排除 `.git`、`.tokendance`、虚拟环境、缓存目录、build/dist、`node_modules` 和 `.env`。
 - CLI 通过 runtime event 渲染工具开始、权限决策、工具完成耗时、失败原因、成功结果摘要和 assistant 文本；结构化 permission reason 会压缩成 `risk/action/mode/tool` 元数据和可读详情。测试默认保持纯文本，设置 `FORCE_COLOR=1` 时 renderer 会对工具、权限状态、工具风险、失败状态和 usage 数字使用 ANSI 高亮，usage 行同时显示 input/output/total token 数。
 - CLI 帮助按 Core、Session、Work、Diagnostics、Gateway 分组；交互式 `/status`、`/config`、`/doctor` 使用小节输出，便于扫描但仍保持薄 CLI。
-- 真实模型集成测试默认跳过，需要显式配置相关环境变量后才会运行。
+- 真实模型 smoke 默认跳过，需要显式设置 `TOKENDANCE_RUN_REAL_PROVIDER_SMOKE=1`、对应 API key 和测试模型 env 后才会运行；默认测试不读取项目根目录 `.env`。
 - AgentHub 集成应使用 SDK 的 `approvalCallback` / `createAgentHubApprovalBridge()` 和 `eventSink`，不要直接调用 core runtime 内部类。
 - `doctor` 只输出 API key 是否存在，不输出 secret 值；配置输出也只展示白名单字段、路径和 provider readiness。真实 provider 未 ready 会作为 startup warning 暴露给 AgentHub，不会让 Hub `ok` 变成 `false`。
 

@@ -17,13 +17,16 @@ Core exposes provider adapters for OpenAI Responses, OpenAI Chat Completions / T
 
 Do not mix TokenDance Gateway base URLs with OpenAI fallback keys or OpenAI base URLs with TokenDance Gateway keys. TokenDance Gateway model calls use a TokenDance API key; TokenDanceID/OIDC tokens belong to the identity/session plane and must not be passed as model API keys.
 
-Provider HTTP failures and malformed successful payloads are normalized as `ProviderApiError` without secret values. Unit tests use mocked `fetch` implementations only. Any live provider integration must stay skipped unless `TOKENDANCE_RUN_MODEL_INTEGRATION=1`, the matching API key, and the matching test model env are all present:
+Provider HTTP failures and malformed successful payloads are normalized as `ProviderApiError` without secret values. Unit tests use mocked `fetch` implementations only. Core exposes `preflightProviderSmoke()` for real provider smoke checks; it only reads the supplied env object or process env, never project `.env`, and returns `ready` or `skip` with missing env names instead of secret values. Any live provider smoke must stay skipped unless `TOKENDANCE_RUN_REAL_PROVIDER_SMOKE=1`, the matching API key, and the matching test model env are all present:
 
-| Provider | Test model env |
-|---|---|
-| `openai-responses` | `TOKENDANCE_OPENAI_RESPONSES_TEST_MODEL` |
-| `openai-chat-completions` | `TOKENDANCE_OPENAI_CHAT_TEST_MODEL` |
-| `anthropic-messages` | `TOKENDANCE_ANTHROPIC_TEST_MODEL` |
+| Provider | Required API key env | Test model env |
+|---|---|---|
+| `openai-responses` | `OPENAI_API_KEY` | `TOKENDANCE_OPENAI_RESPONSES_TEST_MODEL` |
+| `openai-chat-completions` with Gateway key | `TOKENDANCE_GATEWAY_API_KEY` | `TOKENDANCE_OPENAI_CHAT_TEST_MODEL` |
+| `openai-chat-completions` with OpenAI fallback key | `OPENAI_API_KEY` | `TOKENDANCE_OPENAI_CHAT_TEST_MODEL` |
+| `anthropic-messages` | `ANTHROPIC_API_KEY` | `TOKENDANCE_ANTHROPIC_TEST_MODEL` |
+
+`TOKENDANCE_ID_ACCESS_TOKEN`, OIDC ID tokens, and Hub session tokens are never accepted as Gateway model API keys. Gateway smoke requires a TokenDance API key on the model API plane.
 
 ## Install
 

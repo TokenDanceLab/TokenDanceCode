@@ -2,7 +2,14 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { readTokenDanceConfig, resolveProviderRuntimeEnv, shouldRunProviderIntegration, validateProviderConfig, writeTokenDanceConfig } from "../src/index.js";
+import {
+  preflightProviderSmoke,
+  readTokenDanceConfig,
+  resolveProviderRuntimeEnv,
+  shouldRunProviderIntegration,
+  validateProviderConfig,
+  writeTokenDanceConfig
+} from "../src/index.js";
 
 describe("TokenDance config", () => {
   it("merges defaults, global config, and project config without secrets", async () => {
@@ -172,22 +179,84 @@ describe("TokenDance config", () => {
   it("requires explicit integration-test gates for each real provider protocol", () => {
     expect(shouldRunProviderIntegration("openai-responses", {})).toEqual({
       enabled: false,
-      missing: ["TOKENDANCE_RUN_MODEL_INTEGRATION=1", "OPENAI_API_KEY", "TOKENDANCE_OPENAI_RESPONSES_TEST_MODEL"]
+      missing: ["TOKENDANCE_RUN_REAL_PROVIDER_SMOKE=1", "OPENAI_API_KEY", "TOKENDANCE_OPENAI_RESPONSES_TEST_MODEL"]
     });
     expect(
       shouldRunProviderIntegration("openai-chat-completions", {
-        TOKENDANCE_RUN_MODEL_INTEGRATION: "1",
+        TOKENDANCE_RUN_REAL_PROVIDER_SMOKE: "1",
         TOKENDANCE_GATEWAY_API_KEY: "gateway-secret",
         TOKENDANCE_OPENAI_CHAT_TEST_MODEL: "deepseek-v4-pro"
       })
     ).toEqual({ enabled: true, missing: [] });
     expect(
       shouldRunProviderIntegration("anthropic-messages", {
-        TOKENDANCE_RUN_MODEL_INTEGRATION: "1",
+        TOKENDANCE_RUN_REAL_PROVIDER_SMOKE: "1",
         ANTHROPIC_API_KEY: "anthropic-secret",
         TOKENDANCE_ANTHROPIC_TEST_MODEL: "claude-test"
       })
     ).toEqual({ enabled: true, missing: [] });
+  });
+
+  it("preflights real provider smoke without reading project .env or exposing secrets", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-config-"));
+    await writeFile(join(root, ".env"), "OPENAI_API_KEY=project-env-secret\nMODEL_ID=gpt-from-project-env\n", "utf8");
+
+    const info = await readTokenDanceConfig({ projectRoot: root, homeDir: join(root, "home") });
+    const preflight = preflightProviderSmoke("openai-responses", {});
+
+    expect(info.config).toEqual({ provider: "mock", model: "mock", permissionMode: "default" });
+    expect(info.sources.map((source) => source.kind)).toEqual(["defaults"]);
+    expect(preflight).toMatchObject({
+      provider: "openai-responses",
+      status: "skip",
+      enabled: false,
+      missing: ["TOKENDANCE_RUN_REAL_PROVIDER_SMOKE=1", "OPENAI_API_KEY", "TOKENDANCE_OPENAI_RESPONSES_TEST_MODEL"],
+      requiredApiKeyEnvs: ["OPENAI_API_KEY"],
+      modelEnv: "TOKENDANCE_OPENAI_RESPONSES_TEST_MODEL"
+    });
+    expect(preflight.message).toContain("Skipping openai-responses real provider smoke");
+    expect(JSON.stringify(preflight)).not.toContain("project-env-secret");
+  });
+
+  it("keeps TokenDance Gateway smoke on the model API key plane", () => {
+    const preflight = preflightProviderSmoke("openai-chat-completions", {
+      TOKENDANCE_RUN_REAL_PROVIDER_SMOKE: "1",
+      TOKENDANCE_ID_ACCESS_TOKEN: "oidc-token-must-not-work",
+      TOKENDANCE_OPENAI_CHAT_TEST_MODEL: "deepseek-v4-pro"
+    });
+
+    expect(preflight).toMatchObject({
+      provider: "openai-chat-completions",
+      status: "skip",
+      enabled: false,
+      missing: ["TOKENDANCE_GATEWAY_API_KEY or OPENAI_API_KEY"],
+      requiredApiKeyEnvs: ["TOKENDANCE_GATEWAY_API_KEY", "OPENAI_API_KEY"],
+      modelEnv: "TOKENDANCE_OPENAI_CHAT_TEST_MODEL"
+    });
+    expect(preflight.message).toContain("TokenDance Gateway smoke requires a TokenDance API key, not a TokenDanceID/OIDC token");
+    expect(JSON.stringify(preflight)).not.toContain("oidc-token-must-not-work");
+  });
+
+  it("preflights a ready TokenDance Gateway smoke configuration without network calls", () => {
+    expect(
+      preflightProviderSmoke("openai-chat-completions", {
+        TOKENDANCE_RUN_REAL_PROVIDER_SMOKE: "1",
+        TOKENDANCE_GATEWAY_API_KEY: "gateway-secret",
+        TOKENDANCE_OPENAI_CHAT_TEST_MODEL: "deepseek-v4-pro"
+      })
+    ).toEqual({
+      provider: "openai-chat-completions",
+      status: "ready",
+      enabled: true,
+      missing: [],
+      message: "TokenDance Gateway smoke is explicitly enabled for openai-chat-completions using TOKENDANCE_GATEWAY_API_KEY and TOKENDANCE_OPENAI_CHAT_TEST_MODEL.",
+      requiredApiKeyEnvs: ["TOKENDANCE_GATEWAY_API_KEY", "OPENAI_API_KEY"],
+      apiKeyEnv: "TOKENDANCE_GATEWAY_API_KEY",
+      baseUrlEnv: undefined,
+      baseUrl: "https://api.vectorcontrol.tech/v1",
+      modelEnv: "TOKENDANCE_OPENAI_CHAT_TEST_MODEL",
+      model: "deepseek-v4-pro"
+    });
   });
 
   it("validates provider readiness without exposing secrets", () => {

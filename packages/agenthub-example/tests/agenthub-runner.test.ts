@@ -764,6 +764,56 @@ describe("AgentHub TokenDanceCode runner example", () => {
     await expect(readTranscriptSeqs(root, "hub-session-storage-root-variant")).resolves.toEqual([1, 2, 3, 4]);
   });
 
+  it("keeps the same-session rejection stable when the terminal frame emitter fails", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-agenthub-same-session-emitter-failure-"));
+    const provider = new SameSessionConcurrencyProvider();
+    const runner = createAgentHubTokenDanceRunner({
+      storageRoot: root,
+      provider,
+      emitAgentStream(payload) {
+        if (payload.edge_run_id === "edge-emitter-failure-second") {
+          throw new Error("hub emitter unavailable");
+        }
+      },
+      clock: () => "2026-06-09T00:00:00.000Z"
+    });
+
+    const firstRun = runner.run({
+      prompt: "first emitter failure turn",
+      workingDirectory: root,
+      permissionMode: "default",
+      taskId: "task-emitter-failure-first",
+      edgeRunId: "edge-emitter-failure-first",
+      sessionId: "hub-session-emitter-failure",
+      agentInstanceId: "agent-emitter-failure"
+    });
+    await provider.firstProviderEntered.promise;
+
+    await expect(
+      runner.run({
+        prompt: "second emitter failure turn",
+        workingDirectory: root,
+        permissionMode: "default",
+        taskId: "task-emitter-failure-second",
+        edgeRunId: "edge-emitter-failure-second",
+        sessionId: "hub-session-emitter-failure",
+        agentInstanceId: "agent-emitter-failure"
+      })
+    ).rejects.toMatchObject({
+      name: "AgentHubSessionRunInProgressError",
+      code: "AGENTHUB_SESSION_RUN_IN_PROGRESS",
+      edgeRunId: "edge-emitter-failure-second",
+      activeEdgeRunId: "edge-emitter-failure-first"
+    });
+    expect(provider.prompts).toEqual(["first emitter failure turn"]);
+
+    provider.releaseFirstTurn.resolve();
+    await expect(firstRun).resolves.toMatchObject({
+      threadId: "hub-session-emitter-failure",
+      finalResponse: "first same-session run completed"
+    });
+  });
+
   it("provides a copyable AgentHub e2e fixture for startup, login, events, and approvals", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-agenthub-fixture-"));
     let releaseRequest!: () => void;

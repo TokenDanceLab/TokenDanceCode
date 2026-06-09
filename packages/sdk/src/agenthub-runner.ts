@@ -241,7 +241,11 @@ export function createAgentHubTokenDanceRunner(options: AgentHubTokenDanceRunner
       const activeRun = activeRunsBySession.get(sessionRunKey);
       if (activeRun) {
         const error = new AgentHubSessionRunInProgressError(runOptions, activeRun);
-        await emitAgentStream(toSameSessionRunRejectedRuntimeEvent(runOptions, error));
+        try {
+          await emitAgentStream(toSameSessionRunRejectedRuntimeEvent(runOptions, error));
+        } catch {
+          // Keep the caller-facing rejection stable even if Hub event delivery fails.
+        }
         throw error;
       }
 

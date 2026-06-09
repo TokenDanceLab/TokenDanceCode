@@ -435,6 +435,26 @@ describe("AgentHub TokenDanceCode runner example", () => {
     );
   });
 
+  it("bootstraps package metadata and AgentHub readiness through the runner", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-agenthub-bootstrap-"));
+    const runner = createAgentHubTokenDanceRunner({
+      storageRoot: root,
+      emitAgentStream() {}
+    });
+
+    const startup = await runner.bootstrap({ workingDirectory: root });
+
+    expect(startup.packageInfo.agentHub.sdkContractVersion).toBe("agenthub-sdk.v1");
+    expect(startup.doctor.cwd).toBe(root);
+    expect(startup.doctor.agentHub).toMatchObject({
+      contractVersion: "agenthub-sdk.v1",
+      agentStreamSchemaVersion: 1,
+      ready: true,
+      blockingChecks: []
+    });
+    expect(startup.doctor.agentHub.features).toEqual(startup.packageInfo.agentHub.features);
+  });
+
   it("exposes package metadata and doctor diagnostics for AgentHub startup checks", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-agenthub-example-"));
     const runner = createAgentHubTokenDanceRunner({

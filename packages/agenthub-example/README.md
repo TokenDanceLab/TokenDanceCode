@@ -27,7 +27,7 @@ await runner.run({
 });
 ```
 
-Use `createAgentHubTokenDanceE2EFixture()` when you need a copyable local fixture for tests or demos. It creates the runner, collects emitted `agent.stream` payloads, records remote approval requests, exposes `packageInfo` plus `doctor`, and forwards TokenDanceID login callback helpers.
+Use `createAgentHubTokenDanceE2EFixture()` when you need a copyable local fixture for tests or demos. It creates the runner, collects emitted `agent.stream` payloads, records remote approval requests, exposes runner `bootstrap()` output, and forwards TokenDanceID login callback helpers.
 
 ```ts
 import { createAgentHubTokenDanceE2EFixture } from "@tokendance/code-agenthub-example";
@@ -53,7 +53,8 @@ const login = fixture.createTokenDanceIdLogin({ state: "state-for-test" });
 await fixture.run({ prompt: "write a status summary" });
 
 console.log(startup.packageInfo.agentHub.sdkContractVersion);
-console.log(startup.doctor.startup.hub.ok);
+console.log(startup.doctor.agentHub.ready);
+console.log(startup.doctor.agentHub.warningChecks);
 console.log(login.authorizationUrl);
 console.log(fixture.agentStream.map((event) => event.event_type));
 console.log(fixture.approvalRequests);

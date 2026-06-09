@@ -81,6 +81,8 @@ describe("package metadata", () => {
           "runner-options",
           "event-envelope",
           "startup-doctor",
+          "doctor-readiness",
+          "runner-bootstrap",
           "session-resume",
           "context-preview",
           "remote-approval",

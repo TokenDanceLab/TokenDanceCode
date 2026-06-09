@@ -601,6 +601,27 @@ describe("TokenDanceCode SDK", () => {
     expect(JSON.stringify(ready)).not.toContain("gateway-secret");
   });
 
+  it("summarizes AgentHub readiness from doctor startup checks", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-doctor-readiness-"));
+    await mkdir(join(root, ".tokendance"), { recursive: true });
+    await writeFile(
+      join(root, ".tokendance", "config.json"),
+      JSON.stringify({ provider: "openai-chat-completions", model: "deepseek-v4-pro", permissionMode: "safe" }),
+      "utf8"
+    );
+
+    const doctor = await new TokenDanceCode().doctor({ projectRoot: root });
+
+    expect(doctor.agentHub).toMatchObject({
+      contractVersion: "agenthub-sdk.v1",
+      agentStreamSchemaVersion: 1,
+      ready: true,
+      blockingChecks: []
+    });
+    expect(doctor.agentHub.features).toEqual(TOKEN_DANCE_CODE_PACKAGE.agentHub.features);
+    expect(doctor.agentHub.warningChecks).toContain("hub.provider-ready");
+  });
+
   it("exposes AgentHub contract metadata and startup checks without secrets", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-startup-"));
     const client = new TokenDanceCode({

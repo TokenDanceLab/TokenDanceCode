@@ -48,6 +48,7 @@ export interface DoctorInfo {
     hub: StartupCheckGroup;
     edge: StartupCheckGroup;
   };
+  agentHub: AgentHubDoctorReadiness;
 }
 
 export type StartupCheckStatus = "pass" | "warn" | "fail";
@@ -61,6 +62,15 @@ export interface StartupCheck {
 export interface StartupCheckGroup {
   ok: boolean;
   checks: StartupCheck[];
+}
+
+export interface AgentHubDoctorReadiness {
+  contractVersion: typeof TOKEN_DANCE_CODE_PACKAGE.agentHub.sdkContractVersion;
+  agentStreamSchemaVersion: typeof TOKEN_DANCE_CODE_PACKAGE.agentHub.agentStreamSchemaVersion;
+  features: typeof TOKEN_DANCE_CODE_PACKAGE.agentHub.features;
+  ready: boolean;
+  blockingChecks: string[];
+  warningChecks: string[];
 }
 
 export async function collectDoctorInfo(options: DoctorOptions): Promise<DoctorInfo> {
@@ -109,7 +119,8 @@ export async function collectDoctorInfo(options: DoctorOptions): Promise<DoctorI
       path: stateDir,
       writable: stateWritable
     },
-    startup
+    startup,
+    agentHub: agentHubReadiness(startup)
   };
 }
 
@@ -201,4 +212,22 @@ function providerReadyMessage(validation: ProviderConfigValidation): string {
     return `provider ${validation.provider} is ready`;
   }
   return `provider ${validation.provider} missing ${validation.missing.join(", ")}`;
+}
+
+function agentHubReadiness(startup: DoctorInfo["startup"]): AgentHubDoctorReadiness {
+  return {
+    contractVersion: TOKEN_DANCE_CODE_PACKAGE.agentHub.sdkContractVersion,
+    agentStreamSchemaVersion: TOKEN_DANCE_CODE_PACKAGE.agentHub.agentStreamSchemaVersion,
+    features: TOKEN_DANCE_CODE_PACKAGE.agentHub.features,
+    ready: startup.hub.ok && startup.edge.ok,
+    blockingChecks: collectStartupChecks(startup, "fail"),
+    warningChecks: collectStartupChecks(startup, "warn")
+  };
+}
+
+function collectStartupChecks(startup: DoctorInfo["startup"], status: StartupCheckStatus): string[] {
+  return [
+    ...startup.hub.checks.filter((check) => check.status === status).map((check) => `hub.${check.name}`),
+    ...startup.edge.checks.filter((check) => check.status === status).map((check) => `edge.${check.name}`)
+  ];
 }

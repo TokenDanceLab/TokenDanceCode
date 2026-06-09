@@ -98,6 +98,7 @@ describe("package metadata", () => {
           "startup-doctor",
           "doctor-readiness",
           "runner-bootstrap",
+          "agenthub-consumer-fixture",
           "session-resume",
           "context-preview",
           "remote-approval",

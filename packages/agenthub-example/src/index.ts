@@ -97,6 +97,8 @@ export interface AgentHubTokenDanceE2EFixtureOptions extends Omit<AgentHubTokenD
   onApprovalRequest?: (request: AgentHubApprovalRequest) => void | Promise<void>;
 }
 
+export type AgentHubTokenDanceConsumerFixtureOptions = AgentHubTokenDanceE2EFixtureOptions;
+
 export interface AgentHubTokenDanceBootstrapResult {
   packageInfo: TokenDanceCodePackageInfo;
   doctor: DoctorInfo;
@@ -111,6 +113,19 @@ export interface AgentHubTokenDanceE2EFixture {
   context(options: AgentHubTokenDanceFixtureContextOptions): Promise<ThreadContext>;
   createTokenDanceIdLogin(options?: Partial<AgentHubTokenDanceIdLoginOptions>): TokenDanceIdLoginRequest;
   verifyTokenDanceIdCallback(callbackUrl: string | URL | URLSearchParams, request: TokenDanceIdLoginRequest): TokenDanceIdCallbackResult;
+  decideApproval(requestId: string, decision: AgentHubApprovalDecision, reason?: string): boolean;
+  pendingApprovals(): AgentHubApprovalRequest[];
+}
+
+export interface AgentHubTokenDanceConsumerFixture {
+  runner: AgentHubTokenDanceRunner;
+  startup(options?: AgentHubTokenDanceDoctorOptions): Promise<AgentHubTokenDanceBootstrapResult>;
+  login(options?: Partial<AgentHubTokenDanceIdLoginOptions>): TokenDanceIdLoginRequest;
+  verifyLoginCallback(callbackUrl: string | URL | URLSearchParams, request: TokenDanceIdLoginRequest): TokenDanceIdCallbackResult;
+  run(options: AgentHubTokenDanceFixtureRunOptions): Promise<TurnResult>;
+  context(options: AgentHubTokenDanceFixtureContextOptions): Promise<ThreadContext>;
+  events(): AgentHubAgentStreamPayload[];
+  approvals(): AgentHubApprovalRequest[];
   decideApproval(requestId: string, decision: AgentHubApprovalDecision, reason?: string): boolean;
   pendingApprovals(): AgentHubApprovalRequest[];
 }
@@ -283,6 +298,27 @@ export function createAgentHubTokenDanceE2EFixture(options: AgentHubTokenDanceE2
     pendingApprovals() {
       return runner.pendingApprovals();
     }
+  };
+}
+
+export function createAgentHubTokenDanceConsumerFixture(options: AgentHubTokenDanceConsumerFixtureOptions): AgentHubTokenDanceConsumerFixture {
+  const fixture = createAgentHubTokenDanceE2EFixture(options);
+
+  return {
+    runner: fixture.runner,
+    startup: fixture.bootstrap,
+    login: fixture.createTokenDanceIdLogin,
+    verifyLoginCallback: fixture.verifyTokenDanceIdCallback,
+    run: fixture.run,
+    context: fixture.context,
+    events() {
+      return [...fixture.agentStream];
+    },
+    approvals() {
+      return [...fixture.approvalRequests];
+    },
+    decideApproval: fixture.decideApproval,
+    pendingApprovals: fixture.pendingApprovals
   };
 }
 

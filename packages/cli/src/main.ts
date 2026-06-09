@@ -10,6 +10,7 @@ import {
   type MemoryScope,
   type PermissionMode,
   type Thread,
+  type ThreadContext,
   type TokenDanceTools,
   type TranscriptInfo,
   type TranscriptSearchResult
@@ -90,6 +91,10 @@ export async function runCli(argv: string[], io: CliIO = defaultIO()): Promise<n
 
   if (command === "transcript") {
     return transcriptCommand(rest, io);
+  }
+
+  if (command === "context") {
+    return contextCommand(rest, io);
   }
 
   if (command === "compact") {
@@ -213,6 +218,11 @@ async function runInteractive(io: CliIO): Promise<void> {
 
     if (line === "/transcript" || line.startsWith("/transcript ")) {
       await handleTranscript(io, thread, line);
+      continue;
+    }
+
+    if (line === "/context" || line.startsWith("/context ")) {
+      await handleContext(io, thread, line);
       continue;
     }
 
@@ -542,6 +552,25 @@ async function transcriptCommand(args: string[], io: CliIO): Promise<number> {
   }
 }
 
+async function contextCommand(args: string[], io: CliIO): Promise<number> {
+  const parsed = parseContextArgs(args);
+  if (!parsed.prompt) {
+    await write(io.stderr, "Usage: tokendance context [--session session-id] <prompt>\n");
+    return 1;
+  }
+
+  const client = new TokenDanceCode();
+  try {
+    const thread = await client.resume({ sessionId: parsed.sessionId, storageRoot: io.cwd() });
+    await printContextPreview(io, await thread.context(parsed.prompt));
+    return 0;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    await write(io.stderr, `${message}\n`);
+    return 1;
+  }
+}
+
 async function compactCommand(args: string[], io: CliIO): Promise<number> {
   const client = new TokenDanceCode();
   const sessionId = args[0]?.trim();
@@ -615,6 +644,15 @@ async function handleTranscript(io: CliIO, thread: Thread, line: string): Promis
   await printTranscriptInfo(io, await thread.transcript());
 }
 
+async function handleContext(io: CliIO, thread: Thread, line: string): Promise<void> {
+  const prompt = line.split(/\s+/).slice(1).join(" ").trim();
+  if (!prompt) {
+    await write(io.stdout, "Usage: /context <prompt>\n");
+    return;
+  }
+  await printContextPreview(io, await thread.context(prompt));
+}
+
 async function printTranscriptInfo(io: CliIO, info: TranscriptInfo): Promise<void> {
   await write(io.stdout, `Transcript ${info.transcriptPath}\n`);
   await write(io.stdout, `sessionId: ${info.sessionId}\n`);
@@ -631,6 +669,14 @@ async function printTranscriptSearchResults(io: CliIO, results: TranscriptSearch
 
   for (const result of results) {
     await write(io.stdout, `seq ${result.seq} ${result.eventType} ${result.preview}\n`);
+  }
+}
+
+async function printContextPreview(io: CliIO, context: ThreadContext): Promise<void> {
+  await write(io.stdout, `Context messages: ${context.messages.length}\n`);
+  await write(io.stdout, `Included files: ${context.includedFiles.length > 0 ? context.includedFiles.join(", ") : "none"}\n`);
+  for (const [index, message] of context.messages.entries()) {
+    await write(io.stdout, `[${index}] ${message.role}: ${previewText(message.content)}\n`);
   }
 }
 
@@ -793,6 +839,7 @@ Usage:
   tokendance transcript [session-id]
   tokendance transcript search <query>
   tokendance transcript <session-id> search <query>
+  tokendance context [--session session-id] <prompt>
   tokendance compact [session-id]
   tokendance run <prompt>
 `
@@ -823,6 +870,7 @@ async function printInteractiveHelp(io: CliIO): Promise<void> {
   /todo [add|doing|done] [value]
   /worktree [list|create|remove] [name] [--discard]
   /transcript [search <query>]
+  /context <prompt>
   /compact
   /exit
 `
@@ -840,6 +888,18 @@ function parseTranscriptArgs(args: string[]): { sessionId?: string; query?: stri
   }
 
   return { sessionId };
+}
+
+function parseContextArgs(args: string[]): { sessionId?: string; prompt: string } {
+  const sessionFlagIndex = args.indexOf("--session");
+  if (sessionFlagIndex < 0) {
+    return { prompt: args.join(" ").trim() };
+  }
+
+  return {
+    sessionId: args[sessionFlagIndex + 1],
+    prompt: args.filter((_, index) => index !== sessionFlagIndex && index !== sessionFlagIndex + 1).join(" ").trim()
+  };
 }
 
 function parseMemoryScope(value: string | undefined): MemoryScope | undefined {
@@ -921,6 +981,11 @@ function parseTodoAddArgs(args: string[]): { text: string; taskId?: string } {
     text: args.slice(0, taskFlagIndex).join(" ").trim(),
     taskId: args[taskFlagIndex + 1]
   };
+}
+
+function previewText(value: string): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  return normalized.length <= 140 ? normalized : `${normalized.slice(0, 137)}...`;
 }
 
 function defaultIO(): CliIO {

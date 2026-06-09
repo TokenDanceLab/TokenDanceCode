@@ -347,6 +347,31 @@ describe("TokenDanceCode CLI", () => {
     expect(byId.stdoutText()).toContain("seq 1 user.message");
   });
 
+  it("previews provider context in interactive and top-level commands", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-context-"));
+    await writeFile(join(root, "AGENTS.md"), "CLI context project rule.\n", "utf8");
+    const interactive = createTestIO("/status\nhello context seed\n/context preview current turn\n/exit\n", root);
+    await runCli([], interactive);
+    const sessionId = interactive.stdoutText().match(/sessionId: ([^\n]+)/)?.[1]?.trim();
+    const beforeTranscript = await readFile(join(root, ".tokendance", "sessions", sessionId ?? "", "transcript.jsonl"), "utf8");
+    const byId = createTestIO("", root);
+
+    const byIdExitCode = await runCli(["context", "--session", sessionId ?? "", "preview", "by", "id"], byId);
+    const afterTranscript = await readFile(join(root, ".tokendance", "sessions", sessionId ?? "", "transcript.jsonl"), "utf8");
+
+    expect(sessionId).toBeDefined();
+    expect(interactive.stdoutText()).toContain("Context messages: 4");
+    expect(interactive.stdoutText()).toContain("Included files: AGENTS.md");
+    expect(interactive.stdoutText()).toContain("[1] user: hello context seed");
+    expect(interactive.stdoutText()).toContain("[3] user: preview current turn");
+    expect(byIdExitCode).toBe(0);
+    expect(byId.stdoutText()).toContain("Context messages: 4");
+    expect(byId.stdoutText()).toContain("Included files: AGENTS.md");
+    expect(byId.stdoutText()).toContain("[1] user: hello context seed");
+    expect(byId.stdoutText()).toContain("[3] user: preview by id");
+    expect(afterTranscript).toBe(beforeTranscript);
+  });
+
   it("supports top-level resume latest and by session id", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-cli-"));
     const first = createTestIO("/status\nhello for resume\n/exit\n", root);

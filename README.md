@@ -19,8 +19,8 @@ tokendance
 当前分支已经建立 TypeScript 第一批可验证闭环：
 
 - `@tokendance/code-core`：session、event、runtime、tool registry、permission engine、JSONL transcript store、task/todo/subagent/worktree store、MockProvider。
-- `@tokendance/code-sdk`：AgentHub 可消费的 `TokenDanceCode -> Thread -> run/runStreamed` 编程接口，支持 provider 配置、审批回调、事件下沉、AgentHub runtime event 映射、recent transcript resume、transcript search、task/todo/subagent/worktree facade。
-- `@tokendance/code-cli`：薄 CLI 入口，支持 `--version`、`doctor`、`run <prompt>`、最小交互式 REPL、task/todo/subagent/worktree 管理和工具事件渲染。
+- `@tokendance/code-sdk`：AgentHub 可消费的 `TokenDanceCode -> Thread -> run/runStreamed/context` 编程接口，支持 provider 配置、审批回调、事件下沉、AgentHub runtime event 映射、recent transcript resume、transcript search、task/todo/subagent/worktree facade。
+- `@tokendance/code-cli`：薄 CLI 入口，支持 `--version`、`doctor`、`run <prompt>`、最小交互式 REPL、context preview、task/todo/subagent/worktree 管理和工具事件渲染。
 - `@tokendance/code-agenthub-example`：私有示例包，演示 AgentHub emitter 如何通过 SDK 接收 `agent.stream` payload 并桥接远程审批。
 - `pnpm verify`：同时执行 TypeScript typecheck 和 Vitest 测试。
 
@@ -150,6 +150,7 @@ node packages/cli/dist/main.js transcript
 node packages/cli/dist/main.js transcript <session-id>
 node packages/cli/dist/main.js transcript search <query>
 node packages/cli/dist/main.js transcript <session-id> search <query>
+node packages/cli/dist/main.js context --session <session-id> "preview next turn"
 node packages/cli/dist/main.js memory
 node packages/cli/dist/main.js memory add project "Use pnpm verify before commits"
 node packages/cli/dist/main.js memory delete project 0
@@ -226,6 +227,9 @@ console.log(transcript.transcriptPath);
 
 const matches = await resumed.searchTranscript("needle");
 console.log(matches.map((match) => `${match.seq}:${match.eventType}`));
+
+const preview = await resumed.context("preview next turn");
+console.log(preview.includedFiles);
 
 const memory = client.memory({ projectRoot: process.cwd() });
 await memory.add("project", "Use pnpm verify before commits.");
@@ -331,6 +335,7 @@ const client = new TokenDanceCode({
 /quality pnpm verify
 /transcript
 /transcript search <query>
+/context <prompt>
 /compact
 /exit
 ```

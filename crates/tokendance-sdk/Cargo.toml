@@ -1,0 +1,16 @@
+[package]
+name = "tokendance-sdk"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+time.workspace = true
+tokio.workspace = true
+tokendance-core = { path = "../tokendance-core" }
+uuid.workspace = true

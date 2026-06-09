@@ -1,6 +1,7 @@
 .env
 .config/
 .tokendance/
+.tokendance-rs/
 .worktrees/
 .tmp/
 .claude/
@@ -15,6 +16,7 @@ __pycache__/
 .idea/
 build/
 dist/
+target/
 coverage/
 node_modules/
 *.tsbuildinfo

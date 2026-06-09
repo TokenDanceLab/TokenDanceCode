@@ -1,14 +1,14 @@
 # TokenDanceCode Agent Guide
 
-TokenDanceCode is a local command-line Coding Agent / harness for personal developers. Keep the scope narrow and explicit: it is not a cloud platform, IDE plugin, marketplace, persistent team-agent system, or AgentHub replacement.
+TokenDanceCode is a local command-line Coding Agent / harness for personal developers. This worktree is the Rust rewrite branch. Keep the scope narrow and explicit: it is not a cloud platform, IDE plugin, marketplace, persistent team-agent system, or AgentHub replacement.
 
 ## Repository
 
 - GitHub: `TokenDanceLab/TokenDanceCode`
 - Public packages: `@tokendance/code-core`, `@tokendance/code-sdk`, `@tokendance/code-cli`
 - Command: `tokendance`
-- Runtime: Node.js 20.18+
-- Package manager: pnpm 10+
+- Runtime: Rust 1.95+ for active code; Node.js/pnpm remains only for npm wrapper and legacy TS contract checks.
+- Package manager: Cargo first, pnpm 10+ for npm packaging scripts.
 - Primary shell target: Windows PowerShell
 
 ## Workspace Rules
@@ -52,38 +52,32 @@ Do not describe TokenDanceCode as:
 
 ## Current Development Baseline
 
-- Active branch: `codex/ts-refactor`.
+- Active branch: `codex/rust-rewrite`.
 - Release candidate branch: `release/npm-first`.
-- Current public status: npm `next` candidate is release-review ready, not published. Registry visibility must be proved with `pnpm registry:next:check` or `npm view` before saying otherwise.
-- Current AgentHub contract: SDK manifest `agenthub-sdk.v1`, `agent.stream` schema version `2`, and terminal failure frames via `run.agent.result` with `success=false`.
+- Current public status: Rust rewrite scaffold is not release-ready. Do not publish npm or GitHub releases until Rust release gates are implemented and verified.
+- Current AgentHub contract target: SDK manifest `agenthub-sdk.v1`, `agent.stream` schema version `2`, and terminal failure frames via `run.agent.result` with `success=false`.
 - Current privacy boundary: project root `.env` is ignored and not loaded by default; examples must point users to controlled shell env, SDK `env`, or user-global `~/.tokendance/.env`.
 
 ## Next Work Queue
 
-Use `docs/并行推进计划.md` Wave 7 Candidate Queue before launching broad workers. Current highest-value slices are:
+Use `docs/rust-rewrite-architecture.md` before launching broad workers. Current highest-value slices are:
 
-- local interactive approval in the CLI;
-- `tokendance run --json` / `--stream-json`;
-- path/command-level permission policy;
-- context budget plus recoverable compact summaries;
-- deterministic local hooks;
-- same-session AgentHub run concurrency policy.
+- core runtime parity: session, transcript, context builder, compact, hooks;
+- provider parity: OpenAI Responses, OpenAI-compatible Gateway, Anthropic-compatible Messages;
+- CLI parity: command registry, `run --json`, `--stream-json`, doctor/config/gateway/auth/session/transcript/quality;
+- SDK parity: AgentHub event mapping, approval bridge, OIDC helper, same-session guard;
+- npm release wrapper and privacy scan.
 
 ## Verification
 
 Use these from the repository root after code or docs changes:
 
 ```powershell
-pnpm install
-pnpm release:next:check
-node packages/cli/dist/main.js --version
-node packages/cli/dist/main.js doctor
-```
-
-Docs-only changes should still run at least the focused docs/package metadata test when practical:
-
-```powershell
-pnpm test packages/sdk/tests/package-metadata.test.ts
+cargo fmt --all -- --check
+cargo test --workspace
+cargo run -p tokendance-cli -- --version
+cargo run -p tokendance-cli -- doctor --json
+pnpm verify
 ```
 
 `npm publish --tag next` is a separate manual release-owner action after version, package contents, dist-tag, npm login, and license intent are reviewed. Do not put publish into verification scripts.

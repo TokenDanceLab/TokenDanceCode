@@ -1,12 +1,33 @@
 # TokenDanceCode
 
-> 本地命令行 Coding Agent。面向个人仓库，Windows / PowerShell 优先，给 AgentHub 提供可嵌入 SDK。
+> Rust rewrite branch for a local command-line Coding Agent. Windows / PowerShell first, AgentHub SDK surface preserved.
 
 [English](README.en.md) · [AgentHub SDK](docs/agenthub-sdk.md) · [发布准备](docs/release-readiness.md) · [TS 路线图](docs/TS重构路线图.md)
 
 ![Screenshot: TokenDanceCode CLI terminal session](docs/images/image-01.png)
 
 截图展示了 `tokendance` 在 PowerShell 中启动后的本地 CLI 体验。
+
+## Rust 重写状态
+
+This branch is an aggressive Rust rewrite of the current TypeScript implementation. The TypeScript packages remain in the repository as contract references while the Rust crates take over the active runtime.
+
+Active crates:
+
+- `crates/tokendance-core`: runtime, provider trait, permissions, session, transcript.
+- `crates/tokendance-sdk`: AgentHub facade and event mapping.
+- `crates/tokendance-cli`: `tokendance` binary.
+
+First baseline commands:
+
+```powershell
+cargo test --workspace
+cargo run -p tokendance-cli -- --version
+cargo run -p tokendance-cli -- doctor --json
+cargo run -p tokendance-cli -- run --json "hello"
+```
+
+See [docs/rust-rewrite-architecture.md](docs/rust-rewrite-architecture.md) for ownership, migration order, and release gates.
 
 ## 项目定位
 

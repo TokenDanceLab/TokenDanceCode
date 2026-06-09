@@ -34,6 +34,10 @@ describe("package metadata", () => {
     expect(smokeScript).toContain("@tokendance/code-core");
     expect(smokeScript).toContain("@tokendance/code-sdk");
     expect(smokeScript).toContain("@tokendance/code-cli");
+    expect(smokeScript).toContain("doctor --json");
+    expect(smokeScript).toContain("quality --json");
+    expect(smokeScript).toContain("agentHub.ready");
+    expect(smokeScript).toContain("provider-ready");
 
     const publicPackages = [
       { directory: "packages/core", packageJson: await readJson("packages/core/package.json") },

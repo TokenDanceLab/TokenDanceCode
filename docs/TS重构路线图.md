@@ -73,7 +73,7 @@ pnpm pack:smoke
 pnpm release:next:check
 ```
 
-`pnpm pack:smoke` 会把 `@tokendance/code-core`、`@tokendance/code-sdk`、`@tokendance/code-cli` 的真实 tarball 安装到临时项目中，验证 SDK import、mock turn 和 CLI bin 启动。`pnpm release:next:check` 是 npm `next` 预发布前的本地门禁，覆盖 `pnpm verify && pnpm pack:check`。不要在检查脚本中执行 npm publish；`npm publish --tag next` 只作为 release owner 审核后的人工发布动作。
+`pnpm pack:smoke` 会把 `@tokendance/code-core`、`@tokendance/code-sdk`、`@tokendance/code-cli` 的真实 tarball 安装到临时项目中，验证 SDK import、mock turn、CLI bin 启动、`doctor --json` 的 AgentHub readiness / `provider-ready`，以及 `quality --json` 的结构化输出。`pnpm release:next:check` 是 npm `next` 预发布前的本地门禁，覆盖 `pnpm verify && pnpm pack:check`。不要在检查脚本中执行 npm publish；`npm publish --tag next` 只作为 release owner 审核后的人工发布动作。
 
 ### Release owner 检查清单
 
@@ -164,7 +164,7 @@ node packages/cli/dist/main.js run "hello"
 - [x] 增加 AgentHub 侧最小集成样例包，覆盖 SDK 事件映射、Hub/Edge emitter 形态、package manifest 和 doctor 启动诊断。
 - [x] 增加发布前 `pack:check`：构建后 dry-run 打包 core/sdk/cli，保护 AgentHub SDK/CLI 包只发布 `dist` 和 `package.json`。
 - [x] 增加 SDK `TOKEN_DANCE_CODE_PACKAGE` manifest，供 AgentHub 读取包名、入口、CLI bin 和推荐验证命令。
-- [x] 增加 npm `next` 预发布包基线：public 包 manifest 写入 license/repository/publishConfig/README，根 LICENSE 落地，`pack:smoke` 执行本地 tarball install smoke，`release:next:check` 串联 verify 与 pack gate。不要在检查脚本中执行 npm publish；`npm publish --tag next` 保持人工审核步骤。
+- [x] 增加 npm `next` 预发布包基线：public 包 manifest 写入 license/repository/publishConfig/README，根 LICENSE 落地，`pack:smoke` 执行本地 tarball install smoke，并覆盖 SDK mock turn、CLI `doctor --json` / `quality --json` contract；`release:next:check` 串联 verify 与 pack gate。不要在检查脚本中执行 npm publish；`npm publish --tag next` 保持人工审核步骤。
 
 ### P4：CLI 体验
 

@@ -87,7 +87,7 @@ pnpm pack:check
 pnpm release:next:check
 ```
 
-`pnpm pack:check` 会先构建全部 TS 包，再对 `@tokendance/code-core`、`@tokendance/code-sdk`、`@tokendance/code-cli` 执行 dry-run 打包检查，随后运行 `pnpm pack:smoke`。`pnpm pack:smoke` 会把三个真实 tarball 安装到临时项目中，验证 SDK import、mock turn 和 CLI bin 启动，确认 AgentHub 可消费包只包含发布所需内容。
+`pnpm pack:check` 会先构建全部 TS 包，再对 `@tokendance/code-core`、`@tokendance/code-sdk`、`@tokendance/code-cli` 执行 dry-run 打包检查，随后运行 `pnpm pack:smoke`。`pnpm pack:smoke` 会把三个真实 tarball 安装到临时项目中，验证 SDK import、mock turn、CLI bin 启动、`doctor --json` 的 AgentHub readiness / `provider-ready`，以及 `quality --json` 的结构化输出，确认 AgentHub 可消费包只包含发布所需内容。
 
 确认命令可用：
 
@@ -539,7 +539,7 @@ Manual approval gate：`pnpm release:next:check` 和 `pnpm pack:smoke` 只证明
 | 检查项 | 期望证据 |
 |---|---|
 | 版本与 dist-tag | 根包和三个 public 包版本一致，`publishConfig.tag` 为 `next` |
-| 包内容 | `pnpm pack:smoke` 已安装真实 tarball，且包内只包含 `dist`、`README.md` 和 npm 必需 manifest 文件 |
+| 包内容 | `pnpm pack:smoke` 已安装真实 tarball，验证 SDK mock turn、CLI `doctor --json` / `quality --json`，且包内只包含 `dist`、`README.md` 和 npm 必需 manifest 文件 |
 | README 一致性 | 根 README 与 package-local README 都说明包职责、AgentHub 消费方式、pack smoke 和手动发布边界 |
 | 凭据边界 | 发布检查不读取或打印 provider key；npm 登录状态只由 release owner 在本机确认 |
 | 人工发布 | `npm publish --tag next` 只能在显式批准后对 `@tokendance/code-core`、`@tokendance/code-sdk`、`@tokendance/code-cli` 逐包执行 |

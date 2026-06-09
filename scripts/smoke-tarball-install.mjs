@@ -13,6 +13,19 @@ const packages = [
 
 const tempRoot = await mkdtemp(join(tmpdir(), "tokendance-code-pack-smoke-"));
 const tarballDir = join(tempRoot, "tarballs");
+const smokeEnv = {
+  ...process.env,
+  HOME: tempRoot,
+  USERPROFILE: tempRoot,
+  OPENAI_API_KEY: "",
+  ANTHROPIC_API_KEY: "",
+  TOKENDANCE_GATEWAY_API_KEY: "",
+  TOKENDANCE_PROVIDER: "",
+  TOKENDANCE_MODEL: "",
+  MODEL_ID: ""
+};
+const doctorJsonLabel = "doctor --json";
+const qualityJsonLabel = "quality --json";
 
 try {
   await mkdir(tarballDir, { recursive: true });
@@ -61,6 +74,17 @@ try {
   run("pnpm", ["install", "--ignore-scripts", "--frozen-lockfile=false"], tempRoot);
   run("node", ["smoke.mjs"], tempRoot);
   run("pnpm", ["exec", "tokendance", "--version"], tempRoot);
+  const doctor = JSON.parse(runCapture("pnpm", ["exec", "tokendance", "doctor", "--json"], tempRoot, { env: smokeEnv, label: doctorJsonLabel }));
+  if (doctor.agentHub?.ready !== true) {
+    throw new Error("packed CLI doctor --json did not report agentHub.ready");
+  }
+  if (doctor.startup?.hub?.checks?.some((check) => check.name === "provider-ready" && check.status === "pass") !== true) {
+    throw new Error("packed CLI doctor --json did not report provider-ready pass");
+  }
+  const quality = JSON.parse(runCapture("pnpm", ["exec", "tokendance", "quality", "--json", "Write-Output ok"], tempRoot, { env: smokeEnv, label: qualityJsonLabel }));
+  if (quality.passed !== true || quality.result?.stdout?.includes("ok") !== true) {
+    throw new Error("packed CLI quality --json did not report a passing PowerShell command");
+  }
 
   console.log(`Tarball install smoke passed in ${tempRoot}`);
 } finally {
@@ -70,20 +94,40 @@ try {
 }
 
 function run(command, args, cwd) {
+  runCommand(command, args, cwd, { stdio: "inherit" });
+}
+
+function runCapture(command, args, cwd, options = {}) {
+  const result = runCommand(command, args, cwd, { ...options, stdio: "pipe" });
+  return result.stdout;
+}
+
+function runCommand(command, args, cwd, options = {}) {
   const result = process.platform === "win32" && command === "pnpm"
     ? spawnSync(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", [command, ...args].map(quoteCmdArg).join(" ")], {
       cwd,
-      stdio: "inherit"
+      env: options.env ?? process.env,
+      encoding: "utf8",
+      stdio: options.stdio ?? "inherit"
     })
     : spawnSync(command, args, {
       cwd,
-      stdio: "inherit"
+      env: options.env ?? process.env,
+      encoding: "utf8",
+      stdio: options.stdio ?? "inherit"
     });
 
   if (result.status !== 0) {
     const detail = result.error ? ` (${result.error.message})` : "";
-    throw new Error(`Command failed: ${command} ${args.join(" ")}${detail}`);
+    const label = options.label ? `${options.label}: ` : "";
+    const stdout = result.stdout ? `\nstdout:\n${result.stdout}` : "";
+    const stderr = result.stderr ? `\nstderr:\n${result.stderr}` : "";
+    throw new Error(`${label}Command failed: ${command} ${args.join(" ")}${detail}${stdout}${stderr}`);
   }
+  return {
+    stdout: result.stdout ?? "",
+    stderr: result.stderr ?? ""
+  };
 }
 
 function quoteCmdArg(value) {

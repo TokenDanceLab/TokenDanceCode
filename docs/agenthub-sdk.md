@@ -97,7 +97,7 @@ console.log(TOKEN_DANCE_CODE_PACKAGE.verification.tarballSmoke);
 console.log(TOKEN_DANCE_CODE_PACKAGE.verification.prerelease);
 ```
 
-当前 manifest 覆盖 core/sdk/cli 包名、SDK/Core import specifier、CLI bin 名、AgentHub SDK contract version、`agent.stream` schema version、SDK feature flags 和推荐验证命令：`pnpm verify`、`pnpm pack:check`、`pnpm pack:smoke`、`pnpm release:next:check`。它不包含本机路径、密钥或 workspace 私有路径，适合进入 AgentHub UI 或日志。AgentHub Hub/Edge 启动检查可以把 `agentHub.sdkContractVersion === "agenthub-sdk.v1"` 和 `agentHub.agentStreamSchemaVersion === 1` 当作当前稳定契约的快速断言。
+当前 manifest 覆盖 core/sdk/cli 包名、SDK/Core import specifier、CLI bin 名、AgentHub SDK contract version、`agent.stream` schema version、SDK feature flags 和推荐验证命令：`pnpm verify`、`pnpm pack:check`、`pnpm pack:smoke`、`pnpm release:next:check`。它不包含本机路径、密钥或 workspace 私有路径，适合进入 AgentHub UI 或日志。AgentHub Hub/Edge 启动检查可以把 `agentHub.sdkContractVersion === "agenthub-sdk.v1"` 和 `agentHub.agentStreamSchemaVersion === 1` 当作当前稳定契约的快速断言。`agentHub.features` 当前还显式标记 `doctor-readiness` 和 `runner-bootstrap`，用于区分是否能读取 `doctor.agentHub` 汇总和样例 runner 的一键启动检查。
 
 ## 4. TokenDanceID OIDC 登录启动
 
@@ -386,15 +386,14 @@ const preview = await runner.context({
 
 console.log(preview.includedFiles);
 
-const packageInfo = runner.packageInfo();
-const doctor = await runner.doctor({
+const startup = await runner.bootstrap({
   workingDirectory: "D:/Code/TokenDance/AgentHub"
 });
 
-console.log(packageInfo.packages.sdk.name);
-console.log(doctor.stateDir.writable);
-console.log(doctor.startup.hub.ok);
-console.log(doctor.startup.edge.ok);
+console.log(startup.packageInfo.packages.sdk.name);
+console.log(startup.doctor.stateDir.writable);
+console.log(startup.doctor.agentHub.ready);
+console.log(startup.doctor.agentHub.warningChecks);
 
 // Hub / Edge 收到人工决策后：
 console.log(runner.pendingApprovals());
@@ -467,13 +466,13 @@ fixture.decideApproval("tool-call-id", "allow", "approved in AgentHub");
 await turnPromise;
 ```
 
-样例 runner 每次 `run()` 都会创建一个新的 `TokenDanceCode` client，并用同一套 AgentHub stream envelope helper 把 runtime events 投递为递增 `event_seq` 的 `agent.stream` payload。传入的 AgentHub `sessionId` 会同时作为 TokenDanceCode thread id 使用；runner 会先按该 id `resume()`，没有现存 session 时才 `startThread()`，保证 Hub 事件、SDK `TurnResult.threadId`、provider 可见的消息历史和 transcript 目录使用同一个 session 标识。`defaultPermissionMode` 只作用于新建 thread；已存在 session 继续使用 session 内保存的权限模式。`streamIdFactory` 可接管 `agent.stream.id` 生成，`contextMaxRecentMessages` 可作为 runner 级 preview 历史上限，单次 `runner.context({ maxRecentMessages })` 可以覆盖该默认值。`runner.context()` 复用同一条按 Hub `sessionId` resume-or-start 的路径，返回下一轮 transient provider context preview；它不会发出 `agent.stream` 事件，也不会把 preview prompt 或 system context 追加进 transcript。`packageInfo()` 和 `doctor()` 只是把 SDK manifest/doctor facade 暴露给 Hub/Edge 启动检查，真实 AgentHub 集成可以直接复制这个组合方式，再替换为自己的 Hub client、任务状态和 session 生命周期。
+样例 runner 每次 `run()` 都会创建一个新的 `TokenDanceCode` client，并用同一套 AgentHub stream envelope helper 把 runtime events 投递为递增 `event_seq` 的 `agent.stream` payload。传入的 AgentHub `sessionId` 会同时作为 TokenDanceCode thread id 使用；runner 会先按该 id `resume()`，没有现存 session 时才 `startThread()`，保证 Hub 事件、SDK `TurnResult.threadId`、provider 可见的消息历史和 transcript 目录使用同一个 session 标识。`defaultPermissionMode` 只作用于新建 thread；已存在 session 继续使用 session 内保存的权限模式。`streamIdFactory` 可接管 `agent.stream.id` 生成，`contextMaxRecentMessages` 可作为 runner 级 preview 历史上限，单次 `runner.context({ maxRecentMessages })` 可以覆盖该默认值。`runner.context()` 复用同一条按 Hub `sessionId` resume-or-start 的路径，返回下一轮 transient provider context preview；它不会发出 `agent.stream` 事件，也不会把 preview prompt 或 system context 追加进 transcript。`runner.bootstrap()` 一次返回 SDK manifest 和 doctor diagnostics；`packageInfo()` / `doctor()` 仍保留给需要分开刷新 UI 面板的调用方。真实 AgentHub 集成可以直接复制这个组合方式，再替换为自己的 Hub client、任务状态和 session 生命周期。
 
 当 runner 配置了 `onApprovalRequest` 时，远程审批请求会先发出 `run.agent.permission_requested` envelope，再等待 Hub/Edge 调用 `runner.decideApproval()`。决策返回后，runtime 会继续发出 `run.agent.permission_decided`、`run.agent.tool_result` 和最终结果事件。`pendingApprovals()` 返回待处理请求快照；`decideApproval()` 对重复、过期或未知 request id 返回 `false`。
 
 `createTokenDanceIdLogin()` 和 `verifyTokenDanceIdCallback()` 是对 SDK TokenDanceID helper 的样例层封装，便于 AgentHub Desktop/Web shell 或调试面板复用同一套 PKCE S256 URL 生成与 callback `state` 校验。runner 只返回 `code`、`codeVerifier` 和 `redirectUri` 给 Hub；Hub Server 仍拥有 authorization code exchange、JWKS/issuer/audience/expiration 验证、`tokendance_sub` 映射和 Hub-local session 签发。不要在 runner 或 shell 中保存 TokenDanceID access/refresh token，也不要把 TokenDanceID token 当作 TokenDance Gateway 模型 API key。
 
-`createAgentHubTokenDanceE2EFixture()` 适合复制到 AgentHub 测试夹具：`defaultRun` 提供 `workingDirectory/taskId/edgeRunId/sessionId/agentInstanceId` 默认值，`run()` 和 `context()` 可按单次调用覆盖；`defaultLogin` 提供 TokenDanceID shell 默认参数；`agentStream` 和 `approvalRequests` 保存已捕获 payload，便于断言事件顺序和远程审批状态；`bootstrap()` 一次返回 `packageInfo()` 和 `doctor()`，用于 Hub/Edge 启动检查。生产代码应把这些收集器替换为真实落库和广播，不应把 `@tokendance/code-agenthub-example` 发布或作为 public npm contract。
+`createAgentHubTokenDanceE2EFixture()` 适合复制到 AgentHub 测试夹具：`defaultRun` 提供 `workingDirectory/taskId/edgeRunId/sessionId/agentInstanceId` 默认值，`run()` 和 `context()` 可按单次调用覆盖；`defaultLogin` 提供 TokenDanceID shell 默认参数；`agentStream` 和 `approvalRequests` 保存已捕获 payload，便于断言事件顺序和远程审批状态；`bootstrap()` 委托 runner 的同名方法，一次返回 `packageInfo()` 和 `doctor()`，用于 Hub/Edge 启动检查。生产代码应把这些收集器替换为真实落库和广播，不应把 `@tokendance/code-agenthub-example` 发布或作为 public npm contract。
 
 ## 10. Resume
 
@@ -627,9 +626,14 @@ console.log(doctor.stateDir.writable);
 console.log(doctor.packageInfo.agentHub.sdkContractVersion);
 console.log(doctor.startup.hub.ok);
 console.log(doctor.startup.edge.ok);
+console.log(doctor.agentHub.ready);
+console.log(doctor.agentHub.blockingChecks);
+console.log(doctor.agentHub.warningChecks);
 ```
 
 `doctor.apiKeys` 只返回 `present`/`missing`，不会返回实际 API key。诊断结果还包括版本、Node、cwd、platform、Git 仓库状态、PowerShell 可用性、config 路径/source、有效 provider/model、provider readiness、`.tokendance` 状态目录可写性、只读 `packageInfo` manifest，以及 `startup.hub` / `startup.edge` 检查组。Hub 侧当前检查 package manifest、config 可读性、状态目录可写性和 `provider-ready`；真实 provider 缺少 key/model 时 `provider-ready` 为 `warn`，`startup.hub.ok` 仍保持 `true`，方便 AgentHub 启动后在设置页引导补齐配置。Edge 侧当前检查 `agent.stream` envelope 契约、Git 可用性和 PowerShell 可用性。`warn` 级检查不会让 `ok` 变成 `false`；`fail` 代表启动前必须处理的阻断项。
+
+`doctor.agentHub` 是给 Hub/Edge 启动检查和调试面板使用的聚合视图：`contractVersion`、`agentStreamSchemaVersion` 和 `features` 来自同一份 package manifest；`ready` 等于 Hub 与 Edge 检查组都没有 `fail`；`blockingChecks` 和 `warningChecks` 用 `hub.<check-name>` / `edge.<check-name>` 标记阻断项和告警项。调用方如果只需要判断是否能启动，可以先看 `doctor.agentHub.ready`；如果要展示详细原因，再展开 `startup.hub.checks` 和 `startup.edge.checks`。
 
 ## 13. Task / Todo
 
@@ -778,11 +782,11 @@ const quality = await tools.execute(
 
 ## 18. 当前测试覆盖
 
-- `packages/sdk/tests/sdk.test.ts` 覆盖 buffered turn、streamed events、多轮 thread、context preview/history limit、latest/by-id resume、session list facade、latest/by-id compact、transcript metadata/search、config facade、doctor facade/startup checks、memory facade、task/todo facade、subagent facade、worktree facade、tool metadata facade、tool execution facade、worktree/subagent tools、审批允许/拒绝、provider env 配置错误、event sink。
-- `packages/sdk/tests/package-metadata.test.ts` 覆盖 public package metadata、`pack:check` 脚本、tarball ignore 规则和 SDK 导出的 AgentHub-readable package manifest。
+- `packages/sdk/tests/sdk.test.ts` 覆盖 buffered turn、streamed events、多轮 thread、context preview/history limit、latest/by-id resume、session list facade、latest/by-id compact、transcript metadata/search、config facade、doctor facade/startup checks、AgentHub readiness 汇总、memory facade、task/todo facade、subagent facade、worktree facade、tool metadata facade、tool execution facade、worktree/subagent tools、审批允许/拒绝、provider env 配置错误、event sink。
+- `packages/sdk/tests/package-metadata.test.ts` 覆盖 public package metadata、`pack:check` 脚本、tarball ignore 规则和 SDK 导出的 AgentHub-readable package manifest / feature flags。
 - `packages/sdk/tests/approval-bridge.test.ts` 覆盖 AgentHub 远程审批 bridge、pending 快照、allow/deny 决策回填。
 - `packages/sdk/tests/agenthub-events.test.ts` 覆盖 `TDCodeEvent` 到 AgentHub `run.agent.*` 的映射、sink 包装和 `agent.stream` payload fixture。
-- `packages/agenthub-example/tests/agenthub-runner.test.ts` 覆盖 AgentHub runner 示例、e2e fixture、runner options、context preview history limit、远程审批桥接、`agent.stream` payload 序列、emitter 形态、runner package manifest 和 doctor 启动诊断。
+- `packages/agenthub-example/tests/agenthub-runner.test.ts` 覆盖 AgentHub runner 示例、e2e fixture、runner bootstrap、runner options、context preview history limit、远程审批桥接、`agent.stream` payload 序列、emitter 形态、runner package manifest 和 doctor 启动诊断。
 - `packages/core/tests/*` 覆盖 runtime、permission、provider adapter、file/shell/patch/git/subagent/worktree/tool metadata/context/resume/config/memory/task/todo。
 
 完整验证命令：

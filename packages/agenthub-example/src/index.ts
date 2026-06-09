@@ -74,6 +74,7 @@ export interface AgentHubTokenDanceRunner {
   context(options: AgentHubTokenDanceContextOptions): Promise<ThreadContext>;
   packageInfo(): TokenDanceCodePackageInfo;
   doctor(options?: AgentHubTokenDanceDoctorOptions): Promise<DoctorInfo>;
+  bootstrap(options?: AgentHubTokenDanceDoctorOptions): Promise<AgentHubTokenDanceBootstrapResult>;
   createTokenDanceIdLogin(options: AgentHubTokenDanceIdLoginOptions): TokenDanceIdLoginRequest;
   verifyTokenDanceIdCallback(callbackUrl: string | URL | URLSearchParams, request: TokenDanceIdLoginRequest): TokenDanceIdCallbackResult;
   decideApproval(requestId: string, decision: AgentHubApprovalDecision, reason?: string): boolean;
@@ -140,6 +141,13 @@ export function createAgentHubTokenDanceRunner(options: AgentHubTokenDanceRunner
         projectRoot: doctorOptions.workingDirectory ?? options.storageRoot ?? process.cwd(),
         homeDir: doctorOptions.homeDir
       });
+    },
+
+    async bootstrap(doctorOptions = {}) {
+      return {
+        packageInfo: TOKEN_DANCE_CODE_PACKAGE,
+        doctor: await this.doctor(doctorOptions)
+      };
     },
 
     createTokenDanceIdLogin(loginOptions) {
@@ -241,10 +249,7 @@ export function createAgentHubTokenDanceE2EFixture(options: AgentHubTokenDanceE2
     approvalRequests,
 
     async bootstrap(doctorOptions) {
-      return {
-        packageInfo: runner.packageInfo(),
-        doctor: await runner.doctor(doctorOptions)
-      };
+      return runner.bootstrap(doctorOptions);
     },
 
     run(runOptions) {

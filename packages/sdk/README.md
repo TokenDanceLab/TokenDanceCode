@@ -16,10 +16,13 @@ pnpm add @tokendance/code-sdk@next
 import { TOKEN_DANCE_CODE_PACKAGE, TokenDanceCode } from "@tokendance/code-sdk";
 
 console.log(TOKEN_DANCE_CODE_PACKAGE.verification.prerelease);
+console.log(TOKEN_DANCE_CODE_PACKAGE.agentHub.features);
 
 const client = new TokenDanceCode();
+const doctor = await client.doctor({ projectRoot: process.cwd() });
 const thread = client.startThread({ workingDirectory: process.cwd() });
 const turn = await thread.run("hello");
+console.log(doctor.agentHub.ready, doctor.agentHub.warningChecks);
 console.log(turn.finalResponse);
 
 const config = await client.setConfig(
@@ -28,6 +31,8 @@ const config = await client.setConfig(
 );
 console.log(config.config.provider, config.projectConfigPath);
 ```
+
+AgentHub startup surfaces can use the `doctor-readiness` and `runner-bootstrap` feature flags to detect the compact startup contract. `doctor.agentHub.ready` is the quick go/no-go value; `blockingChecks` and `warningChecks` point back to the detailed Hub and Edge startup check groups.
 
 ## Release Baseline
 

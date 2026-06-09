@@ -93,9 +93,11 @@ console.log(TOKEN_DANCE_CODE_PACKAGE.packages.cli.bin);
 console.log(TOKEN_DANCE_CODE_PACKAGE.agentHub.sdkContractVersion);
 console.log(TOKEN_DANCE_CODE_PACKAGE.agentHub.agentStreamSchemaVersion);
 console.log(TOKEN_DANCE_CODE_PACKAGE.verification.package);
+console.log(TOKEN_DANCE_CODE_PACKAGE.verification.tarballSmoke);
+console.log(TOKEN_DANCE_CODE_PACKAGE.verification.prerelease);
 ```
 
-当前 manifest 覆盖 core/sdk/cli 包名、SDK/Core import specifier、CLI bin 名、AgentHub SDK contract version、`agent.stream` schema version、SDK feature flags 和推荐验证命令：`pnpm verify`、`pnpm pack:check`。它不包含本机路径、密钥或 workspace 私有路径，适合进入 AgentHub UI 或日志。AgentHub Hub/Edge 启动检查可以把 `agentHub.sdkContractVersion === "agenthub-sdk.v1"` 和 `agentHub.agentStreamSchemaVersion === 1` 当作当前稳定契约的快速断言。
+当前 manifest 覆盖 core/sdk/cli 包名、SDK/Core import specifier、CLI bin 名、AgentHub SDK contract version、`agent.stream` schema version、SDK feature flags 和推荐验证命令：`pnpm verify`、`pnpm pack:check`、`pnpm pack:smoke`、`pnpm release:next:check`。它不包含本机路径、密钥或 workspace 私有路径，适合进入 AgentHub UI 或日志。AgentHub Hub/Edge 启动检查可以把 `agentHub.sdkContractVersion === "agenthub-sdk.v1"` 和 `agentHub.agentStreamSchemaVersion === 1` 当作当前稳定契约的快速断言。
 
 ## 4. 启动 Thread
 

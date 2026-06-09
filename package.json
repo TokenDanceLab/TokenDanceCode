@@ -2,6 +2,7 @@
   "name": "tokendance-code-workspace",
   "version": "0.2.0-ts.0",
   "private": true,
+  "license": "MIT",
   "description": "TokenDanceCode TypeScript refactor workspace.",
   "type": "module",
   "packageManager": "pnpm@10.32.1",
@@ -13,7 +14,10 @@
     "test": "vitest run",
     "typecheck": "tsc -b packages/core packages/sdk packages/cli packages/agenthub-example --pretty false",
     "verify": "pnpm typecheck && pnpm test",
-    "pack:check": "pnpm build && pnpm --filter @tokendance/code-core pack --dry-run && pnpm --filter @tokendance/code-sdk pack --dry-run && pnpm --filter @tokendance/code-cli pack --dry-run"
+    "pack:dry-run": "pnpm --filter @tokendance/code-core pack --dry-run && pnpm --filter @tokendance/code-sdk pack --dry-run && pnpm --filter @tokendance/code-cli pack --dry-run",
+    "pack:smoke": "node scripts/smoke-tarball-install.mjs",
+    "pack:check": "pnpm build && pnpm pack:dry-run && pnpm pack:smoke",
+    "release:next:check": "pnpm verify && pnpm pack:check"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",

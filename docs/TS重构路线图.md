@@ -7,7 +7,7 @@
 - 分支：`codex/ts-refactor`
 - worktree：`D:\Code\TokenDance\TokenDanceCode\.worktrees\ts-refactor`
 - 目标：把 TokenDanceCode 从 Python v0.1 参考实现重构为 TypeScript monorepo，并给 AgentHub 暴露稳定 SDK。
-- 当前可验证命令：`pnpm verify`
+- 当前可验证命令：`pnpm verify`、`pnpm pack:check`、`pnpm release:next:check`
 - 最近验证结果：typecheck 通过，Vitest 23 个测试文件 115 个测试通过。
 
 旧 `src/tokendance` 和 `tests/` 暂时保留为功能迁移参考。新增 TS 能力默认写入 `packages/*`，不要继续扩展 Python 运行时，除非明确是在补迁移对照或保护旧行为。
@@ -69,7 +69,11 @@
 ```powershell
 pnpm verify
 pnpm pack:check
+pnpm pack:smoke
+pnpm release:next:check
 ```
+
+`pnpm pack:smoke` 会把 `@tokendance/code-core`、`@tokendance/code-sdk`、`@tokendance/code-cli` 的真实 tarball 安装到临时项目中，验证 SDK import、mock turn 和 CLI bin 启动。`pnpm release:next:check` 是 npm `next` 预发布前的本地门禁，覆盖 `pnpm verify && pnpm pack:check`。不要在检查脚本中执行 npm publish；`npm publish --tag next` 只作为 release owner 审核后的人工发布动作。
 
 涉及 CLI 行为时额外运行：
 
@@ -141,6 +145,7 @@ node packages/cli/dist/main.js run "hello"
 - [x] 增加 AgentHub 侧最小集成样例包，覆盖 SDK 事件映射、Hub/Edge emitter 形态、package manifest 和 doctor 启动诊断。
 - [x] 增加发布前 `pack:check`：构建后 dry-run 打包 core/sdk/cli，保护 AgentHub SDK/CLI 包只发布 `dist` 和 `package.json`。
 - [x] 增加 SDK `TOKEN_DANCE_CODE_PACKAGE` manifest，供 AgentHub 读取包名、入口、CLI bin 和推荐验证命令。
+- [x] 增加 npm `next` 预发布包基线：public 包 manifest 写入 license/repository/publishConfig/README，根 LICENSE 落地，`pack:smoke` 执行本地 tarball install smoke，`release:next:check` 串联 verify 与 pack gate。不要在检查脚本中执行 npm publish；`npm publish --tag next` 保持人工审核步骤。
 
 ### P4：CLI 体验
 

@@ -115,17 +115,21 @@ export class OpenAIResponsesProvider implements ModelProvider {
   }
 
   private buildInput(request: ModelTurnRequest): OpenAIInputItem[] {
-    const priorInput = this.conversationBySession.get(request.session.id);
-    const baseInput = priorInput ?? request.session.messages.map((message) => ({
+    const sessionInput = request.session.messages.map((message) => ({
       role: message.role === "tool" ? "user" : message.role,
       content: message.content
     } satisfies OpenAIInputItem));
 
     if (request.toolResults.length === 0) {
-      return baseInput;
+      return sessionInput;
     }
 
-    return [...baseInput, ...request.toolResults.map(toFunctionCallOutput)];
+    const baseInput = this.conversationBySession.get(request.session.id) ?? sessionInput;
+    const missingResults = request.toolResults.filter((result) => !hasFunctionCallOutput(baseInput, result.callId));
+    if (missingResults.length === 0) {
+      return baseInput;
+    }
+    return [...baseInput, ...missingResults.map(toFunctionCallOutput)];
   }
 }
 
@@ -144,6 +148,14 @@ function toFunctionCallOutput(result: ToolResult): OpenAIInputItem {
     call_id: result.callId,
     output: JSON.stringify(result.ok ? result.output ?? null : { error: result.error ?? "Tool failed" })
   };
+}
+
+function hasFunctionCallOutput(input: OpenAIInputItem[], callId: string): boolean {
+  return input.some((item) => isFunctionCallOutput(item) && item.call_id === callId);
+}
+
+function isFunctionCallOutput(item: OpenAIInputItem): item is Extract<OpenAIInputItem, { type: "function_call_output" }> {
+  return "type" in item && item.type === "function_call_output";
 }
 
 function parseToolCalls(payload: OpenAIResponsePayload): ModelTurnResponse["toolCalls"] {

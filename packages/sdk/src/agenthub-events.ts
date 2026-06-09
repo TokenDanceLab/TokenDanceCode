@@ -14,6 +14,32 @@ export type AgentHubRuntimeEventType =
   | "run.agent.permission_decided"
   | "run.agent.result";
 
+export const AGENTHUB_AGENT_STREAM_EVENT_TYPES = [
+  "run.agent.text_delta",
+  "run.agent.text_block",
+  "run.agent.tool_call",
+  "run.agent.tool_result",
+  "run.agent.permission_requested",
+  "run.agent.permission_decided",
+  "run.agent.result"
+] as const satisfies readonly AgentHubRuntimeEventType[];
+
+export const AGENTHUB_AGENT_STREAM_REQUIRED_FIELDS = [
+  "schema_version",
+  "sdk_contract_version",
+  "source",
+  "id",
+  "task_id",
+  "edge_run_id",
+  "session_id",
+  "agent_instance_id",
+  "event_seq",
+  "event_type",
+  "source_event_type",
+  "payload",
+  "created_at"
+] as const;
+
 export interface AgentHubRuntimeEvent {
   eventType: AgentHubRuntimeEventType;
   sourceEventType: TDCodeEvent["type"];
@@ -35,6 +61,7 @@ export interface AgentHubAgentStreamPayload {
   agent_instance_id: string;
   event_seq: number;
   event_type: AgentHubRuntimeEventType;
+  source_event_type: TDCodeEvent["type"];
   payload: Record<string, unknown>;
   created_at: string;
 }
@@ -177,6 +204,7 @@ export function createAgentHubAgentStreamEmitter(
       agent_instance_id: options.agentInstanceId,
       event_seq: eventSeq,
       event_type: event.eventType,
+      source_event_type: event.sourceEventType,
       payload: event.payload,
       created_at: clock()
     });

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { createAgentHubAgentStreamSink, createAgentHubEventSink, toAgentHubRuntimeEvents } from "../src/index.js";
+import {
+  AGENTHUB_AGENT_STREAM_EVENT_TYPES,
+  AGENTHUB_AGENT_STREAM_REQUIRED_FIELDS,
+  createAgentHubAgentStreamSink,
+  createAgentHubEventSink,
+  toAgentHubRuntimeEvents
+} from "../src/index.js";
 import type { TDCodeEvent } from "../src/index.js";
 
 describe("AgentHub event mapping", () => {
@@ -116,6 +122,7 @@ describe("AgentHub event mapping", () => {
         agent_instance_id: "agent-1",
         event_seq: 1,
         event_type: "run.agent.text_delta",
+        source_event_type: "assistant.delta",
         payload: expect.objectContaining({ text: "hello", sessionId: "td-session-1", turnId: "turn-1" }),
         created_at: "2026-06-09T00:00:00.000Z"
       },
@@ -130,9 +137,37 @@ describe("AgentHub event mapping", () => {
         agent_instance_id: "agent-1",
         event_seq: 2,
         event_type: "run.agent.tool_result",
+        source_event_type: "tool.completed",
         payload: expect.objectContaining({ callId: "call-1", toolName: "read_file", ok: true }),
         created_at: "2026-06-09T00:00:00.000Z"
       }
+    ]);
+  });
+
+  it("exports the AgentHub agent.stream envelope schema contract", () => {
+    expect(AGENTHUB_AGENT_STREAM_REQUIRED_FIELDS).toEqual([
+      "schema_version",
+      "sdk_contract_version",
+      "source",
+      "id",
+      "task_id",
+      "edge_run_id",
+      "session_id",
+      "agent_instance_id",
+      "event_seq",
+      "event_type",
+      "source_event_type",
+      "payload",
+      "created_at"
+    ]);
+    expect(AGENTHUB_AGENT_STREAM_EVENT_TYPES).toEqual([
+      "run.agent.text_delta",
+      "run.agent.text_block",
+      "run.agent.tool_call",
+      "run.agent.tool_result",
+      "run.agent.permission_requested",
+      "run.agent.permission_decided",
+      "run.agent.result"
     ]);
   });
 });

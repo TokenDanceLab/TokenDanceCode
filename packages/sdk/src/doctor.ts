@@ -3,7 +3,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { readTokenDanceConfig, validateProviderConfig, type ProviderConfigValidation } from "@tokendance/code-core";
-import { TOKEN_DANCE_CODE_PACKAGE } from "./package-info.js";
+import { AGENTHUB_DOCTOR_READINESS_CONTRACT, TOKEN_DANCE_CODE_PACKAGE } from "./package-info.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -66,6 +66,8 @@ export interface StartupCheckGroup {
 
 export interface AgentHubDoctorReadiness {
   contractVersion: typeof TOKEN_DANCE_CODE_PACKAGE.agentHub.sdkContractVersion;
+  sdkContractVersion: typeof TOKEN_DANCE_CODE_PACKAGE.agentHub.sdkContractVersion;
+  readinessContract: typeof AGENTHUB_DOCTOR_READINESS_CONTRACT;
   agentStreamSchemaVersion: typeof TOKEN_DANCE_CODE_PACKAGE.agentHub.agentStreamSchemaVersion;
   features: typeof TOKEN_DANCE_CODE_PACKAGE.agentHub.features;
   ready: boolean;
@@ -162,6 +164,11 @@ function startupChecks(input: {
       message: `${TOKEN_DANCE_CODE_PACKAGE.packages.sdk.name} ${TOKEN_DANCE_CODE_PACKAGE.version}`
     },
     {
+      name: "sdk-contract",
+      status: "pass",
+      message: `AgentHub SDK contract ${TOKEN_DANCE_CODE_PACKAGE.agentHub.sdkContractVersion}`
+    },
+    {
       name: "config-readable",
       status: "pass",
       message: "TokenDanceCode config facade is readable"
@@ -217,6 +224,8 @@ function providerReadyMessage(validation: ProviderConfigValidation): string {
 function agentHubReadiness(startup: DoctorInfo["startup"]): AgentHubDoctorReadiness {
   return {
     contractVersion: TOKEN_DANCE_CODE_PACKAGE.agentHub.sdkContractVersion,
+    sdkContractVersion: TOKEN_DANCE_CODE_PACKAGE.agentHub.sdkContractVersion,
+    readinessContract: AGENTHUB_DOCTOR_READINESS_CONTRACT,
     agentStreamSchemaVersion: TOKEN_DANCE_CODE_PACKAGE.agentHub.agentStreamSchemaVersion,
     features: TOKEN_DANCE_CODE_PACKAGE.agentHub.features,
     ready: startup.hub.ok && startup.edge.ok,

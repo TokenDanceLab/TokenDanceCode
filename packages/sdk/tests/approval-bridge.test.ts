@@ -55,6 +55,10 @@ describe("AgentHub approval bridge", () => {
     expect(requests).toEqual([
       expect.objectContaining({
         requestId: "write-remote",
+        schemaVersion: 1,
+        sdkContractVersion: "agenthub-sdk.v1",
+        source: "tokendance-code-sdk",
+        decisionChannel: "agenthub.approval.v1",
         sessionId: thread.id,
         toolName: "write_file",
         status: "requires_approval",
@@ -193,6 +197,35 @@ describe("AgentHub approval bridge", () => {
       reason: "approved before publish failed"
     });
     expect(bridge.pending()).toEqual([]);
+  });
+
+  it("uses isolated approval request snapshots across onRequest and pending", async () => {
+    const bridge = createAgentHubApprovalBridge({
+      onRequest(request) {
+        (request.input as { path: string }).path = "mutated-by-hub";
+      }
+    });
+
+    const approval = bridge.approvalCallback(fakeApprovalRequest("isolated-request"));
+
+    expect(bridge.pending()).toEqual([
+      expect.objectContaining({
+        requestId: "isolated-request",
+        input: { path: "notes.txt", content: "hello" }
+      })
+    ]);
+
+    const [snapshot] = bridge.pending();
+    (snapshot!.input as { path: string }).path = "mutated-by-caller";
+
+    expect(bridge.pending()).toEqual([
+      expect.objectContaining({
+        requestId: "isolated-request",
+        input: { path: "notes.txt", content: "hello" }
+      })
+    ]);
+    expect(bridge.decide("isolated-request", "allow", "snapshot boundary")).toBe(true);
+    await expect(approval).resolves.toEqual({ status: "allowed", reason: "snapshot boundary" });
   });
 });
 

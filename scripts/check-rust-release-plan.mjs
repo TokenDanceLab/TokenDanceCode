@@ -16,6 +16,7 @@ const failures = [];
 
 await collect("root verify script", assertVerifyScript);
 await collect("publish script boundary", assertNoPublishScripts);
+await collect("npm wrapper scaffold", assertNpmWrapperScaffold);
 await collect("release readiness docs", assertReleaseReadinessDocs);
 await collect("rust architecture docs", assertRustArchitectureDocs);
 
@@ -52,6 +53,30 @@ async function assertNoPublishScripts() {
       assert(!/\bpnpm\s+publish\b/.test(text), `${manifestPath} script '${name}' must not run pnpm publish`);
       assert(!/\byarn\s+npm\s+publish\b/.test(text), `${manifestPath} script '${name}' must not run yarn npm publish`);
     }
+  }
+}
+
+async function assertNpmWrapperScaffold() {
+  const cliPackage = await readJson("packages/cli/package.json");
+  assert(cliPackage.version === "0.3.0-rs.0", "CLI package version must match the Rust workspace prerelease");
+  assertJsonEqual(cliPackage.bin, { tokendance: "./bin/tokendance.js" }, "CLI package must expose the Rust wrapper bin");
+  assertJsonEqual(cliPackage.files, ["bin", "README.md"], "CLI package files must include only wrapper bin and README");
+  assert(cliPackage.scripts?.build === "cargo build -p tokendance-cli", "CLI build script must build the Rust CLI crate");
+  assert(cliPackage.scripts?.test === "cargo test -p tokendance-cli", "CLI test script must test the Rust CLI crate");
+  assert(!("main" in cliPackage), "CLI package must not point main at legacy TypeScript dist");
+  assert(!("types" in cliPackage), "CLI package must not point types at legacy TypeScript dist");
+  assert(!("dependencies" in cliPackage), "CLI wrapper package must not depend on legacy workspace packages");
+
+  const wrapper = await readText("packages/cli/bin/tokendance.js");
+  for (const expected of [
+    "#!/usr/bin/env node",
+    "@tokendance/code-cli-win32-x64-msvc",
+    "target/release/tokendance",
+    "target/debug/tokendance",
+    "spawnSync",
+    "Unsupported platform"
+  ]) {
+    assert(wrapper.includes(expected), `packages/cli/bin/tokendance.js missing '${expected}'`);
   }
 }
 
@@ -128,4 +153,8 @@ function assert(condition, message) {
   if (!condition) {
     throw new Error(message);
   }
+}
+
+function assertJsonEqual(actual, expected, message) {
+  assert(JSON.stringify(actual) === JSON.stringify(expected), message);
 }

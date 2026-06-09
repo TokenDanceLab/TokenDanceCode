@@ -7,7 +7,7 @@ TokenDanceCode is on the Rust rewrite branch. The current release work is scaffo
 ## Candidate
 
 - Version: `0.3.0-rs.0`
-- Status: release-plan scaffold only; Rust runtime parity and wrapper implementation are still required.
+- Status: release-plan scaffold only; Rust runtime parity and native package artifacts are still required.
 - Public npm entry package:
   - `@tokendance/code-cli`
 - Legacy contract packages, kept only until the Rust SDK bridge decision is finished:
@@ -47,19 +47,19 @@ The older pack and contract gates remain historical TypeScript-package checks un
 Latest known local evidence, to be refreshed before a release decision:
 
 - `pnpm verify` is the active Rust branch gate and runs Cargo formatting and workspace tests.
-- `pnpm release:rust:plan:check` verifies the Rust wrapper plan docs, keeps `pnpm verify` on Cargo, and fails if package scripts include an npm publish command.
+- `pnpm release:rust:plan:check` verifies the Rust wrapper plan docs, checks `packages/cli/bin/tokendance.js`, keeps `pnpm verify` on Cargo, and fails if package scripts include an npm publish command.
 - The tarball smoke privacy scan is retained for the future wrapper package, but it is not the current Rust release gate.
 
 Use fresh command output as the source for current test counts.
 
 ## Rust-First Npm Binary Wrapper Plan
 
-The first Rust release should expose `tokendance` through `@tokendance/code-cli`. The npm package should contain a small JavaScript command shim plus metadata; the shim should select the platform-specific Rust binary and then delegate to `crates/tokendance-cli`.
+The first Rust release should expose `tokendance` through `@tokendance/code-cli`. The npm package now contains a small JavaScript command shim plus metadata; the shim first delegates to a local built Rust binary from `crates/tokendance-cli`, then falls back to the planned platform-specific native package name.
 
 Planned package shape:
 
-- `packages/cli/bin/tokendance.js` is the cross-platform npm `bin` entry for `tokendance`.
-- `packages/cli/package.json` owns public CLI metadata and the `bin` mapping.
+- `packages/cli/bin/tokendance.js` is the cross-platform npm `bin` entry for `tokendance`; it forwards argv and stdio unchanged to `target/release/tokendance`, `target/debug/tokendance`, or a future optional native package.
+- `packages/cli/package.json` owns public CLI metadata, the `bin` mapping, and Rust-aligned `build` / `test` scripts.
 - The CLI package may later list optional native packages in `optionalDependencies` after those packages and CI artifacts exist.
 - Optional native packages should be platform scoped, for example:
   - `@tokendance/code-cli-win32-x64-msvc`
@@ -74,7 +74,7 @@ Before promoting the wrapper from plan to release candidate:
 
 1. Build the Rust CLI in CI for every supported target.
 2. Generate platform-native npm packages from reviewed CI artifacts.
-3. Implement the JavaScript shim with clear unsupported-platform errors.
+3. Replace the current JavaScript shim placeholder with reviewed native-package artifact paths once CI produces them.
 4. Add a tarball install smoke that runs `tokendance --version` and `tokendance doctor --json` from a fresh temp project.
 5. Add a package privacy scan for wrapper and native package contents.
 6. Run the release-owner publish checklist outside this repository.

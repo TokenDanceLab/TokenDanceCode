@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum PermissionMode {
     Default,
@@ -16,16 +16,18 @@ impl Default for PermissionMode {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ToolRisk {
-    Low,
-    Medium,
-    High,
+    Read,
+    Write,
+    Shell,
+    Network,
+    Dangerous,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum PermissionStatus {
     Allowed,
     RequiresApproval,
@@ -36,9 +38,46 @@ pub enum PermissionStatus {
 pub struct PermissionDecision {
     pub status: PermissionStatus,
     pub reason: String,
+    #[serde(rename = "riskMetadata", skip_serializing_if = "Option::is_none")]
+    pub risk_metadata: Option<PermissionRiskMetadata>,
     pub mode: PermissionMode,
     pub tool_name: String,
     pub subject: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolConcurrency {
+    Serial,
+    ParallelSafe,
+    Exclusive,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PermissionDecisionAction {
+    Allowed,
+    Denied,
+    ApprovalRequired,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PermissionRiskMetadata {
+    pub mode: PermissionMode,
+    pub tool_name: String,
+    pub tool_risk: ToolRisk,
+    pub action: PermissionDecisionAction,
+    pub approval_scope: PermissionApprovalScope,
+    pub concurrency: ToolConcurrency,
+    pub safety_notes: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PermissionApprovalScope {
+    None,
+    ToolCall,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

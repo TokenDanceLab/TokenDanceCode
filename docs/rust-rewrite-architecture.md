@@ -78,8 +78,9 @@ The Rust rewrite must preserve these TS contracts before a public release:
 
 The Rust-first npm binary wrapper is a distribution layer, not a second CLI implementation.
 
-- `packages/cli/bin/tokendance.js` should become the npm `bin` entry for `tokendance`.
-- The JavaScript shim should resolve a reviewed platform-native binary package, forward argv and stdio unchanged, and show a clear unsupported-platform error when no binary is installed.
+- `packages/cli/bin/tokendance.js` is the npm `bin` entry for `tokendance`.
+- The JavaScript shim resolves a local built Rust binary first, then a reviewed platform-native binary package placeholder, forwards argv and stdio unchanged, and shows a clear unsupported-platform error when no binary is available.
+- `packages/cli/package.json` uses Rust-aligned `build` and `test` scripts for `crates/tokendance-cli`; it no longer points the npm bin at legacy TypeScript `dist`.
 - Platform binaries should come from CI artifacts built from `crates/tokendance-cli`; package scripts must not compile ad hoc release binaries on user machines.
 - Optional native packages may be listed through `optionalDependencies` only after their manifests, CI artifact names, target triples, and smoke tests are defined.
 - Planned native package names include `@tokendance/code-cli-win32-x64-msvc`, `@tokendance/code-cli-darwin-arm64`, `@tokendance/code-cli-darwin-x64`, `@tokendance/code-cli-linux-x64-gnu`, and `@tokendance/code-cli-linux-arm64-gnu`.

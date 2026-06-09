@@ -188,6 +188,7 @@ export class TokenDanceCode {
     const now = new Date().toISOString();
     return new Thread({
       client: this,
+      contextBudget: this.options.contextBudget,
       session: {
         id: options.id ?? crypto.randomUUID(),
         cwd: options.workingDirectory ?? process.cwd(),
@@ -200,7 +201,7 @@ export class TokenDanceCode {
   }
 
   resumeThread(session: SessionState): Thread {
-    return new Thread({ client: this, session });
+    return new Thread({ client: this, contextBudget: this.options.contextBudget, session });
   }
 
   resume(options: ResumeThreadOptions = {}): Promise<Thread> {
@@ -212,12 +213,12 @@ export class TokenDanceCode {
 
   async loadThread(sessionId: string, storageRoot = process.cwd()): Promise<Thread> {
     const result = await new ResumeService(storageRoot).byId(sessionId);
-    return new Thread({ client: this, session: result.session, recentTranscript: result.recent });
+    return new Thread({ client: this, contextBudget: this.options.contextBudget, session: result.session, recentTranscript: result.recent });
   }
 
   async loadLatestThread(storageRoot = process.cwd()): Promise<Thread> {
     const result = await new ResumeService(storageRoot).latest();
-    return new Thread({ client: this, session: result.session, recentTranscript: result.recent });
+    return new Thread({ client: this, contextBudget: this.options.contextBudget, session: result.session, recentTranscript: result.recent });
   }
 
   compactSession(session: SessionState): Promise<CompactResult> {
@@ -393,7 +394,9 @@ export class Thread {
   readonly id: string;
   readonly recentTranscript: TranscriptEnvelope[];
 
-  constructor(private readonly options: { client: TokenDanceCode; session: SessionState; recentTranscript?: TranscriptEnvelope[] }) {
+  constructor(
+    private readonly options: { client: TokenDanceCode; contextBudget?: ContextBudget; session: SessionState; recentTranscript?: TranscriptEnvelope[] }
+  ) {
     this.id = options.session.id;
     this.recentTranscript = options.recentTranscript ?? [];
   }
@@ -434,8 +437,14 @@ export class Thread {
     return { events: events() };
   }
 
-  compact(): Promise<CompactResult> {
-    return this.options.client.compactSession(this.options.session);
+  async compact(): Promise<CompactResult> {
+    const result = await this.options.client.compactSession(this.options.session);
+    this.options.session = {
+      ...this.options.session,
+      compactSummary: result.summary,
+      updatedAt: new Date().toISOString()
+    };
+    return result;
   }
 
   transcript(): Promise<TranscriptInfo> {
@@ -447,7 +456,7 @@ export class Thread {
   }
 
   context(input: ThreadInput, options: ThreadContextOptions = {}): Promise<ThreadContext> {
-    return new ContextBuilder({ maxRecentMessages: options.maxRecentMessages, contextBudget: options.contextBudget }).build({
+    return new ContextBuilder({ maxRecentMessages: options.maxRecentMessages, contextBudget: options.contextBudget ?? this.options.contextBudget }).build({
       session: this.options.session,
       userMessage: normalizeInput(input),
       workspaceRoot: this.options.session.cwd

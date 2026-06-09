@@ -110,6 +110,23 @@ class FailingAgentHubProvider implements ModelProvider {
   }
 }
 
+class BudgetCapturingProvider implements ModelProvider {
+  readonly seenMessages: string[][] = [];
+  private calls = 0;
+
+  async createTurn(request: Parameters<ModelProvider["createTurn"]>[0]) {
+    this.seenMessages.push(request.session.messages.map((message) => message.content));
+    this.calls += 1;
+    return {
+      assistantMessage:
+        this.calls === 1
+          ? `runner-budget-assistant ${"a".repeat(120)} runner-budget-assistant-hidden`
+          : "runner budget captured",
+      toolCalls: []
+    };
+  }
+}
+
 describe("AgentHub TokenDanceCode runner example", () => {
   it("exposes TokenDanceID OIDC login helpers for AgentHub shells", () => {
     const runner = createAgentHubTokenDanceRunner({
@@ -330,6 +347,41 @@ describe("AgentHub TokenDanceCode runner example", () => {
 
     const transcript = await readTranscriptSeqs(root, "hub-session-continuity");
     expect(transcript).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+  });
+
+  it("applies per-run context budgets to AgentHub runtime provider requests", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-agenthub-run-budget-"));
+    const provider = new BudgetCapturingProvider();
+    const runner = createAgentHubTokenDanceRunner({
+      storageRoot: root,
+      provider,
+      emitAgentStream() {}
+    });
+
+    await runner.run({
+      prompt: `runner-budget-user ${"x".repeat(120)} runner-budget-user-hidden`,
+      workingDirectory: root,
+      permissionMode: "default",
+      taskId: "task-budget",
+      edgeRunId: "edge-budget-1",
+      sessionId: "hub-session-run-budget",
+      agentInstanceId: "agent-budget"
+    });
+    await runner.run({
+      prompt: "runner budget next turn",
+      workingDirectory: root,
+      permissionMode: "default",
+      taskId: "task-budget",
+      edgeRunId: "edge-budget-2",
+      sessionId: "hub-session-run-budget",
+      agentInstanceId: "agent-budget",
+      contextBudget: { recentMessages: 96 }
+    });
+
+    expect(provider.seenMessages[1]).toContainEqual(expect.stringContaining("runner-budget-assistant"));
+    expect(provider.seenMessages[1]).not.toContainEqual(expect.stringContaining("runner-budget-assistant-hidden"));
+    expect(provider.seenMessages[1]).not.toContainEqual(expect.stringContaining("runner-budget-user"));
+    expect(provider.seenMessages[1]?.at(-1)).toBe("runner budget next turn");
   });
 
   it("previews context for the supplied AgentHub session without writing transcript events", async () => {

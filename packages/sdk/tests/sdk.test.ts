@@ -167,6 +167,26 @@ describe("TokenDanceCode SDK", () => {
     expect(context.messages[1]?.content).not.toContain("budget-hidden");
   });
 
+  it("uses configured context budgets for thread previews without per-call options", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-context-default-budget-"));
+    const client = new TokenDanceCode({
+      storageRoot: root,
+      contextBudget: { recentMessages: 80 }
+    });
+    const thread = client.startThread({ workingDirectory: root });
+    await thread.run(`default-budget-anchor ${"x".repeat(120)} default-budget-hidden`);
+
+    const context = await thread.context("preview with default budget");
+
+    expect(context.metadata.contextBudget).toMatchObject({ recentMessages: 80 });
+    expect(context.metadata.droppedRecentMessageCount).toBe(1);
+    expect(context.messages.slice(1)).toEqual([
+      { role: "assistant", content: expect.stringContaining("Mock response: default-budget-anchor") },
+      { role: "user", content: "preview with default budget" }
+    ]);
+    expect(context.messages[1]?.content).not.toContain("default-budget-hidden");
+  });
+
   it("applies configured context budgets to runtime provider requests", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-runtime-budget-"));
     const provider = new CapturingProvider();
@@ -281,6 +301,37 @@ describe("TokenDanceCode SDK", () => {
     expect(compact.summary).toContain("# Compact Summary");
     expect(compact.eventCount).toBeGreaterThan(0);
     await expect(readFile(compact.path, "utf8")).resolves.toContain("Events:");
+  });
+
+  it("includes a compact summary in same-thread context previews after compact", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-compact-context-"));
+    const client = new TokenDanceCode({ storageRoot: root });
+    const thread = client.startThread({ workingDirectory: root });
+    await thread.run("compact before preview");
+
+    const compact = await thread.compact();
+    const context = await thread.context("preview after compact");
+
+    expect(compact.summary).toContain("Last user request: compact before preview");
+    expect(context.metadata.hasCompactSummary).toBe(true);
+    expect(context.messages[0]?.content).toContain("## Compact Summary");
+    expect(context.messages[0]?.content).toContain("Last user request: compact before preview");
+  });
+
+  it("includes a compact summary in same-thread runtime requests after compact", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-compact-run-"));
+    const provider = new CapturingProvider();
+    const client = new TokenDanceCode({ storageRoot: root, provider });
+    const thread = client.startThread({ workingDirectory: root });
+    await thread.run("compact before next run");
+
+    const compact = await thread.compact();
+    await thread.run("run after compact");
+    const secondRequestSystem = provider.requests[1]?.session.messages[0]?.content ?? "";
+
+    expect(compact.summary).toContain("Last user request: compact before next run");
+    expect(secondRequestSystem).toContain("## Compact Summary");
+    expect(secondRequestSystem).toContain("Last user request: compact before next run");
   });
 
   it("compacts latest or selected thread through a single SDK helper", async () => {

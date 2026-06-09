@@ -25,6 +25,7 @@ export interface WorktreeRecord {
   path: string;
   branch?: string;
   head?: string;
+  dirty: boolean;
   detached: boolean;
 }
 
@@ -46,15 +47,17 @@ export class WorktreeManager {
 
   async list(): Promise<WorktreeRecord[]> {
     const output = await this.git(["worktree", "list", "--porcelain"]);
-    return parseWorktreePorcelain(output.stdout)
-      .filter((worktree) => this.isManagedPath(worktree.path))
-      .map((worktree) => ({
+    const managed = parseWorktreePorcelain(output.stdout).filter((worktree) => this.isManagedPath(worktree.path));
+    return Promise.all(
+      managed.map(async (worktree) => ({
         name: basename(worktree.path),
         path: resolve(worktree.path),
         branch: worktree.branch,
         head: worktree.head,
+        dirty: (await this.git(["-C", worktree.path, "status", "--porcelain"])).stdout.trim().length > 0,
         detached: worktree.detached
-      }));
+      }))
+    );
   }
 
   async create(input: CreateWorktreeInput): Promise<WorktreeRecord> {

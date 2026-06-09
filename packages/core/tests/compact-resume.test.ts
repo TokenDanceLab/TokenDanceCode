@@ -7,6 +7,7 @@ import {
   FileTranscriptStore,
   ResumeService,
   recoverRecentTranscript,
+  searchTranscript,
   type SessionState,
   type TranscriptEnvelope
 } from "../src/index.js";
@@ -107,6 +108,48 @@ describe("ResumeService", () => {
     );
 
     expect(recoverable.map((item) => item.event.type)).toEqual(["tool.completed", "assistant.completed"]);
+  });
+
+  it("searches transcript envelopes through shared safe metadata", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-transcript-search-"));
+    const session = createSession(root, "session-1");
+    const store = new FileTranscriptStore({ rootDir: root });
+    await store.initialize(session);
+    await store.append({ type: "user.message", sessionId: session.id, turnId: "turn-1", message: { role: "user", content: "find core needle" } });
+    await store.append({ type: "assistant.delta", sessionId: session.id, turnId: "turn-1", text: "core needle response" });
+    await store.append({ type: "assistant.completed", sessionId: session.id, turnId: "turn-1", message: { role: "assistant", content: "needle final" } });
+    await store.append({ type: "turn.completed", sessionId: session.id, turnId: "turn-1", finalResponse: "needle done" });
+
+    const path = join(store.sessionDir(session.id), "transcript.jsonl");
+    const matches = await searchTranscript(path, "needle", { limit: 10 });
+    const limited = await searchTranscript(path, "needle", { limit: 1 });
+
+    expect(matches).toEqual([
+      expect.objectContaining({ sessionId: session.id, seq: 1, eventType: "user.message", turnId: "turn-1" }),
+      expect.objectContaining({ sessionId: session.id, seq: 2, eventType: "assistant.delta", turnId: "turn-1" })
+    ]);
+    expect(matches[0]?.preview).toContain("needle");
+    expect(JSON.stringify(matches)).not.toContain("finalResponse");
+    expect(limited).toHaveLength(1);
+  });
+
+  it("searches a selected session transcript without resuming the thread", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-resume-search-"));
+    const store = new FileTranscriptStore({ rootDir: root });
+    const session = createSession(root, "session-search");
+    await store.initialize(session);
+    await store.append({ type: "user.message", sessionId: session.id, turnId: "turn-1", message: { role: "user", content: "resume needle" } });
+
+    const matches = await new ResumeService(root).searchTranscript(session.id, "needle");
+
+    expect(matches).toEqual([
+      expect.objectContaining({
+        sessionId: session.id,
+        seq: 1,
+        eventType: "user.message",
+        turnId: "turn-1"
+      })
+    ]);
   });
 });
 

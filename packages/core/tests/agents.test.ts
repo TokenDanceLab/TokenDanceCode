@@ -47,17 +47,19 @@ describe("agent manager", () => {
       }
     });
 
-    const result = await manager.runCoding("Create an agent file", { worktree: "agent-file" });
+    const result = await manager.runCoding("Create an agent file", { worktree: "agent-file", taskId: "task-1" });
 
     expect(result).toMatchObject({
       id: "agent-0001",
       agentType: "coding",
       readonly: false,
       worktree: "agent-file",
+      taskId: "task-1",
       summary: "created agent file",
       changedFiles: ["agent.txt"],
       validationResult: "manual validation"
     });
+    await expect(manager.get(result.id)).resolves.toMatchObject({ taskId: "task-1" });
     expect(result.diff).toContain("+hello from subagent");
     await expect(readFile(join(root, "agent.txt"), "utf8")).rejects.toThrow();
   });

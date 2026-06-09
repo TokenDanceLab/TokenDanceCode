@@ -1,8 +1,7 @@
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { readTranscript } from "./compact.js";
 import type { SessionState, TranscriptEnvelope } from "./types.js";
-import { FileTranscriptStore } from "./transcript.js";
+import { FileTranscriptStore, readTranscript, searchTranscript, type TranscriptSearchOptions, type TranscriptSearchResult } from "./transcript.js";
 
 export interface ResumeResult {
   session: SessionState;
@@ -63,6 +62,11 @@ export class ResumeService {
       })
     );
     return sessions;
+  }
+
+  async searchTranscript(sessionId: string, query: string, options: TranscriptSearchOptions = {}): Promise<TranscriptSearchResult[]> {
+    const store = new FileTranscriptStore({ rootDir: this.projectRoot });
+    return searchTranscript(join(store.sessionDir(sessionId), "transcript.jsonl"), query, options);
   }
 
   private async listSessionIdsByMtime(): Promise<string[]> {

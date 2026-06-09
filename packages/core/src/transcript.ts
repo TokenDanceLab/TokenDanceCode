@@ -7,6 +7,19 @@ export interface FileTranscriptStoreOptions {
   rootDir: string;
 }
 
+export interface TranscriptSearchOptions {
+  limit?: number;
+}
+
+export interface TranscriptSearchResult {
+  sessionId: string;
+  seq: number;
+  eventType: TDCodeEvent["type"];
+  timestamp: string;
+  turnId?: string;
+  preview: string;
+}
+
 export class FileTranscriptStore implements TranscriptStore {
   private readonly cwdBySession = new Map<string, string>();
   private readonly lastUuidBySession = new Map<string, string>();
@@ -87,4 +100,59 @@ export class FileTranscriptStore implements TranscriptStore {
       this.nextSeqBySession.set(sessionId, 1);
     }
   }
+}
+
+export async function readTranscript(path: string): Promise<TranscriptEnvelope[]> {
+  try {
+    const content = await readFile(path, "utf8");
+    return content
+      .split(/\r?\n/)
+      .filter((line) => line.trim().length > 0)
+      .map((line) => JSON.parse(line) as TranscriptEnvelope);
+  } catch {
+    return [];
+  }
+}
+
+export async function searchTranscript(
+  path: string,
+  query: string,
+  options: TranscriptSearchOptions = {}
+): Promise<TranscriptSearchResult[]> {
+  const normalizedQuery = query.trim().toLowerCase();
+  const limit = options.limit ?? 20;
+  if (!normalizedQuery || limit <= 0) {
+    return [];
+  }
+
+  const envelopes = await readTranscript(path);
+  return envelopes
+    .filter((envelope) => isSearchableTranscriptEvent(envelope.event))
+    .map((envelope) => ({ envelope, serialized: JSON.stringify(envelope.event) }))
+    .filter(({ serialized }) => serialized.toLowerCase().includes(normalizedQuery))
+    .slice(0, limit)
+    .map(({ envelope, serialized }) => ({
+      sessionId: envelope.sessionId,
+      seq: envelope.seq,
+      eventType: envelope.event.type,
+      timestamp: envelope.timestamp,
+      turnId: envelope.turnId,
+      preview: previewMatch(serialized, normalizedQuery)
+    }));
+}
+
+function isSearchableTranscriptEvent(event: TDCodeEvent): boolean {
+  return event.type !== "assistant.completed" && event.type !== "turn.completed";
+}
+
+function previewMatch(serialized: string, normalizedQuery: string): string {
+  const index = serialized.toLowerCase().indexOf(normalizedQuery);
+  if (index < 0) {
+    return serialized.slice(0, 120);
+  }
+  const start = Math.max(0, index - 40);
+  const end = Math.min(serialized.length, index + normalizedQuery.length + 80);
+  const prefix = start > 0 ? "..." : "";
+  const suffix = end < serialized.length ? "..." : "";
+  return `${prefix}${serialized.slice(start, end)}${suffix}`;
 }

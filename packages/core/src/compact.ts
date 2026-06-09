@@ -1,6 +1,6 @@
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { TranscriptEnvelope } from "./types.js";
+import { readTranscript } from "./transcript.js";
 
 export interface CompactResult {
   path: string;
@@ -37,14 +37,4 @@ async function nextCompactIndex(compactDir: string): Promise<number> {
   return indexes.length > 0 ? Math.max(...indexes) + 1 : 1;
 }
 
-export async function readTranscript(path: string): Promise<TranscriptEnvelope[]> {
-  try {
-    const content = await readFile(path, "utf8");
-    return content
-      .split(/\r?\n/)
-      .filter((line) => line.trim().length > 0)
-      .map((line) => JSON.parse(line) as TranscriptEnvelope);
-  } catch {
-    return [];
-  }
-}
+export { readTranscript } from "./transcript.js";

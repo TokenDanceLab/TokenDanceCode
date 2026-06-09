@@ -306,6 +306,8 @@ console.log(transcript.transcriptPath);
 
 const matches = await resumed.searchTranscript("needle");
 console.log(matches.map((match) => `${match.seq}:${match.eventType}`));
+const sessionMatches = await client.sessions({ storageRoot: process.cwd() }).searchTranscript(resumed.id, "needle");
+console.log(sessionMatches.map((match) => match.preview));
 
 const preview = await resumed.context("preview next turn");
 console.log(preview.includedFiles);
@@ -326,14 +328,14 @@ const subagents = client.subagents({ projectRoot: process.cwd() });
 const agent = await subagents.runReadonly({ agentType: "reviewer", prompt: "Inspect task store" });
 console.log(agent.summary);
 console.log(await subagents.get(agent.id));
-const acceptedAgent = await subagents.runCoding({ prompt: "Prepare isolated change", worktree: "stage15-agent" });
+const acceptedAgent = await subagents.runCoding({ prompt: "Prepare isolated change", worktree: "stage15-agent", taskId: task.id });
 await subagents.accept(acceptedAgent.id, { discardWorktree: true });
 const throwawayAgent = await subagents.runCoding({ prompt: "Try disposable change", worktree: "throwaway-agent" });
 await subagents.discard(throwawayAgent.id, { discard: true });
 
 const worktrees = client.worktrees({ repositoryRoot: process.cwd() });
 const worktree = await worktrees.create({ name: "stage15-wt" });
-console.log(worktree.path);
+console.log(worktree.path, worktree.dirty);
 await worktrees.remove("stage15-wt");
 
 const tools = client.tools({ workingDirectory: process.cwd() });

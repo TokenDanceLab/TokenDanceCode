@@ -51,6 +51,11 @@ export async function runCli(argv: string[], io: CliIO = defaultIO()): Promise<n
     return 0;
   }
 
+  if (command === "quickstart") {
+    await printQuickstart(io);
+    return 0;
+  }
+
   if (command === "config") {
     return configCommand(io);
   }
@@ -163,6 +168,11 @@ async function runInteractive(io: CliIO): Promise<void> {
 
     if (line === "/doctor" || line.startsWith("/doctor ")) {
       await printDoctor(io, line.split(/\s+/).slice(1));
+      continue;
+    }
+
+    if (line === "/quickstart") {
+      await printQuickstart(io);
       continue;
     }
 
@@ -967,6 +977,7 @@ async function printHelp(io: CliIO): Promise<void> {
 ${heading("Core:", style)}
   tokendance
   tokendance --version
+  tokendance quickstart
   tokendance run <prompt>
 
 ${heading("Session:", style)}
@@ -1011,6 +1022,7 @@ async function printInteractiveHelp(io: CliIO): Promise<void> {
 ${heading("Session:", style)}
   /new
   /status
+  /quickstart
   /permissions [default|safe|auto|yolo]
   /resume
   /memory [add|delete] [project|global] [value]
@@ -1042,6 +1054,32 @@ ${heading("Gateway:", style)}
 
 ${heading("Exit:", style)}
   /exit
+`
+  );
+}
+
+async function printQuickstart(io: CliIO): Promise<void> {
+  const style = styleFromEnv(io.env?.() ?? process.env);
+  await write(
+    io.stdout,
+    `${heading("Quickstart", style)}
+1. Verify install
+   tokendance --version
+   tokendance doctor
+2. Choose provider
+   Keep mock for local smoke tests, or configure OpenAI Responses, OpenAI-compatible Chat Completions, or Anthropic-compatible Messages.
+3. TokenDance Gateway preset
+   tokendance gateway init --model deepseek-v4-pro
+   Then set TOKENDANCE_GATEWAY_API_KEY in the current shell or ~/.tokendance/.env.
+4. TokenDanceID login URL helper
+   tokendance auth tokendanceid login-url --client-id agenthub-local --redirect-uri http://127.0.0.1:48731/callback
+   The helper prints an authorize URL and PKCE values only; it does not exchange or store tokens.
+5. Doctor and config checks
+   tokendance doctor
+   tokendance doctor --json
+   tokendance config
+
+Read-only: does not write env files, print secrets, open a browser, publish packages, or touch production.
 `
   );
 }

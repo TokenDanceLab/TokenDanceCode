@@ -6,6 +6,8 @@ TokenDanceCode 是一个面向个人开发者的本地命令行 Coding Agent。
 
 `codex/ts-refactor` 分支正在把项目重构为 TypeScript monorepo。目标体验接近 Claude Code / Codex CLI，但实现保持自用 Agent 框架的克制范围：薄 CLI、可嵌入 SDK、结构化事件流、JSONL transcript、统一工具权限管线、Windows / PowerShell 优先。
 
+当前定位很窄：TokenDanceCode 是本地 CLI / harness，不是云平台、团队协作系统、IDE 插件、插件市场或 AgentHub 的替代品。团队协作和多 Agent 工作流由 AgentHub 承担，TokenDanceCode 专注个人开发者在本地仓库里的编码代理体验。
+
 包名和全局命令都是：
 
 ```powershell
@@ -30,13 +32,26 @@ tokendance
 
 - 交互式终端 Coding Agent。
 - 支持模型流式输出。
-- 支持 Anthropic-compatible 模型供应商。
+- CLI 当前可自动启用 Anthropic-compatible 模型供应商；OpenAI provider 映射已在代码层存在，CLI 自动选择仍在完善中。
 - 内置文件工具：`read_file`、`write_file`、`edit_file`、`glob`。
 - 内置 patch 和 PowerShell 工具，并经过权限系统管控。
 - 支持 slash commands：状态、配置、diff、review、quality、tasks、todo、transcript、memory、resume、worktree 等。
 - 每次会话都会保存 JSONL transcript。
 - Git 能力内置：diff、review、revert、quality gate、worktree。
 - Windows / PowerShell 是一等支持环境。
+
+## 当前成熟度
+
+| 模块 | 状态 | 说明 |
+|---|---|---|
+| CLI 入口 | 可用 | `tokendance`、`tokendance --version`、`tokendance doctor`、`tokendance resume` |
+| 交互 shell | 可用 | 滚动式终端体验，支持 slash commands 和 MockProvider 冒烟 |
+| Anthropic-compatible provider | 可用 | 检测到 `ANTHROPIC_API_KEY` 后自动启用真实模型 |
+| OpenAI provider | 部分完成 | provider 映射和单元测试存在；CLI 自动配置尚未作为默认入口承诺 |
+| 文件、patch、PowerShell 工具 | 可用 | 经过权限系统执行 |
+| Git / diff / review / quality | 可用 | 面向本地仓库的结构化能力 |
+| Task / Todo / transcript / memory / resume | 可用但早期 | 适合开发和自用验证，仍需更多端到端打磨 |
+| Subagent / worktree | 可用但实验中 | 面向隔离修改型子任务，不是常驻团队系统 |
 
 ## 环境要求
 
@@ -112,6 +127,8 @@ Provider HTTP 失败会统一抛出 `ProviderApiError`，包含 `provider`、`pr
 
 - 当前 PowerShell 会话环境变量。
 - 全局 `~/.tokendance/.env`。
+
+安全提示：当前实现会在启动时读取当前项目根目录的 `.env`，便于本地快速验证。不要把真实 key 提交到 Git；如果当前仓库的 `.env` 属于业务应用配置，不建议把模型 key 混放进去。长期设计会继续收敛到更明确的全局配置或系统凭据存储。
 
 ### 方式一：当前 PowerShell 会话
 
@@ -403,6 +420,15 @@ TokenDanceCode/
 ├── src/tokendance/   # Python v0.1 参考实现，TS 迁移期间保留
 └── tests/            # Python v0.1 参考测试，TS 迁移期间保留
 ```
+
+## 文档地图
+
+| 文档 | 用途 |
+|---|---|
+| [`docs/产品功能需求文档.md`](docs/产品功能需求文档.md) | 产品定位、目标用户、非目标范围、命令体验、权限、记忆、任务和验收范围 |
+| [`docs/架构设计文档.md`](docs/架构设计文档.md) | Core Runtime、CLI Shell、provider、tool、permission、storage、context、git 和 subagent 边界 |
+| [`docs/开发流程文档.md`](docs/开发流程文档.md) | 从脚手架到 subagent/worktree 的阶段化开发计划和每阶段验收标准 |
+| [`docs/端到端验收清单.md`](docs/端到端验收清单.md) | Windows/PowerShell 下的安装、配置、CLI、工具、Git、task/todo、subagent 验收脚本 |
 
 ## 开发与测试
 

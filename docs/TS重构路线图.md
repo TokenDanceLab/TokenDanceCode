@@ -184,3 +184,12 @@ node packages/cli/dist/main.js run "hello"
 - [x] 滚动式事件 renderer 闭环：assistant 文本、tool started、permission decision、tool completed、tool failed reason、tool duration、tool output summary、turn token usage。
 - [x] 增强 renderer：独立 CLI event renderer 合并连续 assistant delta，遇到工具/权限/完成进度时换行，避免未来真实 provider streaming 时一 token 一行。
 - [x] 交互式退出保护：`/exit`、`/quit` 前用只读 `git_status` 提示未提交改动，非 Git 目录静默跳过。
+
+### P5：稳定化与 AgentHub 消费打磨
+
+- [ ] CLI command architecture：`packages/cli/src/main.ts` 已接近 1500 行，下一步应抽出命令解析/执行 helper，避免继续把所有行为塞进薄入口。
+- [ ] AgentHub consuming fixture：把 SDK manifest、doctor、resume-or-start、event sink、approval bridge 和 TokenDanceID login facade 串成更接近 AgentHub 的可复制样例。
+- [ ] 滚动式 TUI polish：继续改善颜色、错误块、权限/风险/usage 输出，同时保持无颜色输出可测试。
+- [ ] 真实 provider smoke gate：只做显式 opt-in 预检和 skip gate，不默认读取项目 `.env`，不在 CI 或 pack smoke 中使用真实 key。
+- [ ] 权限策略审计：完善拒绝原因、PowerShell 高危命令 evidence、approval bridge 边界和 tool risk metadata。
+- [ ] 线程生命周期：完善 session/resume/search/export/prune 候选和 AgentHub 调试面板所需只读元数据，除非有必要不改变 transcript schema。

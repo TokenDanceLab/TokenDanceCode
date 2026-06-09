@@ -33,6 +33,20 @@ export function dim(text: string, style: CliStyle = { color: false }): string {
   return colorize(text, "dim", style);
 }
 
+export function badge(text: string, tone: "info" | "success" | "warning" | "danger", style: CliStyle = { color: false }): string {
+  const badgeText = `[${text}]`;
+  if (tone === "success") {
+    return ok(badgeText, style);
+  }
+  if (tone === "warning") {
+    return warn(badgeText, style);
+  }
+  if (tone === "danger") {
+    return error(badgeText, style);
+  }
+  return label(badgeText, style);
+}
+
 function colorize(text: string, tone: "bold" | "cyan" | "green" | "yellow" | "red" | "dim", style: CliStyle): string {
   if (!style.color) {
     return text;

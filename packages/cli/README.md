@@ -21,6 +21,8 @@ tokendance quality --json
 
 `tokendance doctor` accepts only text output or `--json`; unknown flags return usage before diagnostics run. `tokendance quality --json [command]` returns the quality gate result as `{ passed, result: { stdout, stderr, exitCode } }` for scripts, while `tokendance quality [command]` keeps the human-readable output.
 
+Interactive turns use a scrollback-first renderer instead of a full-screen TUI. Tool lifecycle, permission, error, and token usage lines keep stable plain-text badges such as `[tool]`, `[permission]`, `[error]`, and `[usage]`; ANSI color only highlights those same tokens when color is enabled, so `NO_COLOR` and test captures remain deterministic.
+
 ## Release Baseline
 
 This package is part of the TokenDanceCode `next` prerelease train. Before publishing a prerelease tarball, run from the workspace root:

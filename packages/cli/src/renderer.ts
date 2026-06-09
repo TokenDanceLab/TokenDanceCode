@@ -1,6 +1,6 @@
 import type { Writable } from "node:stream";
 import type { TDCodeEvent } from "@tokendance/code-sdk";
-import { dim, error, label, ok, warn, type CliStyle } from "./format.js";
+import { badge, dim, error, label, ok, warn, type CliStyle } from "./format.js";
 
 const maxToolSummaryLength = 120;
 const toolRisks = new Set<RendererToolRisk>(["read", "write", "shell", "network", "dangerous"]);
@@ -53,21 +53,21 @@ async function renderEvent(io: EventRendererIO, event: TDCodeEvent, state: Rende
     case "tool.started":
       await flushAssistantLine(io, state);
       state.toolStarts.set(event.call.id, Date.now());
-      await write(io.stdout, `${label("tool", style)} ${event.call.name} started\n`);
+      await write(io.stdout, `${badge("tool", "info", style)} tool ${event.call.name} started [status=running]\n`);
       return;
     case "tool.permission":
       await flushAssistantLine(io, state);
-      await write(io.stdout, `${formatPermission(event.decision, style)}\n`);
+      await write(io.stdout, `${badge("permission", permissionBadgeTone(event.decision.status), style)} ${formatPermission(event.decision, style)}\n`);
       return;
     case "tool.completed":
       await flushAssistantLine(io, state);
       const duration = renderToolDuration(state, event.result.callId);
       if (event.result.ok) {
         const summary = summarizeToolOutput(event.result.output);
-        await write(io.stdout, `${ok("tool", style)} ${event.result.toolName} completed${summary ? `: ${summary}` : ""}${duration}\n`);
+        await write(io.stdout, `${badge("ok", "success", style)} tool ${event.result.toolName} completed${summary ? `: ${summary}` : ""}${duration}\n`);
         return;
       }
-      await write(io.stdout, `${formatToolFailure(event.result, style)}${duration}\n`);
+      await write(io.stdout, `${badge("error", "danger", style)} ${formatToolFailure(event.result, style)}${duration}\n`);
       return;
     case "turn.completed":
       await flushAssistantLine(io, state);
@@ -75,7 +75,7 @@ async function renderEvent(io: EventRendererIO, event: TDCodeEvent, state: Rende
         await write(io.stdout, `${event.finalResponse}\n`);
       }
       if (event.usage) {
-        await write(io.stdout, `${formatUsage(event.usage, style)}\n`);
+        await write(io.stdout, `${badge("usage", "info", style)} ${formatUsage(event.usage, style)}\n`);
       }
       return;
     default:
@@ -172,7 +172,17 @@ function formatToolFailureMetadata(
 
 function formatUsage(usage: RendererTokenUsage, style: CliStyle): string {
   const total = usage.inputTokens + usage.outputTokens;
-  return `usage input=${label(String(usage.inputTokens), style)} output=${label(String(usage.outputTokens), style)} total=${label(String(total), style)}`;
+  return `usage input=${label(formatTokenCount(usage.inputTokens), style)} output=${label(formatTokenCount(usage.outputTokens), style)} total=${label(formatTokenCount(total), style)}`;
+}
+
+function permissionBadgeTone(status: PermissionDecision["status"]): "success" | "warning" | "danger" {
+  if (status === "allowed") {
+    return "success";
+  }
+  if (status === "denied") {
+    return "danger";
+  }
+  return "warning";
 }
 
 function permissionStatus(status: PermissionDecision["status"], style: CliStyle): string {
@@ -202,6 +212,10 @@ function riskFromReason(reason: string): RendererToolRisk | undefined {
   }
   const risk = match[1] as RendererToolRisk;
   return toolRisks.has(risk) ? risk : undefined;
+}
+
+function formatTokenCount(value: number): string {
+  return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
 async function flushAssistantLine(io: EventRendererIO, state: RendererState): Promise<void> {

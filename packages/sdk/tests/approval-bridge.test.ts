@@ -1,4 +1,4 @@
-import { mkdtemp, readFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -21,6 +21,28 @@ class WriteFileProvider implements ModelProvider {
           id: "write-remote",
           name: "write_file",
           input: { path: "remote-approved.txt", content: "approved remotely" }
+        }
+      ]
+    };
+  }
+}
+
+class ReadEnvProvider implements ModelProvider {
+  async createTurn(request: ModelTurnRequest): Promise<ModelTurnResponse> {
+    if (request.toolResults.length > 0) {
+      const result = request.toolResults.at(-1);
+      return {
+        assistantMessage: `read ${result?.ok ? "ok" : "failed"}`,
+        toolCalls: []
+      };
+    }
+
+    return {
+      toolCalls: [
+        {
+          id: "read-env-remote",
+          name: "read_file",
+          input: { path: ".env" }
         }
       ]
     };
@@ -109,6 +131,55 @@ describe("AgentHub approval bridge", () => {
     expect(turn.finalResponse).toBe("write failed");
     await expect(readFile(join(root, "remote-approved.txt"), "utf8")).rejects.toThrow();
     expect(bridge.decide("write-remote", "allow")).toBe(false);
+  });
+
+  it("waits for an external AgentHub allow decision before executing a subject-level approval", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-approval-"));
+    await writeFile(join(root, ".env"), "TOKEN=secret", "utf8");
+    let releaseRequest!: () => void;
+    const requestSeen = new Promise<void>((resolve) => {
+      releaseRequest = resolve;
+    });
+    const requests: unknown[] = [];
+    const bridge = createAgentHubApprovalBridge({
+      clock: () => "2026-06-09T00:00:00.000Z",
+      onRequest(request) {
+        requests.push(request);
+        releaseRequest();
+      }
+    });
+    const client = new TokenDanceCode({
+      storageRoot: root,
+      provider: new ReadEnvProvider(),
+      approvalCallback: bridge.approvalCallback
+    });
+    const thread = client.startThread({ workingDirectory: root, permissionMode: "yolo" });
+
+    const turnPromise = thread.run("read env after remote approval");
+    await requestSeen;
+
+    expect(requests).toEqual([
+      expect.objectContaining({
+        requestId: "read-env-remote",
+        toolName: "read_file",
+        status: "requires_approval",
+        reason: "mode=yolo tool=read_file risk=read action=approval_required subject=path:.env: secret-like path requires approval before access"
+      })
+    ]);
+    expect(bridge.pending()).toEqual([
+      expect.objectContaining({ requestId: "read-env-remote", toolName: "read_file" })
+    ]);
+
+    expect(bridge.decide("read-env-remote", "allow", "subject approved in AgentHub")).toBe(true);
+    const turn = await turnPromise;
+
+    expect(turn.finalResponse).toBe("read ok");
+    expect(turn.events).toContainEqual(
+      expect.objectContaining({
+        type: "tool.permission",
+        decision: expect.objectContaining({ status: "allowed", reason: "subject approved in AgentHub" })
+      })
+    );
   });
 
   it("returns a denial and clears pending approvals when publishing the request fails", async () => {

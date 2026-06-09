@@ -114,6 +114,33 @@ describe("file tools", () => {
     });
   });
 
+  it("does not let an approval decision override a symlink workspace escape", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-files-"));
+    const outside = await mkdtemp(join(tmpdir(), "tdcode-outside-"));
+    await writeFile(join(outside, "outside.txt"), "outside", "utf8");
+    try {
+      await symlink(outside, join(root, "linked"), "junction");
+    } catch {
+      return;
+    }
+    const orchestrator = new ToolOrchestrator(createDefaultToolRegistry());
+
+    const result = await orchestrator.execute(
+      { id: "read-linked-outside-approved", name: "read_file", input: { path: "linked/outside.txt" } },
+      createSession(root, "yolo"),
+      { status: "allowed", reason: "attempted approval" }
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: "mode=yolo tool=read_file risk=read action=denied subject=path:linked/outside.txt: resolved path escapes the workspace",
+      safetyEvidence: {
+        source: "permission_engine",
+        status: "denied"
+      }
+    });
+  });
+
   it("reports missing files with a stable error", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-files-"));
     const orchestrator = new ToolOrchestrator(createDefaultToolRegistry());
@@ -173,6 +200,38 @@ describe("file tools", () => {
     );
 
     expect(result).toMatchObject({ ok: true, output: { matches: ["README.md", "node_modules.tmp", "src.ts"] } });
+  });
+
+  it("requires approval when glob results include secret-like files", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-files-"));
+    await mkdir(join(root, "secrets"), { recursive: true });
+    await writeFile(join(root, "README.md"), "", "utf8");
+    await writeFile(join(root, "secrets", "api.key"), "secret", "utf8");
+    const orchestrator = new ToolOrchestrator(createDefaultToolRegistry());
+
+    const result = await orchestrator.execute(
+      { id: "glob-secret", name: "glob", input: { pattern: "**/*" } },
+      createSession(root, "yolo")
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: "mode=yolo tool=glob risk=read action=approval_required subject=path:secrets/api.key: secret-like path requires approval before access",
+      safetyEvidence: {
+        source: "permission_engine",
+        status: "requires_approval",
+        decision: expect.objectContaining({
+          riskMetadata: expect.objectContaining({
+            subject: expect.objectContaining({
+              kind: "path",
+              operation: "glob",
+              normalized: "secrets/api.key",
+              flags: ["secret_like"]
+            })
+          })
+        })
+      }
+    });
   });
 
   it("declares risk levels for permission enforcement", () => {

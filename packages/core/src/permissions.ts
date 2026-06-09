@@ -115,7 +115,7 @@ export function isSecretLikePath(path: string): boolean {
 
 function isSecretLikeCommand(command: string): boolean {
   return command
-    .split(/[\s"'`|;&<>()[\]{}]+/u)
+    .split(/[\s="'`|;&<>()[\]{}]+/u)
     .filter(Boolean)
     .some((part) => isSecretLikePath(part));
 }

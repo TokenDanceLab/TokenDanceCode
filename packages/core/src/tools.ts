@@ -67,7 +67,7 @@ export class ToolOrchestrator {
       return { callId: call.id, toolName: call.name, ok: false, error: `Unknown tool: ${call.name}` };
     }
 
-    const baseDecision = new PermissionEngine(session.permissionMode).decide(tool);
+    const baseDecision = await decideToolCallPermission(tool, call, session);
     const decision = reconcilePermissionDecision(baseDecision, permissionDecision);
     if (decision.status !== "allowed") {
       return {
@@ -82,19 +82,6 @@ export class ToolOrchestrator {
     try {
       const input = tool.parse(call.input);
       const context = { session, cwd: session.cwd };
-      const subjects = await tool.permissionSubjects?.(input, context) ?? [];
-      for (const subject of subjects) {
-        const subjectDecision = new PermissionEngine(session.permissionMode).decideSubject(tool, subject);
-        if (subjectDecision.status !== "allowed") {
-          return {
-            callId: call.id,
-            toolName: call.name,
-            ok: false,
-            error: subjectDecision.reason,
-            safetyEvidence: permissionSafetyEvidence(call.name, subjectDecision)
-          };
-        }
-      }
       const output = await tool.execute(input, context);
       return { callId: call.id, toolName: call.name, ok: true, output };
     } catch (error) {
@@ -103,6 +90,35 @@ export class ToolOrchestrator {
       return { callId: call.id, toolName: call.name, ok: false, error: message, safetyEvidence };
     }
   }
+}
+
+export async function decideToolCallPermission(tool: ToolSpec, call: ToolCall, session: SessionState): Promise<PermissionDecision> {
+  const engine = new PermissionEngine(session.permissionMode);
+  const baseDecision = engine.decide(tool);
+  if (baseDecision.status === "denied" || !tool.permissionSubjects) {
+    return baseDecision;
+  }
+
+  let subjects;
+  try {
+    const input = tool.parse(call.input);
+    subjects = await tool.permissionSubjects(input, { session, cwd: session.cwd });
+  } catch {
+    return baseDecision;
+  }
+
+  let firstApproval: PermissionDecision | undefined;
+  for (const subject of subjects) {
+    const subjectDecision = engine.decideSubject(tool, subject);
+    if (subjectDecision.status === "denied") {
+      return subjectDecision;
+    }
+    if (subjectDecision.status === "requires_approval" && !firstApproval) {
+      firstApproval = subjectDecision;
+    }
+  }
+
+  return firstApproval ?? baseDecision;
 }
 
 export function createEchoTool(): ToolSpec<{ text: string }, { text: string }> {

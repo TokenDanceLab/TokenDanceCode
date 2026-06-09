@@ -125,15 +125,18 @@ export function createGlobTool(): ToolSpec<GlobInput, { matches: string[] }> {
       }
       return { pattern: (input as { pattern: string }).pattern };
     },
+    async permissionSubjects(input, context) {
+      const root = resolve(context.cwd);
+      const matches = await globMatches(root, input.pattern);
+      return Promise.all(
+        matches
+          .filter((path) => isSecretLikePath(path))
+          .map((path) => createPathPermissionSubject(path, context, "glob"))
+      );
+    },
     async execute(input, context) {
       const root = resolve(context.cwd);
-      const allFiles = await listFiles(root);
-      const matches = allFiles
-        .map((path) => relative(root, path).split(sep).join("/"))
-        .filter((path) => !isExcludedGlobMatch(path))
-        .filter((path) => matchGlob(input.pattern, path))
-        .sort();
-      return { matches };
+      return { matches: await globMatches(root, input.pattern) };
     }
   };
 }
@@ -186,6 +189,15 @@ async function createPathPermissionSubject(
     realPath: realRelativePath,
     flags: [...flags]
   };
+}
+
+async function globMatches(root: string, pattern: string): Promise<string[]> {
+  const allFiles = await listFiles(root);
+  return allFiles
+    .map((path) => relative(root, path).split(sep).join("/"))
+    .filter((path) => !isExcludedGlobMatch(path))
+    .filter((path) => matchGlob(pattern, path))
+    .sort();
 }
 
 function resolveWorkspacePath(context: ToolExecutionContext, rawPath: string): string {

@@ -84,6 +84,28 @@ describe("run_powershell tool", () => {
     });
   });
 
+  it.each([
+    "docker run --env-file=.env alpine",
+    "Get-Content -Path=.env"
+  ])("requires approval for secret-like command arguments joined by equals: %s", async (command) => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-shell-"));
+    const orchestrator = new ToolOrchestrator(createDefaultToolRegistry());
+
+    const result = await orchestrator.execute(
+      { id: "shell-secret-equals", name: "run_powershell", input: { command, timeout: 5 } },
+      createSession(root, "auto")
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: `mode=auto tool=run_powershell risk=shell action=approval_required subject=shell_command:${command}: secret-like command input requires approval before execution`,
+      safetyEvidence: {
+        source: "permission_engine",
+        status: "requires_approval"
+      }
+    });
+  });
+
   it("uses the dangerous command guard for quality gate override commands", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-shell-"));
     const orchestrator = new ToolOrchestrator(createDefaultToolRegistry());

@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { ContextBuilder } from "./context-builder.js";
-import { normalizeApprovalDecision, PermissionEngine } from "./permissions.js";
+import { normalizeApprovalDecision } from "./permissions.js";
 import { appendMessage, createSession } from "./session.js";
-import { createDefaultToolRegistry, ToolOrchestrator, ToolRegistry } from "./tools.js";
+import { createDefaultToolRegistry, decideToolCallPermission, ToolOrchestrator, ToolRegistry } from "./tools.js";
 import type {
   ModelProvider,
   PermissionApprovalCallback,
@@ -110,7 +110,7 @@ export class AgentRuntime {
   }
 
   private async decideTool(call: ToolCall, tool: ToolSpec, turnId: string): Promise<PermissionDecision> {
-    const baseDecision = new PermissionEngine(this.session.permissionMode).decide(tool);
+    const baseDecision = await decideToolCallPermission(tool, call, this.session);
     if (baseDecision.status !== "requires_approval" || !this.options.approvalCallback) {
       return baseDecision;
     }

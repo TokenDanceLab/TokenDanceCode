@@ -60,14 +60,13 @@ Do not describe TokenDanceCode as:
 
 ## Next Work Queue
 
-Use `docs/并行推进计划.md` Wave 7 Candidate Queue before launching broad workers. Current highest-value slices are:
+Use `docs/并行推进计划.md` before launching broad workers. Wave 7 is merged; current highest-value slices are:
 
-- local interactive approval in the CLI;
-- `tokendance run --json` / `--stream-json`;
-- path/command-level permission policy;
-- context budget plus recoverable compact summaries;
-- deterministic local hooks;
-- same-session AgentHub run concurrency policy.
+- publish preflight hardening for the npm first candidate;
+- post-publish install smoke and registry verification;
+- CLI command/helper decomposition where `main.ts` keeps growing;
+- AgentHub SDK consumer docs and examples after the first npm publish;
+- focused permission/session replay tests for new tool or event behavior.
 
 ## Verification
 
@@ -76,6 +75,7 @@ Use these from the repository root after code or docs changes:
 ```powershell
 pnpm install
 pnpm release:next:check
+pnpm release:publish:check
 node packages/cli/dist/main.js --version
 node packages/cli/dist/main.js doctor
 ```

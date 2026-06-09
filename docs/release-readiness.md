@@ -34,6 +34,7 @@ pnpm contract:check
 pnpm verify
 pnpm pack:smoke
 pnpm release:next:check
+pnpm release:publish:check
 git diff --check
 ```
 
@@ -46,6 +47,7 @@ Latest known local evidence, to be refreshed immediately before publish:
 - `pnpm verify` passed inside that gate with TypeScript build and Vitest `26` files / `301` tests passing.
 - `pnpm pack:smoke` installed real packed core, SDK, and CLI tarballs into a temporary npm project, imported the packed SDK AgentHub consumer fixture, and ran a mock AgentHub turn.
 - `pnpm registry:next:check` reported npm `E404` for core, SDK, and CLI.
+- `pnpm release:publish:check` is the final local preflight before a human publish: it requires a clean worktree, requires `HEAD` to match local and remote `release/npm-first`, reruns `pnpm registry:next:check`, and reruns `pnpm release:next:check`.
 - `git diff --check` passed after README/docs cleanup.
 - The tarball smoke privacy scan follows pnpm scoped-package symlinks, fails if it scans zero readable package files, and checks common provider, npm, GitHub token, local path, and private-key patterns.
 
@@ -60,7 +62,7 @@ Before publishing:
 1. Confirm npm account and org access.
 2. Confirm registry is `https://registry.npmjs.org/`.
 3. Run `pnpm registry:next:check`; `E404` is allowed for first publish, but the current candidate version must not already exist.
-4. Run `pnpm release:next:check` on a clean worktree.
+4. Run `pnpm release:publish:check` on a clean worktree.
 5. Review packed contents from `pnpm pack:dry-run`.
 6. Create publish tarballs with `pnpm pack --pack-destination` and review each tarball path.
 7. Release owner runs the private publish checklist from the operator secret store.

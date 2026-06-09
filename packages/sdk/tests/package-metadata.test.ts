@@ -21,6 +21,7 @@ describe("package metadata", () => {
     expect(rootPackage.scripts?.["pack:smoke"]).toBe("node scripts/smoke-tarball-install.mjs");
     expect(rootPackage.scripts?.["smoke:gateway"]).toBe("node scripts/smoke-real-gateway.mjs");
     expect(rootPackage.scripts?.["registry:next:check"]).toBe("node scripts/check-registry-next.mjs");
+    expect(rootPackage.scripts?.["release:publish:check"]).toBe("node scripts/check-release-publish-readiness.mjs");
     expect(rootPackage.scripts?.["wave4:status"]).toBe("node scripts/verify-wave4-worktrees.mjs");
     expect(rootPackage.scripts?.["wave5:status"]).toBe("node scripts/verify-wave5-worktrees.mjs");
     expect(rootPackage.scripts?.["wave7:status"]).toBe("node scripts/verify-wave7-worktrees.mjs");
@@ -83,6 +84,14 @@ describe("package metadata", () => {
     expect(registryScript).toContain("currentVersion");
     expect(registryScript).toContain("already exists");
     expect(registryScript).not.toContain("npm publish");
+
+    const publishReadinessScript = await readText("scripts/check-release-publish-readiness.mjs");
+    expect(publishReadinessScript).toContain("release/npm-first");
+    expect(publishReadinessScript).toContain("assertCleanWorktree");
+    expect(publishReadinessScript).toContain("assertReleaseBranchPointer");
+    expect(publishReadinessScript).toContain("registry:next:check");
+    expect(publishReadinessScript).toContain("release:next:check");
+    expect(publishReadinessScript).not.toContain("npm publish");
 
     const gatewaySmokeScript = await readText("scripts/smoke-real-gateway.mjs");
     expect(gatewaySmokeScript).toContain("TOKENDANCE_RUN_REAL_PROVIDER_SMOKE");

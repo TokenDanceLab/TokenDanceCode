@@ -19,6 +19,7 @@
     "smoke:gateway": "node scripts/smoke-real-gateway.mjs",
     "registry:next:check": "node scripts/check-registry-next.mjs",
     "contract:check": "node scripts/check-release-contract.mjs",
+    "release:publish:check": "node scripts/check-release-publish-readiness.mjs",
     "wave4:status": "node scripts/verify-wave4-worktrees.mjs",
     "wave5:status": "node scripts/verify-wave5-worktrees.mjs",
     "wave7:status": "node scripts/verify-wave7-worktrees.mjs",

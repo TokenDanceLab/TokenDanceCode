@@ -87,6 +87,8 @@ function readEnvConfig(env: Record<string, string | undefined> | undefined): Par
 
   if (provider) {
     config.provider = provider;
+  } else if (model && env.TOKENDANCE_GATEWAY_API_KEY) {
+    config.provider = "openai-chat-completions";
   } else if (model && env.ANTHROPIC_API_KEY) {
     config.provider = "anthropic-messages";
   } else if (model && env.OPENAI_API_KEY) {

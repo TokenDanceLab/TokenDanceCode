@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import {
   TokenDanceCode,
   type DoctorInfo,
@@ -51,6 +51,10 @@ export async function runCli(argv: string[], io: CliIO = defaultIO()): Promise<n
 
   if (command === "config") {
     return configCommand(io);
+  }
+
+  if (command === "gateway") {
+    return gatewayCommand(rest, io);
   }
 
   if (command === "resume") {
@@ -326,6 +330,44 @@ async function configCommand(io: CliIO): Promise<number> {
   for (const source of info.sources) {
     await write(io.stdout, `source: ${source.kind}${source.path ? ` ${source.path}` : ""}\n`);
   }
+  return 0;
+}
+
+async function gatewayCommand(args: string[], io: CliIO): Promise<number> {
+  const [command, ...rest] = args;
+  if (command !== "init") {
+    await write(io.stderr, "Usage: tokendance gateway init [--model model] [--base-url url]\n");
+    return 1;
+  }
+
+  const parsed = parseGatewayInitArgs(rest);
+  if (!parsed) {
+    await write(io.stderr, "Usage: tokendance gateway init [--model model] [--base-url url]\n");
+    return 1;
+  }
+
+  const envDir = join(homeDirFor(io), ".tokendance");
+  const envPath = join(envDir, ".env");
+  await mkdir(envDir, { recursive: true });
+  let current = "";
+  try {
+    current = await readFile(envPath, "utf8");
+  } catch {
+    current = "";
+  }
+
+  await writeFile(
+    envPath,
+    updateEnvFile(current, {
+      TOKENDANCE_PROVIDER: "openai-chat-completions",
+      TOKENDANCE_MODEL: parsed.model,
+      TOKENDANCE_GATEWAY_BASE_URL: parsed.baseUrl
+    }),
+    "utf8"
+  );
+
+  await write(io.stdout, `Configured TokenDance Gateway preset in ${envPath}\n`);
+  await write(io.stdout, "Set TOKENDANCE_GATEWAY_API_KEY in that file or your shell before running a real provider.\n");
   return 0;
 }
 
@@ -830,6 +872,7 @@ Usage:
   tokendance --version
   tokendance doctor [--json]
   tokendance config
+  tokendance gateway init [--model model] [--base-url url]
   tokendance memory [add|delete] [project|global] [value]
   tokendance agents [run investigator|reviewer <prompt>]
   tokendance agents run coding [--worktree name] <prompt>
@@ -1016,7 +1059,8 @@ function providerFromConfig(
     return {
       type: config.provider,
       model: config.model,
-      baseUrl: env.OPENAI_BASE_URL
+      apiKey: env.TOKENDANCE_GATEWAY_API_KEY ?? env.OPENAI_API_KEY,
+      baseUrl: env.TOKENDANCE_GATEWAY_BASE_URL ?? env.OPENAI_BASE_URL
     };
   }
   return {
@@ -1029,6 +1073,68 @@ function providerFromConfig(
 function previewText(value: string): string {
   const normalized = value.replace(/\s+/g, " ").trim();
   return normalized.length <= 140 ? normalized : `${normalized.slice(0, 137)}...`;
+}
+
+function parseGatewayInitArgs(args: string[]): { model: string; baseUrl: string } | undefined {
+  let model = "deepseek-v4-pro";
+  let baseUrl = "https://api.vectorcontrol.tech/v1";
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--model") {
+      const value = args[index + 1]?.trim();
+      if (!value) {
+        return undefined;
+      }
+      model = value;
+      index += 1;
+      continue;
+    }
+    if (arg === "--base-url") {
+      const value = args[index + 1]?.trim();
+      if (!value) {
+        return undefined;
+      }
+      baseUrl = value;
+      index += 1;
+      continue;
+    }
+    return undefined;
+  }
+  return { model, baseUrl };
+}
+
+function updateEnvFile(content: string, values: Record<string, string>): string {
+  const seen = new Set<string>();
+  const lines = content.split(/\r?\n/).filter((line, index, all) => index < all.length - 1 || line.length > 0);
+  const updated = lines.map((line) => {
+    const key = envLineKey(line);
+    if (!key || !(key in values)) {
+      return line;
+    }
+    seen.add(key);
+    return `${key}=${values[key]}`;
+  });
+
+  for (const [key, value] of Object.entries(values)) {
+    if (!seen.has(key)) {
+      updated.push(`${key}=${value}`);
+    }
+  }
+
+  return `${updated.join("\n")}\n`;
+}
+
+function envLineKey(line: string): string | undefined {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith("#")) {
+    return undefined;
+  }
+  const separatorIndex = trimmed.indexOf("=");
+  if (separatorIndex <= 0) {
+    return undefined;
+  }
+  const key = trimmed.slice(0, separatorIndex).trim();
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(key) ? key : undefined;
 }
 
 async function readCliEnv(io: CliIO): Promise<Record<string, string | undefined>> {

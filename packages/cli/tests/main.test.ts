@@ -179,6 +179,36 @@ describe("TokenDanceCode CLI", () => {
     expect(config.stdoutText()).not.toContain("global-openai");
   });
 
+  it("initializes a global TokenDance Gateway preset without leaking existing keys", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-gateway-"));
+    const home = await mkdtemp(join(tmpdir(), "tdcode-cli-home-"));
+    await mkdir(join(home, ".tokendance"), { recursive: true });
+    await writeFile(
+      join(home, ".tokendance", ".env"),
+      "TOKENDANCE_GATEWAY_API_KEY=existing-secret\nOTHER_VALUE=keep-me\n",
+      "utf8"
+    );
+    const init = createTestIO("", root, home, {});
+
+    const initExitCode = await runCli(["gateway", "init", "--model", "deepseek-v4-pro"], init);
+    const envFile = await readFile(join(home, ".tokendance", ".env"), "utf8");
+    const config = createTestIO("", root, home, {});
+    const configExitCode = await runCli(["config"], config);
+
+    expect(initExitCode).toBe(0);
+    expect(init.stdoutText()).toContain("Configured TokenDance Gateway preset");
+    expect(init.stdoutText()).not.toContain("existing-secret");
+    expect(envFile).toContain("TOKENDANCE_GATEWAY_API_KEY=existing-secret");
+    expect(envFile).toContain("OTHER_VALUE=keep-me");
+    expect(envFile).toContain("TOKENDANCE_PROVIDER=openai-chat-completions");
+    expect(envFile).toContain("TOKENDANCE_MODEL=deepseek-v4-pro");
+    expect(envFile).toContain("TOKENDANCE_GATEWAY_BASE_URL=https://api.vectorcontrol.tech/v1");
+    expect(configExitCode).toBe(0);
+    expect(config.stdoutText()).toContain("provider: openai-chat-completions");
+    expect(config.stdoutText()).toContain("model: deepseek-v4-pro");
+    expect(config.stdoutText()).not.toContain("existing-secret");
+  });
+
   it("starts interactive sessions with the configured permission mode", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-cli-config-"));
     await mkdir(join(root, ".tokendance"), { recursive: true });

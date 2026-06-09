@@ -79,4 +79,22 @@ describe("TokenDance config", () => {
       permissionMode: "safe"
     });
   });
+
+  it("derives OpenAI Chat Completions from TokenDance Gateway env", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-config-"));
+    const info = await readTokenDanceConfig({
+      projectRoot: root,
+      env: {
+        TOKENDANCE_GATEWAY_API_KEY: "gateway-secret",
+        TOKENDANCE_MODEL: "deepseek-v4-pro"
+      }
+    });
+
+    expect(info.config).toEqual({
+      provider: "openai-chat-completions",
+      model: "deepseek-v4-pro",
+      permissionMode: "default"
+    });
+    expect(JSON.stringify(info)).not.toContain("gateway-secret");
+  });
 });

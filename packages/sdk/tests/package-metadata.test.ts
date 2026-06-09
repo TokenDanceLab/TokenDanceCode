@@ -97,6 +97,7 @@ describe("package metadata", () => {
     expect(publishReadinessScript).toContain("assertCleanWorktree");
     expect(publishReadinessScript).toContain("assertReleaseBranchPointer");
     expect(publishReadinessScript).toContain("assertPublishPreconditions");
+    expect(publishReadinessScript).toContain("throwIfFailures");
     expect(publishReadinessScript).toContain("registry:next:check");
     expect(publishReadinessScript).toContain("TOKENDANCE_PACK_TARBALL_DIR");
     expect(publishReadinessScript).toContain("sha256");

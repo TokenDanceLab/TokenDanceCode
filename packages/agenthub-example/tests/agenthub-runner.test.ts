@@ -1060,6 +1060,7 @@ describe("AgentHub TokenDanceCode runner example", () => {
     expect(doctor.cwd).toBe(root);
     expect(doctor.apiKeys).toEqual({
       OPENAI_API_KEY: "present",
+      TOKENDANCE_GATEWAY_API_KEY: "missing",
       ANTHROPIC_API_KEY: "missing"
     });
     expect(JSON.stringify(doctor)).not.toContain("hidden-openai-key");

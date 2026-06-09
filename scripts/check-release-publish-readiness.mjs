@@ -26,17 +26,22 @@ async function main() {
   await collect(failures, "verify gate", () => run("pnpm", ["verify"]));
   await collect(failures, "build gate", () => run("pnpm", ["build"]));
   await collect(failures, "pack dry-run gate", () => run("pnpm", ["pack:dry-run"]));
-  await collect(failures, "reviewed tarball smoke", () => packReviewedTarballs(rootPackage.version));
+  throwIfFailures(rootPackage.version, failures);
 
+  await collect(failures, "reviewed tarball smoke", () => packReviewedTarballs(rootPackage.version));
+  throwIfFailures(rootPackage.version, failures);
+
+  const currentBranch = currentGitBranch();
+  console.log(`Release publish readiness passed for ${rootPackage.version} at ${releaseBranch} tip; current branch is ${currentBranch}.`);
+}
+
+function throwIfFailures(version, failures) {
   if (failures.length > 0) {
     for (const failure of failures) {
       console.error(`- ${failure}`);
     }
-    throw new Error(`release publish readiness failed for ${rootPackage.version} with ${failures.length} issue(s)`);
+    throw new Error(`release publish readiness failed for ${version} with ${failures.length} issue(s)`);
   }
-
-  const currentBranch = currentGitBranch();
-  console.log(`Release publish readiness passed for ${rootPackage.version} at ${releaseBranch} tip; current branch is ${currentBranch}.`);
 }
 
 function assertPublishPreconditions() {

@@ -20,7 +20,7 @@ tokendance
 
 - `@tokendance/code-core`：session、event、runtime、tool registry、permission engine、JSONL transcript store、task/todo/subagent/worktree store、MockProvider。
 - `@tokendance/code-sdk`：AgentHub 可消费的 `TokenDanceCode -> Thread -> run/runStreamed/context` 编程接口，支持 provider 配置、审批回调、事件下沉、AgentHub runtime event 映射、recent transcript resume、transcript search、task/todo/subagent/worktree facade。
-- `@tokendance/code-cli`：薄 CLI 入口，支持 `--version`、`doctor`、`run <prompt>`、最小交互式 REPL、context preview、task/todo/subagent/worktree 管理和工具事件渲染。
+- `@tokendance/code-cli`：薄 CLI 入口，支持 `--version`、`doctor`、`run <prompt>`、分组帮助、可读 status/config/doctor 输出、Gateway 首次配置提示、最小交互式 REPL、context preview、task/todo/subagent/worktree 管理和工具事件渲染。
 - `@tokendance/code-agenthub-example`：私有示例包，演示 AgentHub emitter 如何通过 SDK 接收 `agent.stream` payload 并桥接远程审批。
 - `pnpm verify`：同时执行 TypeScript typecheck 和 Vitest 测试。
 
@@ -81,7 +81,7 @@ node packages/cli/dist/main.js doctor
 node packages/cli/dist/main.js doctor --json
 ```
 
-`doctor` 会输出 Node、cwd、platform、OpenAI/Anthropic API key 是否存在、Git/PowerShell 可用性、配置文件路径和 `.tokendance` 状态目录可写性。API key 只显示 `present`/`missing`，不会打印密钥值。需要给脚本或 AgentHub 调试面板读取时使用 `doctor --json`；交互式 REPL 中对应 `/doctor json`。
+`doctor` 会按 Runtime、API Keys、Tools、Config、State 分组输出 Node、cwd、platform、OpenAI/Anthropic API key 是否存在、Git/PowerShell 可用性、配置文件路径和 `.tokendance` 状态目录可写性。API key 只显示 `present`/`missing`，不会打印密钥值。需要给脚本或 AgentHub 调试面板读取时使用 `doctor --json`；交互式 REPL 中对应 `/doctor json`。
 
 运行一次 mock turn：
 
@@ -159,7 +159,7 @@ OpenAI-compatible Gateway 示例：
 node packages/cli/dist/main.js gateway init --model deepseek-v4-pro
 ```
 
-该命令会写入全局 `~/.tokendance/.env` 的 provider/model/base URL preset，不会生成、覆盖或打印 API key。随后在同一个全局 env 文件或当前 shell 中设置：
+该命令会写入全局 `~/.tokendance/.env` 的 provider/model/base URL preset，不会生成、覆盖或打印 API key。命令输出会给出下一步：设置 `TOKENDANCE_GATEWAY_API_KEY`、运行 `tokendance config` 确认配置，并提示 TokenDance API key 与 TokenDanceID 登录 token 是不同凭据平面。随后在同一个全局 env 文件或当前 shell 中设置：
 
 ```env
 TOKENDANCE_GATEWAY_API_KEY=your-tokenDance-api-key
@@ -435,7 +435,8 @@ tokendance doctor
 - 在哪个目录运行 `tokendance`，哪个目录就是当前 workspace root。
 - 会话 transcript 会保存到当前项目的 `.tokendance/` 下。
 - `glob` 工具默认排除 `.git`、`.tokendance`、虚拟环境、缓存目录、build/dist、`node_modules` 和 `.env`。
-- CLI 通过 runtime event 渲染工具开始、权限决策、工具完成耗时、失败原因、成功结果摘要和 assistant 文本；后续会继续补更细的进度显示。
+- CLI 通过 runtime event 渲染工具开始、权限决策、工具完成耗时、失败原因、成功结果摘要和 assistant 文本；测试默认保持纯文本，设置 `FORCE_COLOR=1` 时 renderer 会对工具、权限和 usage 行使用 ANSI 高亮。
+- CLI 帮助按 Core、Session、Work、Diagnostics、Gateway 分组；交互式 `/status`、`/config`、`/doctor` 使用小节输出，便于扫描但仍保持薄 CLI。
 - 真实模型集成测试默认跳过，需要显式配置相关环境变量后才会运行。
 - AgentHub 集成应使用 SDK 的 `approvalCallback` / `createAgentHubApprovalBridge()` 和 `eventSink`，不要直接调用 core runtime 内部类。
 - `doctor` 只输出 API key 是否存在，不输出 secret 值；配置输出也只展示白名单字段和路径。
@@ -444,4 +445,4 @@ tokendance doctor
 
 TokenDanceCode TS 版目前还是早期本地 Agent 实现，适合开发、测试和自用验证。
 
-它还不是正式发布到 npm 的包。当前已有发布前 `pack:check` dry-run 检查；后续会继续补充正式发布流程、安装包、首次运行向导、更多 slash commands、更细的事件 renderer 和更完整的 AgentHub 端到端示例。
+它还不是正式发布到 npm 的包。当前已有发布前 `pack:check` dry-run 检查；后续会继续补充正式发布流程、安装包、完整 TUI、更多 slash commands、更完整的 AgentHub 端到端示例。

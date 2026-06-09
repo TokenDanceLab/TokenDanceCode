@@ -19,6 +19,26 @@ describe("TokenDanceCode CLI", () => {
     expect(io.stdoutText()).toBe("0.2.0-ts.0\n");
   });
 
+  it("groups top-level and interactive help by workflow", async () => {
+    const topLevel = createTestIO();
+    const interactive = createTestIO("/help\n/exit\n");
+
+    const topLevelExitCode = await runCli(["--help"], topLevel);
+    const interactiveExitCode = await runCli([], interactive);
+
+    expect(topLevelExitCode).toBe(0);
+    expect(interactiveExitCode).toBe(0);
+    expect(topLevel.stdoutText()).toContain("Core:");
+    expect(topLevel.stdoutText()).toContain("Session:");
+    expect(topLevel.stdoutText()).toContain("Work:");
+    expect(topLevel.stdoutText()).toContain("Diagnostics:");
+    expect(topLevel.stdoutText()).toContain("Gateway:");
+    expect(interactive.stdoutText()).toContain("Session:");
+    expect(interactive.stdoutText()).toContain("Work:");
+    expect(interactive.stdoutText()).toContain("Diagnostics:");
+    expect(interactive.stdoutText()).toContain("Gateway:");
+  });
+
   it("runs an interactive shell with status, permissions, normal turns, and exit", async () => {
     const io = createTestIO("/status\n/permissions safe\n/status\nhello cli\n/exit\n");
 
@@ -27,6 +47,7 @@ describe("TokenDanceCode CLI", () => {
 
     expect(exitCode).toBe(0);
     expect(output).toContain("TokenDanceCode 0.2.0-ts.0");
+    expect(output).toContain("Status");
     expect(output).toContain("permissionMode: default");
     expect(output).toContain("permissionMode: safe");
     expect(output).toContain("Mock response: hello cli");
@@ -48,16 +69,21 @@ describe("TokenDanceCode CLI", () => {
     expect(exitCode).toBe(0);
     expect(jsonExitCode).toBe(0);
     expect(output).toContain("TokenDanceCode 0.2.0-ts.0");
-    expect(output).toContain(`cwd ${root}`);
-    expect(output).toContain("api OPENAI_API_KEY:");
-    expect(output).toContain("api ANTHROPIC_API_KEY:");
-    expect(output).toContain("git available:");
-    expect(output).toContain("git repository:");
-    expect(output).toContain("powershell available:");
-    expect(output).toContain("config project:");
-    expect(output).toContain("config global:");
-    expect(output).toContain("state dir:");
-    expect(output).toContain("state writable:");
+    expect(output).toContain("Runtime");
+    expect(output).toContain(`cwd: ${root}`);
+    expect(output).toContain("API Keys");
+    expect(output).toContain("OPENAI_API_KEY: ");
+    expect(output).toContain("ANTHROPIC_API_KEY: ");
+    expect(output).toContain("Tools");
+    expect(output).toContain("git available: ");
+    expect(output).toContain("git repository: ");
+    expect(output).toContain("powershell available: ");
+    expect(output).toContain("Config");
+    expect(output).toContain("project: ");
+    expect(output).toContain("global: ");
+    expect(output).toContain("State");
+    expect(output).toContain("dir: ");
+    expect(output).toContain("writable: ");
     expect(output).toContain('"apiKeys"');
     expect(parsed.cwd).toBe(root);
     expect(parsed.apiKeys.OPENAI_API_KEY).toMatch(/present|missing/);
@@ -105,11 +131,14 @@ describe("TokenDanceCode CLI", () => {
     await runCli([], interactive);
     const topLevelExitCode = await runCli(["config"], topLevel);
 
+    expect(interactive.stdoutText()).toContain("Configuration");
     expect(interactive.stdoutText()).toContain("provider: anthropic-messages");
     expect(interactive.stdoutText()).toContain("model: claude-test");
     expect(interactive.stdoutText()).toContain("permissionMode: safe");
-    expect(interactive.stdoutText()).toContain("source: project ");
+    expect(interactive.stdoutText()).toContain("Sources");
+    expect(interactive.stdoutText()).toContain("project ");
     expect(topLevelExitCode).toBe(0);
+    expect(topLevel.stdoutText()).toContain("Configuration");
     expect(topLevel.stdoutText()).toContain("provider: anthropic-messages");
     expect(topLevel.stdoutText()).toContain("model: claude-test");
   });
@@ -197,6 +226,10 @@ describe("TokenDanceCode CLI", () => {
 
     expect(initExitCode).toBe(0);
     expect(init.stdoutText()).toContain("Configured TokenDance Gateway preset");
+    expect(init.stdoutText()).toContain("Next steps:");
+    expect(init.stdoutText()).toContain("1. Add TOKENDANCE_GATEWAY_API_KEY to");
+    expect(init.stdoutText()).toContain("2. Run tokendance config to confirm provider/model/base URL.");
+    expect(init.stdoutText()).toContain("3. Use TokenDance API keys for Gateway calls; TokenDanceID login tokens are not model API keys.");
     expect(init.stdoutText()).not.toContain("existing-secret");
     expect(envFile).toContain("TOKENDANCE_GATEWAY_API_KEY=existing-secret");
     expect(envFile).toContain("OTHER_VALUE=keep-me");

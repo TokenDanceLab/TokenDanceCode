@@ -18,6 +18,7 @@ import {
   type TranscriptSearchResult
 } from "@tokendance/code-sdk";
 import { createEventRenderer } from "./renderer.js";
+import { heading, styleFromEnv, type CliStyle } from "./format.js";
 
 const version = "0.2.0-ts.0";
 const permissionModes = new Set<PermissionMode>(["default", "safe", "auto", "yolo"]);
@@ -321,12 +322,17 @@ async function memoryCommand(args: string[], io: CliIO): Promise<number> {
 }
 
 async function configCommand(io: CliIO): Promise<number> {
-  const info = await new TokenDanceCode({ env: await readCliEnv(io) }).config({ projectRoot: io.cwd(), homeDir: homeDirFor(io) });
-  await write(io.stdout, `provider: ${info.config.provider}\n`);
-  await write(io.stdout, `model: ${info.config.model}\n`);
-  await write(io.stdout, `permissionMode: ${info.config.permissionMode}\n`);
-  await write(io.stdout, `globalConfig: ${info.globalConfigPath}\n`);
-  await write(io.stdout, `projectConfig: ${info.projectConfigPath}\n`);
+  const env = await readCliEnv(io);
+  const style = styleFromEnv(env);
+  const info = await new TokenDanceCode({ env }).config({ projectRoot: io.cwd(), homeDir: homeDirFor(io) });
+  await writeSection(io, "Configuration", style);
+  await writeField(io, "provider", info.config.provider);
+  await writeField(io, "model", info.config.model);
+  await writeField(io, "permissionMode", info.config.permissionMode);
+  await writeSection(io, "Paths", style);
+  await writeField(io, "globalConfig", info.globalConfigPath);
+  await writeField(io, "projectConfig", info.projectConfigPath);
+  await writeSection(io, "Sources", style);
   for (const source of info.sources) {
     await write(io.stdout, `source: ${source.kind}${source.path ? ` ${source.path}` : ""}\n`);
   }
@@ -367,7 +373,10 @@ async function gatewayCommand(args: string[], io: CliIO): Promise<number> {
   );
 
   await write(io.stdout, `Configured TokenDance Gateway preset in ${envPath}\n`);
-  await write(io.stdout, "Set TOKENDANCE_GATEWAY_API_KEY in that file or your shell before running a real provider.\n");
+  await write(io.stdout, "Next steps:\n");
+  await write(io.stdout, `1. Add TOKENDANCE_GATEWAY_API_KEY to ${envPath} or the current shell.\n`);
+  await write(io.stdout, "2. Run tokendance config to confirm provider/model/base URL.\n");
+  await write(io.stdout, "3. Use TokenDance API keys for Gateway calls; TokenDanceID login tokens are not model API keys.\n");
   return 0;
 }
 
@@ -663,7 +672,7 @@ async function handleNewThread(io: CliIO, client: TokenDanceCode, previous: Thre
 
 async function runPrompt(io: CliIO, thread: Thread, prompt: string): Promise<void> {
   const streamed = await thread.runStreamed(prompt);
-  const renderer = createEventRenderer({ stdout: io.stdout });
+  const renderer = createEventRenderer({ stdout: io.stdout, color: styleFromEnv(await readCliEnv(io)).color });
 
   for await (const event of streamed.events) {
     await renderer.render(event);
@@ -842,10 +851,11 @@ async function printCompactResult(io: CliIO, result: Awaited<ReturnType<Thread["
 
 async function printStatus(io: CliIO, thread: Thread): Promise<void> {
   const state = thread.state;
-  await write(io.stdout, `sessionId: ${state.id}\n`);
-  await write(io.stdout, `cwd: ${state.cwd}\n`);
-  await write(io.stdout, `permissionMode: ${state.permissionMode}\n`);
-  await write(io.stdout, `messages: ${state.messages.length}\n`);
+  await writeSection(io, "Status", styleFromEnv(await readCliEnv(io)));
+  await writeField(io, "sessionId", state.id);
+  await writeField(io, "cwd", state.cwd);
+  await writeField(io, "permissionMode", state.permissionMode);
+  await writeField(io, "messages", String(state.messages.length));
 }
 
 async function printDoctor(io: CliIO, args: string[] = []): Promise<void> {
@@ -869,83 +879,109 @@ function yesNo(value: boolean): "yes" | "no" {
 }
 
 async function printDoctorInfo(io: CliIO, doctor: DoctorInfo): Promise<void> {
+  const style = styleFromEnv(await readCliEnv(io));
   await write(io.stdout, `TokenDanceCode ${doctor.version}\n`);
-  await write(io.stdout, `Node ${doctor.node}\n`);
-  await write(io.stdout, `cwd ${doctor.cwd}\n`);
-  await write(io.stdout, `platform ${doctor.platform}\n`);
-  await write(io.stdout, `api OPENAI_API_KEY: ${doctor.apiKeys.OPENAI_API_KEY}\n`);
-  await write(io.stdout, `api ANTHROPIC_API_KEY: ${doctor.apiKeys.ANTHROPIC_API_KEY}\n`);
-  await write(io.stdout, `git available: ${yesNo(doctor.git.available)}\n`);
-  await write(io.stdout, `git repository: ${yesNo(doctor.git.repository)}\n`);
-  await write(io.stdout, `powershell available: ${yesNo(doctor.powershell.available)}\n`);
-  await write(io.stdout, `config project: ${doctor.config.projectConfigPath}\n`);
-  await write(io.stdout, `config global: ${doctor.config.globalConfigPath}\n`);
-  await write(io.stdout, `config sources: ${doctor.config.sources.join(",")}\n`);
-  await write(io.stdout, `state dir: ${doctor.stateDir.path}\n`);
-  await write(io.stdout, `state writable: ${yesNo(doctor.stateDir.writable)}\n`);
+  await writeSection(io, "Runtime", style);
+  await writeField(io, "Node", doctor.node);
+  await writeField(io, "cwd", doctor.cwd);
+  await writeField(io, "platform", doctor.platform);
+  await writeSection(io, "API Keys", style);
+  await writeField(io, "api OPENAI_API_KEY", doctor.apiKeys.OPENAI_API_KEY);
+  await writeField(io, "api ANTHROPIC_API_KEY", doctor.apiKeys.ANTHROPIC_API_KEY);
+  await writeSection(io, "Tools", style);
+  await writeField(io, "git available", yesNo(doctor.git.available));
+  await writeField(io, "git repository", yesNo(doctor.git.repository));
+  await writeField(io, "powershell available", yesNo(doctor.powershell.available));
+  await writeSection(io, "Config", style);
+  await writeField(io, "project", doctor.config.projectConfigPath);
+  await writeField(io, "global", doctor.config.globalConfigPath);
+  await writeField(io, "sources", doctor.config.sources.join(","));
+  await writeSection(io, "State", style);
+  await writeField(io, "dir", doctor.stateDir.path);
+  await writeField(io, "writable", yesNo(doctor.stateDir.writable));
 }
 
 async function printHelp(io: CliIO): Promise<void> {
+  const style = styleFromEnv(io.env?.() ?? process.env);
   await write(
     io.stdout,
     `TokenDanceCode ${version}
 
-Usage:
+${heading("Core:", style)}
   tokendance
   tokendance --version
-  tokendance doctor [--json]
-  tokendance config
-  tokendance gateway init [--model model] [--base-url url]
-  tokendance memory [add|delete] [project|global] [value]
-  tokendance agents [run investigator|reviewer <prompt>]
-  tokendance agents run coding [--worktree name] <prompt>
-  tokendance agents show <agent-id>
-  tokendance agents accept <agent-id> [--discard-worktree] [--allow-dirty-target]
-  tokendance agents discard <agent-id> [--discard]
-  tokendance diff [path ...]
-  tokendance review
-  tokendance tools
-  tokendance quality [command]
-  tokendance tasks [create|doing|done|link-session|link-worktree] [value]
-  tokendance todo [add|doing|done] [value]
-  tokendance worktree [list|create|remove] [name] [--discard]
+  tokendance run <prompt>
+
+${heading("Session:", style)}
   tokendance resume [session-id]
   tokendance transcript [session-id]
   tokendance transcript search <query>
   tokendance transcript <session-id> search <query>
   tokendance context [--session session-id] <prompt>
   tokendance compact [session-id]
-  tokendance run <prompt>
+  tokendance memory [add|delete] [project|global] [value]
+
+${heading("Work:", style)}
+  tokendance agents [run investigator|reviewer <prompt>]
+  tokendance agents run coding [--worktree name] <prompt>
+  tokendance agents show <agent-id>
+  tokendance agents accept <agent-id> [--discard-worktree] [--allow-dirty-target]
+  tokendance agents discard <agent-id> [--discard]
+  tokendance tasks [create|doing|done|link-session|link-worktree] [value]
+  tokendance todo [add|doing|done] [value]
+  tokendance worktree [list|create|remove] [name] [--discard]
+  tokendance diff [path ...]
+  tokendance review
+  tokendance quality [command]
+  tokendance tools
+
+${heading("Diagnostics:", style)}
+  tokendance doctor [--json]
+  tokendance config
+
+${heading("Gateway:", style)}
+  tokendance gateway init [--model model] [--base-url url]
 `
   );
 }
 
 async function printInteractiveHelp(io: CliIO): Promise<void> {
+  const style = styleFromEnv(io.env?.() ?? process.env);
   await write(
     io.stdout,
     `Commands:
+${heading("Session:", style)}
   /new
   /status
-  /doctor [json]
-  /config
   /permissions [default|safe|auto|yolo]
   /resume
   /memory [add|delete] [project|global] [value]
+  /transcript [search <query>]
+  /context <prompt>
+  /compact
+
+${heading("Work:", style)}
   /agents [run investigator|reviewer <prompt>]
   /agents run coding [--worktree name] <prompt>
   /agents show <agent-id>
   /agents accept <agent-id> [--discard-worktree] [--allow-dirty-target]
   /agents discard <agent-id> [--discard]
+  /tasks [create|doing|done|link-session|link-worktree] [value]
+  /todo [add|doing|done] [value]
+  /worktree [list|create|remove] [name] [--discard]
   /diff [path ...]
   /review
   /tools
   /quality [command]
-  /tasks [create|doing|done|link-session|link-worktree] [value]
-  /todo [add|doing|done] [value]
-  /worktree [list|create|remove] [name] [--discard]
-  /transcript [search <query>]
-  /context <prompt>
-  /compact
+
+${heading("Diagnostics:", style)}
+  /doctor [json]
+  /config
+
+${heading("Gateway:", style)}
+  tokendance gateway init [--model model] [--base-url url]
+
+${heading("Exit:", style)}
   /exit
 `
   );
@@ -1197,6 +1233,14 @@ function unquoteEnvValue(value: string): string {
     return value.slice(1, -1);
   }
   return value;
+}
+
+async function writeSection(io: CliIO, title: string, style: CliStyle): Promise<void> {
+  await write(io.stdout, `${heading(title, style)}\n`);
+}
+
+async function writeField(io: CliIO, name: string, value: string): Promise<void> {
+  await write(io.stdout, `${name}: ${value}\n`);
 }
 
 function homeDirFor(io: CliIO): string {

@@ -546,6 +546,29 @@ describe("AgentHub TokenDanceCode runner example", () => {
     });
   });
 
+  it("uses the consumer fixture default working directory for startup diagnostics", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-agenthub-consumer-startup-"));
+    const fixture = createAgentHubTokenDanceConsumerFixture({
+      defaultRun: {
+        workingDirectory: root,
+        taskId: "task-consumer-startup",
+        edgeRunId: "edge-consumer-startup",
+        sessionId: "hub-session-consumer-startup",
+        agentInstanceId: "agent-consumer-startup"
+      },
+      defaultLogin: {
+        clientId: "agenthub-local",
+        redirectUri: "http://127.0.0.1:48731/callback"
+      }
+    });
+
+    const startup = await fixture.startup();
+
+    expect(startup.packageInfo.agentHub.features).toContain("agenthub-consumer-fixture");
+    expect(startup.doctor.cwd).toBe(root);
+    expect(startup.doctor.agentHub.ready).toBe(true);
+  });
+
   it("requires AgentHub fixture TokenDanceID login client and redirect inputs", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-agenthub-fixture-login-"));
     const fixture = createAgentHubTokenDanceE2EFixture({

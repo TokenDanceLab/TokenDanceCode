@@ -1,5 +1,11 @@
 import type { JsonSchemaObject, ModelProvider, ModelTurnRequest, ModelTurnResponse, ToolResult, ToolSpec } from "./types.js";
-import { createInvalidProviderResponseError, createProviderApiError, readProviderJson } from "./provider-errors.js";
+import {
+  createInvalidProviderResponseError,
+  createMalformedProviderResponseError,
+  createProviderApiError,
+  createProviderTransportError,
+  readProviderJson
+} from "./provider-errors.js";
 
 type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
@@ -47,7 +53,7 @@ export class OpenAIResponsesProvider implements ModelProvider {
   private readonly conversationBySession = new Map<string, OpenAIInputItem[]>();
 
   constructor(private readonly options: OpenAIResponsesProviderOptions) {
-    if (!options.apiKey) {
+    if (!options.apiKey.trim()) {
       throw new Error("OPENAI_API_KEY is not configured");
     }
     this.baseUrl = options.baseUrl ?? "https://api.openai.com/v1";
@@ -56,22 +62,27 @@ export class OpenAIResponsesProvider implements ModelProvider {
 
   async createTurn(request: ModelTurnRequest): Promise<ModelTurnResponse> {
     const input = this.buildInput(request);
-    const response = await this.fetchImpl(`${this.baseUrl.replace(/\/$/, "")}/responses`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${this.options.apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: this.options.model,
-        input,
-        tools: request.tools.map(toOpenAITool),
-        tool_choice: "auto",
-        parallel_tool_calls: true
-      })
-    });
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.baseUrl.replace(/\/$/, "")}/responses`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${this.options.apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: this.options.model,
+          input,
+          tools: request.tools.map(toOpenAITool),
+          tool_choice: "auto",
+          parallel_tool_calls: true
+        })
+      });
+    } catch (error) {
+      throw createProviderTransportError("openai-responses", error);
+    }
 
-    const { payload = {}, rawText } = await readProviderJson<OpenAIResponsePayload>(response);
+    const { payload = {}, rawText, malformed } = await readProviderJson<OpenAIResponsePayload>(response);
     if (!response.ok) {
       throw createProviderApiError({
         provider: "openai-responses",
@@ -80,6 +91,9 @@ export class OpenAIResponsesProvider implements ModelProvider {
         rawText,
         fallbackMessage: `OpenAI Responses API returned HTTP ${response.status}`
       });
+    }
+    if (malformed) {
+      throw createMalformedProviderResponseError("openai-responses", rawText);
     }
 
     const toolCalls = parseToolCalls(payload);

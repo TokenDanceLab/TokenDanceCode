@@ -1,5 +1,11 @@
 import type { JsonSchemaObject, ModelProvider, ModelTurnRequest, ModelTurnResponse, TDMessage, ToolResult, ToolSpec } from "./types.js";
-import { createInvalidProviderResponseError, createProviderApiError, readProviderJson } from "./provider-errors.js";
+import {
+  createInvalidProviderResponseError,
+  createMalformedProviderResponseError,
+  createProviderApiError,
+  createProviderTransportError,
+  readProviderJson
+} from "./provider-errors.js";
 
 type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
@@ -49,7 +55,7 @@ export class OpenAIChatCompletionsProvider implements ModelProvider {
   private readonly conversationBySession = new Map<string, OpenAIChatMessage[]>();
 
   constructor(private readonly options: OpenAIChatCompletionsProviderOptions) {
-    if (!options.apiKey) {
+    if (!options.apiKey.trim()) {
       throw new Error(
         "OPENAI_API_KEY is not configured; set TOKENDANCE_GATEWAY_API_KEY for TokenDance Gateway or OPENAI_API_KEY for OpenAI-compatible Chat Completions."
       );
@@ -60,21 +66,26 @@ export class OpenAIChatCompletionsProvider implements ModelProvider {
 
   async createTurn(request: ModelTurnRequest): Promise<ModelTurnResponse> {
     const messages = this.buildMessages(request);
-    const response = await this.fetchImpl(`${this.baseUrl.replace(/\/$/, "")}/chat/completions`, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${this.options.apiKey}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: this.options.model,
-        messages,
-        tools: request.tools.map(toOpenAIChatTool),
-        tool_choice: "auto"
-      })
-    });
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.baseUrl.replace(/\/$/, "")}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${this.options.apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: this.options.model,
+          messages,
+          tools: request.tools.map(toOpenAIChatTool),
+          tool_choice: "auto"
+        })
+      });
+    } catch (error) {
+      throw createProviderTransportError("openai-chat-completions", error);
+    }
 
-    const { payload = {}, rawText } = await readProviderJson<OpenAIChatResponsePayload>(response);
+    const { payload = {}, rawText, malformed } = await readProviderJson<OpenAIChatResponsePayload>(response);
     if (!response.ok) {
       throw createProviderApiError({
         provider: "openai-chat-completions",
@@ -83,6 +94,9 @@ export class OpenAIChatCompletionsProvider implements ModelProvider {
         rawText,
         fallbackMessage: `OpenAI Chat Completions API returned HTTP ${response.status}`
       });
+    }
+    if (malformed) {
+      throw createMalformedProviderResponseError("openai-chat-completions", rawText);
     }
 
     const message = payload.choices?.[0]?.message;

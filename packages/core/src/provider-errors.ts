@@ -27,15 +27,15 @@ export class ProviderApiError extends Error {
   }
 }
 
-export async function readProviderJson<T>(response: Response): Promise<{ payload?: T; rawText: string }> {
+export async function readProviderJson<T>(response: Response): Promise<{ payload?: T; rawText: string; malformed: boolean }> {
   const rawText = await response.text();
   if (!rawText.trim()) {
-    return { rawText };
+    return { rawText, malformed: false };
   }
   try {
-    return { payload: JSON.parse(rawText) as T, rawText };
+    return { payload: JSON.parse(rawText) as T, rawText, malformed: false };
   } catch {
-    return { rawText };
+    return { rawText, malformed: true };
   }
 }
 
@@ -65,6 +65,27 @@ export function createInvalidProviderResponseError(provider: ProviderProtocol, m
     status: 200,
     type: "invalid_provider_response",
     message
+  });
+}
+
+export function createMalformedProviderResponseError(provider: ProviderProtocol, rawText: string): ProviderApiError {
+  return new ProviderApiError({
+    provider,
+    protocol: provider,
+    status: 200,
+    type: "malformed_provider_response",
+    message: `Provider returned malformed JSON: ${summarizeRawText(rawText) ?? "<empty>"}`
+  });
+}
+
+export function createProviderTransportError(provider: ProviderProtocol, error: unknown): ProviderApiError {
+  const timeout = isAbortError(error);
+  return new ProviderApiError({
+    provider,
+    protocol: provider,
+    status: 0,
+    type: timeout ? "provider_timeout" : "provider_transport_error",
+    message: readErrorMessage(error) ?? (timeout ? "Provider request was aborted." : "Provider request failed before an HTTP response was received.")
   });
 }
 
@@ -108,4 +129,18 @@ function summarizeRawText(rawText: string | undefined): string | undefined {
     return undefined;
   }
   return text.length <= 300 ? text : `${text.slice(0, 297)}...`;
+}
+
+function readErrorMessage(error: unknown): string | undefined {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message.trim();
+  }
+  if (typeof error === "string" && error.trim()) {
+    return error.trim();
+  }
+  return undefined;
+}
+
+function isAbortError(error: unknown): boolean {
+  return typeof error === "object" && error !== null && "name" in error && (error as { name?: unknown }).name === "AbortError";
 }

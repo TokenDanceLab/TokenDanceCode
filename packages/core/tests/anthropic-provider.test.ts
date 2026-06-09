@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import { AnthropicMessagesProvider, type ModelTurnRequest, type ToolSpec } from "../src/index.js";
 
 describe("AnthropicMessagesProvider", () => {
+  it("rejects missing or blank API keys before making requests", () => {
+    expect(() => new AnthropicMessagesProvider({ apiKey: "", model: "claude-test" })).toThrow("ANTHROPIC_API_KEY is not configured");
+    expect(() => new AnthropicMessagesProvider({ apiKey: "   ", model: "claude-test" })).toThrow("ANTHROPIC_API_KEY is not configured");
+  });
+
   it("creates a Messages API request and parses assistant text", async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const provider = new AnthropicMessagesProvider({
@@ -108,6 +113,60 @@ describe("AnthropicMessagesProvider", () => {
       provider: "anthropic-messages",
       status: 502,
       message: "[anthropic-messages] HTTP 502: bad gateway"
+    });
+  });
+
+  it("normalizes fetch failures as provider transport errors", async () => {
+    const provider = new AnthropicMessagesProvider({
+      apiKey: "test-key",
+      model: "claude-test",
+      fetch: async () => {
+        throw new TypeError("fetch failed");
+      }
+    });
+
+    await expect(provider.createTurn(baseRequest())).rejects.toMatchObject({
+      name: "ProviderApiError",
+      provider: "anthropic-messages",
+      protocol: "anthropic-messages",
+      status: 0,
+      type: "provider_transport_error",
+      message: "[anthropic-messages] HTTP 0 provider_transport_error: fetch failed"
+    });
+  });
+
+  it("normalizes aborted fetches as provider timeout errors", async () => {
+    const provider = new AnthropicMessagesProvider({
+      apiKey: "test-key",
+      model: "claude-test",
+      fetch: async () => {
+        throw new DOMException("The operation was aborted.", "AbortError");
+      }
+    });
+
+    await expect(provider.createTurn(baseRequest())).rejects.toMatchObject({
+      name: "ProviderApiError",
+      provider: "anthropic-messages",
+      status: 0,
+      type: "provider_timeout",
+      message: "[anthropic-messages] HTTP 0 provider_timeout: The operation was aborted."
+    });
+  });
+
+  it("rejects malformed successful JSON with a diagnostic error", async () => {
+    const provider = new AnthropicMessagesProvider({
+      apiKey: "test-key",
+      model: "claude-test",
+      fetch: async () => new Response("{", { status: 200, headers: { "Content-Type": "application/json" } })
+    });
+
+    await expect(provider.createTurn(baseRequest())).rejects.toMatchObject({
+      name: "ProviderApiError",
+      provider: "anthropic-messages",
+      protocol: "anthropic-messages",
+      status: 200,
+      type: "malformed_provider_response",
+      message: "[anthropic-messages] HTTP 200 malformed_provider_response: Provider returned malformed JSON: {"
     });
   });
 

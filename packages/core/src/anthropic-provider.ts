@@ -1,5 +1,11 @@
 import type { JsonSchemaObject, ModelProvider, ModelTurnRequest, ModelTurnResponse, TDMessage, ToolResult, ToolSpec } from "./types.js";
-import { createInvalidProviderResponseError, createProviderApiError, readProviderJson } from "./provider-errors.js";
+import {
+  createInvalidProviderResponseError,
+  createMalformedProviderResponseError,
+  createProviderApiError,
+  createProviderTransportError,
+  readProviderJson
+} from "./provider-errors.js";
 
 type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
@@ -41,7 +47,7 @@ export class AnthropicMessagesProvider implements ModelProvider {
   private readonly conversationBySession = new Map<string, AnthropicMessage[]>();
 
   constructor(private readonly options: AnthropicMessagesProviderOptions) {
-    if (!options.apiKey) {
+    if (!options.apiKey.trim()) {
       throw new Error("ANTHROPIC_API_KEY is not configured");
     }
     this.baseUrl = options.baseUrl ?? "https://api.anthropic.com";
@@ -52,23 +58,28 @@ export class AnthropicMessagesProvider implements ModelProvider {
 
   async createTurn(request: ModelTurnRequest): Promise<ModelTurnResponse> {
     const messages = this.buildMessages(request);
-    const response = await this.fetchImpl(`${this.baseUrl.replace(/\/$/, "")}/v1/messages`, {
-      method: "POST",
-      headers: {
-        "x-api-key": this.options.apiKey,
-        "anthropic-version": this.version,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: this.options.model,
-        max_tokens: this.maxTokens,
-        system: toAnthropicSystem(request.session.messages),
-        messages,
-        tools: request.tools.map(toAnthropicTool)
-      })
-    });
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.baseUrl.replace(/\/$/, "")}/v1/messages`, {
+        method: "POST",
+        headers: {
+          "x-api-key": this.options.apiKey,
+          "anthropic-version": this.version,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: this.options.model,
+          max_tokens: this.maxTokens,
+          system: toAnthropicSystem(request.session.messages),
+          messages,
+          tools: request.tools.map(toAnthropicTool)
+        })
+      });
+    } catch (error) {
+      throw createProviderTransportError("anthropic-messages", error);
+    }
 
-    const { payload = {}, rawText } = await readProviderJson<AnthropicResponsePayload>(response);
+    const { payload = {}, rawText, malformed } = await readProviderJson<AnthropicResponsePayload>(response);
     if (!response.ok) {
       throw createProviderApiError({
         provider: "anthropic-messages",
@@ -77,6 +88,9 @@ export class AnthropicMessagesProvider implements ModelProvider {
         rawText,
         fallbackMessage: `Anthropic Messages API returned HTTP ${response.status}`
       });
+    }
+    if (malformed) {
+      throw createMalformedProviderResponseError("anthropic-messages", rawText);
     }
 
     const toolCalls = parseToolCalls(payload);

@@ -6,6 +6,9 @@ describe("OpenAIChatCompletionsProvider", () => {
     expect(() => new OpenAIChatCompletionsProvider({ apiKey: "", model: "deepseek-v4-pro" })).toThrow(
       "OPENAI_API_KEY is not configured; set TOKENDANCE_GATEWAY_API_KEY for TokenDance Gateway or OPENAI_API_KEY for OpenAI-compatible Chat Completions."
     );
+    expect(() => new OpenAIChatCompletionsProvider({ apiKey: "   ", model: "deepseek-v4-pro" })).toThrow(
+      "OPENAI_API_KEY is not configured; set TOKENDANCE_GATEWAY_API_KEY for TokenDance Gateway or OPENAI_API_KEY for OpenAI-compatible Chat Completions."
+    );
   });
 
   it("creates a Chat Completions request and parses assistant text", async () => {
@@ -152,6 +155,63 @@ describe("OpenAIChatCompletionsProvider", () => {
       provider: "openai-chat-completions",
       status: 429,
       message: "[openai-chat-completions] HTTP 429: quota exceeded"
+    });
+  });
+
+  it("normalizes Gateway fetch failures as provider transport errors", async () => {
+    const provider = new OpenAIChatCompletionsProvider({
+      apiKey: "gateway-key",
+      model: "deepseek-v4-pro",
+      baseUrl: "https://api.vectorcontrol.tech/v1",
+      fetch: async () => {
+        throw new TypeError("fetch failed");
+      }
+    });
+
+    await expect(provider.createTurn(baseRequest())).rejects.toMatchObject({
+      name: "ProviderApiError",
+      provider: "openai-chat-completions",
+      protocol: "openai-chat-completions",
+      status: 0,
+      type: "provider_transport_error",
+      message: "[openai-chat-completions] HTTP 0 provider_transport_error: fetch failed"
+    });
+  });
+
+  it("normalizes aborted Gateway requests as provider timeout errors", async () => {
+    const provider = new OpenAIChatCompletionsProvider({
+      apiKey: "gateway-key",
+      model: "deepseek-v4-pro",
+      baseUrl: "https://api.vectorcontrol.tech/v1",
+      fetch: async () => {
+        throw new DOMException("The operation was aborted.", "AbortError");
+      }
+    });
+
+    await expect(provider.createTurn(baseRequest())).rejects.toMatchObject({
+      name: "ProviderApiError",
+      provider: "openai-chat-completions",
+      status: 0,
+      type: "provider_timeout",
+      message: "[openai-chat-completions] HTTP 0 provider_timeout: The operation was aborted."
+    });
+  });
+
+  it("rejects malformed successful Gateway JSON with a diagnostic error", async () => {
+    const provider = new OpenAIChatCompletionsProvider({
+      apiKey: "gateway-key",
+      model: "deepseek-v4-pro",
+      baseUrl: "https://api.vectorcontrol.tech/v1",
+      fetch: async () => new Response("{", { status: 200, headers: { "Content-Type": "application/json" } })
+    });
+
+    await expect(provider.createTurn(baseRequest())).rejects.toMatchObject({
+      name: "ProviderApiError",
+      provider: "openai-chat-completions",
+      protocol: "openai-chat-completions",
+      status: 200,
+      type: "malformed_provider_response",
+      message: "[openai-chat-completions] HTTP 200 malformed_provider_response: Provider returned malformed JSON: {"
     });
   });
 

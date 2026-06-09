@@ -206,7 +206,7 @@ node packages/cli/dist/main.js run "hello"
 - [x] CLI main.ts 过大风险：把顶层命令、slash command、usage 文案和 JSON contract 收敛到 command registry lane；`main.ts` 只保留 IO-aware handler wiring。
 - [x] Codex contract/schema drift gate：把 SDK manifest、AgentHub event envelope、transcript schema、provider schema 和 CLI JSON 输出的漂移纳入 package metadata / focused tests；`agent.stream` schema 已随 required `source_event_type` 显式 bump 到 v2。
 - [x] OpenCode command metadata registry：吸收 id/category/title/aliases/usage/JSON contract 的 registry 形态，继续拒绝 full-screen palette 和 provider tree。
-- [x] 顶层 command metadata registry：`TOP_LEVEL_COMMAND_METADATA` 已集中维护顶层命令的 category、usage、alias 和 JSON support，`printHelp()`、handler 测试和未来 AgentHub command surface 可以从同一数据源派生；slash command registry 仍留作后续切片。
+- [x] Command metadata registry：`TOP_LEVEL_COMMAND_METADATA` 已集中维护顶层命令的 category、usage、alias 和 JSON support；slash commands 也已通过 `packages/cli/src/slash-commands.ts` 维护 metadata，`printHelp()`、interactive help、handler 测试和未来 AgentHub command surface 可以从同一数据源派生。
 - [x] 拒绝 app-server daemon、拒绝 OpenTUI、拒绝 plugin marketplace、拒绝 native installer：这些都不是 Wave 5 或首版 CLI harness 的实现目标。
 - [x] Release/npm baseline：保持 `pnpm contract:check`、`pnpm release:next:check` 和 tarball smoke 作为发布前本地 gate；`npm publish --tag next` 继续只允许 release owner 人工执行。
 - [x] NPM tarball privacy scan：`pack:smoke` 在安装真实 tarball 后扫描 package 内容，跟随 pnpm scoped package symlink，并在扫描 0 个可读包文件时失败，阻止本机绝对路径、npm token、npm auth token 和 private key material 进入发布包。
@@ -220,7 +220,7 @@ node packages/cli/dist/main.js run "hello"
 
 - [x] 只读对比 ClaudeCode、Codex、OpenCode 中 CLI agent 架构相关目录，确认 TokenDanceCode 继续保留薄 CLI、core runtime、SDK facade、provider adapter、tool permission pipeline、JSONL transcript 和本地 release gate。
 - [x] 明确拒绝 app-server daemon、remote-control 平台、plugin marketplace、OpenTUI/full-screen provider tree、desktop/IDE/browser bridge、企业/云任务/共享控制面、真实 provider key 自动发现。
-- [x] 把 slash command registry、层级 instruction discovery、provider history normalization、更强 Windows sandbox、session export/prune UI 标记为延后项，避免 Wave 6 把参考仓库的产品外壳搬进本地 CLI harness。
+- [x] Wave 6 已合入 slash command registry、层级 instruction discovery、provider history normalization、AgentHub runner facade、permission profile metadata 和 CLI scrollback brand；更强 Windows sandbox、session export/prune UI 继续延后，避免把参考仓库的产品外壳搬进本地 CLI harness。
 - [x] 保持 AgentHub 边界：TokenDanceCode 只输出 SDK、event mapper、approval bridge、doctor/readiness、session/transcript metadata；Hub Server 继续负责生产 event bus、approval store、TokenDanceID token exchange/JWKS/session 生命周期。
 - [x] 保持发布边界：本仓库只做 `pnpm contract:check`、`pnpm verify`、`pnpm pack:check`、`pnpm pack:smoke` 和 package metadata regression；`npm publish --tag next` 仍由 release owner 手工执行。
 

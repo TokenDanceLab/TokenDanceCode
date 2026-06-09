@@ -118,6 +118,7 @@ async function assertAgentHubContractReadiness(rootPackage) {
   const packageInfo = await readText("packages/sdk/src/package-info.ts");
   const sdkIndex = await readText("packages/sdk/src/index.ts");
   const agentHubEvents = await readText("packages/sdk/src/agenthub-events.ts");
+  const agentHubRunner = await readText("packages/sdk/src/agenthub-runner.ts");
   const agentHubExamplePackage = await readJson("packages/agenthub-example/package.json");
   const agentHubExampleSource = await readText("packages/agenthub-example/src/index.ts");
   const agentHubExampleTests = await readText("packages/agenthub-example/tests/agenthub-runner.test.ts");
@@ -143,6 +144,7 @@ async function assertAgentHubContractReadiness(rootPackage) {
   }
   for (const exportLine of [
     'export * from "./agenthub-events.js";',
+    'export * from "./agenthub-runner.js";',
     'export * from "./approval-bridge.js";',
     'export * from "./doctor.js";',
     'export * from "./package-info.js";',
@@ -182,7 +184,13 @@ async function assertAgentHubContractReadiness(rootPackage) {
     "approvals",
     "verifyLoginCallback"
   ]) {
-    assert(agentHubExampleSource.includes(symbol), `AgentHub fixture source missing ${symbol}`);
+    assert(agentHubRunner.includes(symbol), `AgentHub runner source missing ${symbol}`);
+  }
+  for (const symbol of [
+    "createAgentHubTokenDanceRunner",
+    "createAgentHubTokenDanceConsumerFixture"
+  ]) {
+    assert(agentHubExampleSource.includes(symbol), `AgentHub fixture thin wrapper missing ${symbol}`);
   }
   for (const evidence of [
     "startup.doctor.agentHub.ready",

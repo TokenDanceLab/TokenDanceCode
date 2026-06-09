@@ -32,7 +32,7 @@ tokendance
 
 - 交互式终端 Coding Agent。
 - 支持模型流式输出。
-- CLI 当前可自动启用 Anthropic-compatible 模型供应商；OpenAI provider 映射已在代码层存在，CLI 自动选择仍在完善中。
+- 支持 OpenAI Responses API、OpenAI Chat Completions API / TokenDance Gateway 和 Anthropic-compatible Messages API。
 - 内置文件工具：`read_file`、`write_file`、`edit_file`、`glob`。
 - 内置 patch 和 PowerShell 工具，并经过权限系统管控。
 - 支持 slash commands：状态、配置、diff、review、quality、tasks、todo、transcript、memory、resume、worktree 等。
@@ -46,8 +46,9 @@ tokendance
 |---|---|---|
 | CLI 入口 | 可用 | `tokendance`、`tokendance --version`、`tokendance doctor`、`tokendance resume` |
 | 交互 shell | 可用 | 滚动式终端体验，支持 slash commands 和 MockProvider 冒烟 |
-| Anthropic-compatible provider | 可用 | 检测到 `ANTHROPIC_API_KEY` 后自动启用真实模型 |
-| OpenAI provider | 部分完成 | provider 映射和单元测试存在；CLI 自动配置尚未作为默认入口承诺 |
+| OpenAI Responses provider | 可用 | `OPENAI_API_KEY + MODEL_ID` 会推断为 `openai-responses` |
+| OpenAI Chat Completions / Gateway provider | 可用 | `TOKENDANCE_GATEWAY_API_KEY + TOKENDANCE_MODEL` 会推断为 `openai-chat-completions` |
+| Anthropic-compatible provider | 可用 | `ANTHROPIC_API_KEY + MODEL_ID` 会推断为 `anthropic-messages` |
 | 文件、patch、PowerShell 工具 | 可用 | 经过权限系统执行 |
 | Git / diff / review / quality | 可用 | 面向本地仓库的结构化能力 |
 | Task / Todo / transcript / memory / resume | 可用但早期 | 适合开发和自用验证，仍需更多端到端打磨 |
@@ -128,7 +129,7 @@ Provider HTTP 失败会统一抛出 `ProviderApiError`，包含 `provider`、`pr
 - 当前 PowerShell 会话环境变量。
 - 全局 `~/.tokendance/.env`。
 
-安全提示：当前实现会在启动时读取当前项目根目录的 `.env`，便于本地快速验证。不要把真实 key 提交到 Git；如果当前仓库的 `.env` 属于业务应用配置，不建议把模型 key 混放进去。长期设计会继续收敛到更明确的全局配置或系统凭据存储。
+安全提示：TokenDanceCode 默认不读取项目根目录 `.env` 作为 provider key 来源。项目 `.env` 通常属于业务配置，可能包含应用密钥；需要给 AgentHub 或脚本注入 provider key 时，优先通过 SDK `env` 显式传入受控环境。
 
 ### 方式一：当前 PowerShell 会话
 

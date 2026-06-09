@@ -123,6 +123,23 @@ describe("package metadata", () => {
       expect(text).toContain("不要在检查脚本中执行 npm publish");
     }
   });
+
+  it("keeps TS branch docs aligned with Node packaging and global provider env boundaries", async () => {
+    const readme = await readText("README.md");
+    const agents = await readText("AGENTS.md");
+
+    expect(agents).toContain("Runtime: Node.js 20.18+");
+    expect(agents).toContain("Package manager: pnpm");
+    expect(agents).toContain("pnpm release:next:check");
+    expect(agents).not.toContain("Runtime: Python");
+    expect(agents).not.toContain("python -m pip");
+
+    expect(readme).toContain("OpenAI Responses API、OpenAI Chat Completions API 与 Anthropic-compatible Messages API");
+    expect(readme).toContain("TokenDanceCode 默认不读取项目根目录 `.env`");
+    expect(readme).not.toContain("当前实现会在启动时读取当前项目根目录的 `.env`");
+    expect(readme).not.toContain("正式发布到 PyPI");
+    expect(readme).not.toContain("pipx install");
+  });
 });
 
 async function readJson(path: string): Promise<Record<string, any>> {

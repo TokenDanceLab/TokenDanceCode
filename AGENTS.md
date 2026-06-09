@@ -5,9 +5,10 @@ TokenDanceCode is a local command-line Coding Agent / harness for personal devel
 ## Repository
 
 - GitHub: `TokenDanceLab/TokenDanceCode`
-- Package: `tokendance`
+- Public packages: `@tokendance/code-core`, `@tokendance/code-sdk`, `@tokendance/code-cli`
 - Command: `tokendance`
-- Runtime: Python 3.11+
+- Runtime: Node.js 20.18+
+- Package manager: pnpm 10+
 - Primary shell target: Windows PowerShell
 
 ## Workspace Rules
@@ -24,8 +25,8 @@ TokenDanceCode focuses on:
 
 - interactive terminal Coding Agent sessions;
 - local repository reading, editing, shell execution, diff/review, task/todo, transcript, memory, resume, subagent, and worktree workflows;
-- provider-neutral runtime architecture with Anthropic-compatible model support as the current CLI path;
-- OpenAI provider mapping and tests as implementation groundwork, without claiming full CLI auto-selection until the command path supports it.
+- provider-neutral runtime architecture with OpenAI Responses, OpenAI Chat Completions / TokenDance Gateway, and Anthropic-compatible Messages support;
+- AgentHub-consumable SDK facade, event mapping, remote approval bridge, and package manifest metadata.
 
 Do not describe TokenDanceCode as:
 
@@ -50,10 +51,16 @@ Do not describe TokenDanceCode as:
 Use these from the repository root after code or docs changes:
 
 ```powershell
-python -m pip install -e ".[dev]"
-python -m unittest discover tests
-tokendance --version
-tokendance doctor
+pnpm install
+pnpm release:next:check
+node packages/cli/dist/main.js --version
+node packages/cli/dist/main.js doctor
 ```
 
-Docs-only changes should still run at least `python -m unittest discover tests` when dependencies are installed, or explicitly report why verification was skipped.
+Docs-only changes should still run at least the focused docs/package metadata test when practical:
+
+```powershell
+pnpm test packages/sdk/tests/package-metadata.test.ts
+```
+
+`npm publish --tag next` is a separate manual release-owner action after version, package contents, dist-tag, npm login, and license intent are reviewed. Do not put publish into verification scripts.

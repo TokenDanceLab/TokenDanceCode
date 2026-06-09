@@ -1,12 +1,54 @@
 # TokenDanceCode
 
-> 本地命令行 Coding Agent。面向个人仓库，Windows / PowerShell 优先，给 AgentHub 提供可嵌入 SDK。
+> Rust rewrite branch for a local command-line Coding Agent. Windows / PowerShell first, AgentHub SDK surface preserved.
 
 [English](README.en.md) · [AgentHub SDK](docs/agenthub-sdk.md) · [发布准备](docs/release-readiness.md) · [TS 路线图](docs/TS重构路线图.md)
 
 ![TokenDanceCode CLI overview](docs/images/tokendance-cli-hero.svg)
 
 上图展示当前 TypeScript/npm 版本的 CLI 启动界面和常用运行方式。
+
+## Rust Rewrite
+
+TokenDanceCode is being rewritten in Rust for performance and reliability. The Rust branch (`codex/rust-rewrite`) coexists with the TypeScript implementation.
+
+### Quick Start (Rust)
+
+```powershell
+git clone https://github.com/TokenDanceLab/TokenDanceCode.git
+cd TokenDanceCode
+git checkout codex/rust-rewrite
+cargo run -p tokendance-cli -- --version
+cargo run -p tokendance-cli -- doctor --json
+```
+
+### Current Status
+
+- **204 tests** passing across 3 crates (CLI: 12, Core: 185, SDK: 7)
+- **7 built-in tools**: echo, read_file, write_file, edit_file, glob, grep, run_powershell
+- **3 provider transports**: OpenAI Chat Completions, OpenAI Responses, Anthropic Messages
+- **Interactive REPL** with streaming output
+- **MCP client** for tool extensibility (stdio JSON-RPC, tool discovery, namespaced tools)
+- **Subagent spawning** for multi-agent orchestration (isolated sessions, filtered tools, recursion prevention)
+- **Context compaction** for long-running sessions (threshold-based, heuristic summary)
+- **Memory system** with markdown files and frontmatter (CRUD operations, scoped types)
+- **Hooks system** for lifecycle customization (PreToolUse, PostToolUse, TurnCompleted, TurnFailed)
+- **Streaming architecture** with SSE parser and mpsc channels
+- **Instruction discovery** for AGENTS.md/CLAUDE.md with scope hierarchy
+
+See [docs/rust-rewrite-architecture.md](docs/rust-rewrite-architecture.md) for ownership, migration order, and release gates.
+
+### Release Readiness
+
+```powershell
+# Full release readiness check
+node scripts/smoke-rust-release.mjs
+
+# Provider smoke (opt-in, requires API keys)
+TOKENDANCE_SMOKE_PROVIDERS=1 node scripts/smoke-providers.mjs
+```
+
+See [docs/rust-release-checklist.md](docs/rust-release-checklist.md) for the full release checklist.
 
 ## 项目定位
 

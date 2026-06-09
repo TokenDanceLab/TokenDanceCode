@@ -1,6 +1,7 @@
 .env
 .config/
 .tokendance/
+.tokendance-rs/
 .worktrees/
 .tmp/
 .claude/
@@ -10,6 +11,7 @@
 .idea/
 build/
 dist/
+target/
 coverage/
 node_modules/
 *.tsbuildinfo

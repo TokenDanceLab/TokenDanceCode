@@ -1,0 +1,31 @@
+[workspace]
+members = [
+  "crates/tokendance-core",
+  "crates/tokendance-sdk",
+  "crates/tokendance-cli"
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.3.0-rs.0"
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/TokenDanceLab/TokenDanceCode"
+
+[workspace.dependencies]
+anyhow = "1.0"
+async-trait = "0.1"
+clap = { version = "4.5", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+base64 = "0.22"
+sha2 = "0.10"
+thiserror = "2.0"
+time = { version = "0.3", features = ["formatting"] }
+glob = "0.3"
+regex = "1.11"
+tokio = { version = "1.48", features = ["fs", "io-util", "macros", "process", "rt-multi-thread", "sync"] }
+uuid = { version = "1.19", features = ["v4", "serde"] }
+tempfile = "3"
+crossterm = "0.28"

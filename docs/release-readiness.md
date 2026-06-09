@@ -1,18 +1,18 @@
 # Release Readiness
 
-Last updated: 2026-06-09 20:52 HKT.
+Last updated: 2026-06-09 21:05 HKT.
 
-TokenDanceCode has a local npm first-candidate baseline. The public registry does not show the packages yet, so the correct public status is release-review ready, not published.
+TokenDanceCode is on the Rust rewrite branch. The current release work is scaffolding for a Rust-first npm binary wrapper and package review plan; it is not a publish-ready candidate and it must not publish npm packages from automation.
 
 ## Candidate
 
-- Version: `0.2.0-ts.0`
-- Candidate branch: `release/npm-first`
-- Source of truth: the pushed `release/npm-first` branch tip after the latest local gate run.
-- Packages:
+- Version: `0.3.0-rs.0`
+- Status: release-plan scaffold only; Rust runtime parity and native package artifacts are still required.
+- Public npm entry package:
+  - `@tokendance/code-cli`
+- Legacy contract packages, kept only until the Rust SDK bridge decision is finished:
   - `@tokendance/code-core`
   - `@tokendance/code-sdk`
-  - `@tokendance/code-cli`
 
 ## Registry Status
 
@@ -22,55 +22,82 @@ Run the public registry check before claiming a publish succeeded:
 pnpm registry:next:check
 ```
 
-Current result: the three public packages still return npm `E404`, which is acceptable before the first publish and proves the packages are not visible on npm yet.
+Current result must be refreshed before any release-owner action. `E404` is acceptable before the first publish and proves the packages are not visible on npm yet.
 
 ## Local Gates
 
 Run from the workspace root:
 
 ```powershell
-pnpm registry:next:check
-pnpm contract:check
 pnpm verify
-pnpm pack:smoke
-pnpm release:next:check
-pnpm release:publish:check
+pnpm release:rust:plan:check
+pnpm smoke:rust-wrapper
 git diff --check
 ```
 
+For now, `pnpm verify` intentionally stays Rust-only:
+
+```powershell
+cargo fmt --all -- --check && cargo test --workspace
+```
+
+The older pack and contract gates remain historical TypeScript-package checks until the Rust wrapper exists. Do not treat `pnpm release:next:check` as the Rust release gate yet.
+
 `pnpm smoke:gateway` is an optional maintainer-only provider smoke. It requires explicit opt-in environment variables, never reads the project root `.env`, never runs `npm publish`, and must redact provider keys and base URLs from subprocess output.
 
-Latest known local evidence, to be refreshed immediately before publish:
+Latest known local evidence, to be refreshed before a release decision:
 
-- `pnpm wave7:status -- --json` passed with all six Wave 7 worktrees clean.
-- `pnpm release:next:check` passed on the release-candidate baseline.
-- `pnpm verify` passed inside that gate with TypeScript build and Vitest `26` files / `301` tests passing.
-- `pnpm pack:smoke` installed real packed core, SDK, and CLI tarballs into a temporary npm project, imported the packed SDK AgentHub consumer fixture, and ran a mock AgentHub turn.
-- `pnpm registry:next:check` reported npm `E404` for core, SDK, and CLI.
-- `pnpm release:publish:check` is the final local preflight before a human publish: it requires a clean worktree, requires `HEAD` to match local and remote `release/npm-first`, reruns registry/contract/verify/build/pack gates, stages reviewed tarballs under `.tmp/release-publish/<version>-<commit>`, smoke-tests those exact tarballs, prints SHA-256 hashes, and prints explicit publish commands with `--registry https://registry.npmjs.org/`.
-- `git diff --check` passed after README/docs cleanup.
-- The tarball smoke privacy scan follows pnpm scoped-package symlinks, fails if it scans zero readable package files, and checks common provider, npm, GitHub token, local path, and private-key patterns.
+- `pnpm verify` is the active Rust branch gate and runs Cargo formatting and workspace tests.
+- `pnpm release:rust:plan:check` verifies the Rust wrapper plan docs, checks `packages/cli/bin/tokendance.js`, keeps `pnpm verify` on Cargo, and fails if package scripts include an npm publish command.
+- `pnpm smoke:rust-wrapper` packs `@tokendance/code-cli` into a local tarball, installs it into a temp npm project without publishing, locates or builds the current-platform `tokendance` Rust binary, runs `tokendance --version` and `tokendance doctor --json`, and rejects tarball contents that include source/test/build-only paths, local workspace paths, token-like secrets, or npm auth config.
 
 Use fresh command output as the source for current test counts.
 
+## Rust-First Npm Binary Wrapper Plan
+
+The first Rust release should expose `tokendance` through `@tokendance/code-cli`. The npm package now contains a small JavaScript command shim plus metadata; the shim first delegates to a local built Rust binary from `crates/tokendance-cli`, then falls back to the planned platform-specific native package name.
+
+Planned package shape:
+
+- `packages/cli/bin/tokendance.js` is the cross-platform npm `bin` entry for `tokendance`; it forwards argv and stdio unchanged to `target/release/tokendance`, `target/debug/tokendance`, or a future optional native package.
+- `packages/cli/package.json` owns public CLI metadata, the `bin` mapping, and Rust-aligned `build` / `test` scripts.
+- The CLI package may later list optional native packages in `optionalDependencies` after those packages and CI artifacts exist.
+- Optional native packages should be platform scoped, for example:
+  - `@tokendance/code-cli-win32-x64-msvc`
+  - `@tokendance/code-cli-darwin-arm64`
+  - `@tokendance/code-cli-darwin-x64`
+  - `@tokendance/code-cli-linux-x64-gnu`
+  - `@tokendance/code-cli-linux-arm64-gnu`
+
+The optional native packages must contain only the compiled binary, license/readme metadata, and the minimum npm manifest needed for install resolution. They must not publish Rust crate source, local build outputs, logs, secrets, or private examples.
+
+Before promoting the wrapper from plan to release candidate:
+
+1. Build the Rust CLI in CI for every supported target.
+2. Generate platform-native npm packages from reviewed CI artifacts.
+3. Replace the current JavaScript shim placeholder with reviewed native-package artifact paths once CI produces them.
+4. Keep `pnpm smoke:rust-wrapper` passing for the wrapper package; it runs `tokendance --version` and `tokendance doctor --json` from a fresh temp project without publishing.
+5. Extend the package privacy scan to platform-native package contents once those packages exist.
+6. Run the release-owner publish checklist outside this repository.
+
 ## Publish Boundary
 
-Verification scripts must not run `npm publish`. Publishing is a separate release-owner action after package content review. Do not run `npm publish` from package source directories; source manifests intentionally keep `workspace:*` dependencies for local development. Publish only the tarballs produced by `pnpm pack`, because those tarballs rewrite workspace dependencies to concrete versions.
+No package script may run `npm publish`, `pnpm publish`, or `yarn npm publish`. Publishing is a Manual release-owner action after package content review. Do not run publish commands from package source directories; source manifests may contain workspace-local development metadata until tarball contents are reviewed.
 
 Before publishing:
 
 1. Confirm npm account and org access.
 2. Confirm registry is `https://registry.npmjs.org/`.
 3. Run `pnpm registry:next:check`; `E404` is allowed for first publish, but the current candidate version must not already exist.
-4. Run `pnpm release:publish:check` on a clean worktree.
-5. Review packed contents from `pnpm pack:dry-run`.
-6. Publish only the staged tarball paths printed by `pnpm release:publish:check`; verify their SHA-256 hashes before publishing.
-7. Release owner completes the external npm credential and 2FA checklist outside this repository.
+4. Run the current Rust release gates on a clean worktree.
+5. Review packed wrapper and optional native package contents.
+6. Create publish tarballs with `pnpm pack --pack-destination` and review each tarball path.
+7. Release owner runs the private publish checklist from the operator secret store.
 
 Public command shape:
 
 ```powershell
-npm publish "<tarballPath>" --access public --tag next --registry https://registry.npmjs.org/
+npm publish "<tarballPath>" --access public --tag next
 ```
 
 Run the publish command once per reviewed tarball. Keep token-bearing npm configuration outside this repository and out of logs.
@@ -94,4 +121,4 @@ tokendance --version
 tokendance doctor --json
 ```
 
-Do not print npm tokens in logs or docs. Rotate any token that was exposed outside approved credential storage.
+Do not print npm tokens in logs or docs. Rotate any token that was exposed outside the private secret store.

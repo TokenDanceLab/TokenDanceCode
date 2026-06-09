@@ -19,13 +19,15 @@ This document records public, secret-free progress for the Rust rewrite branch.
 | SDK scaffold | Done | AgentHub schema constants, `agent.stream` frame mapping, same-session rejection terminal frame |
 | Provider scaffold | Done | TS-aligned protocols, typed provider errors, OpenAI Responses / Chat / Anthropic request mapping skeletons |
 | Tool catalog scaffold | Done | permission profile metadata, echo tool, fail-closed unknown tools, denied execution safety evidence |
-| File and shell tool scaffold | Done | read/write workspace path tools, secret-like path evidence, PowerShell destructive-command hard deny |
+| File and shell tool scaffold | Done | read/write/edit workspace path tools, glob, grep, secret-like path evidence, PowerShell destructive-command hard deny |
 | Runtime tool-loop scaffold | Done | provider tool calls, permission events, tool execution, follow-up provider call, model-call limit |
 | SDK bridge scaffold | Done | TokenDanceID PKCE login helper, callback state validation, approval pending/decide snapshots |
 | SDK runner parity scaffold | Done | package info, doctor, bootstrap, transient context preview |
 | Npm wrapper scaffold | Done | `packages/cli/bin/tokendance.js` forwards to the Rust binary and release-plan check asserts wrapper boundaries |
 | Npm wrapper smoke | Done | local tarball pack/install, wrapper binary smoke, package privacy scan |
 | Rust release plan | Done | `scripts/check-rust-release-plan.mjs`, Rust-first npm binary wrapper plan |
+| Config loading | Done | user/project settings merge, validation, permission mode resolution |
+| CLI command parity | Done | `config validate`, `sessions list/show`, `transcript search`, `quality` implemented |
 
 ## Verified Gates
 
@@ -36,12 +38,15 @@ cargo run -p tokendance-cli -- --version
 cargo run -p tokendance-cli -- doctor --json
 cargo run -p tokendance-cli -- run --json "hello"
 cargo run -p tokendance-cli -- run --stream-json "hello"
+cargo run -p tokendance-cli -- config validate --json
+cargo run -p tokendance-cli -- sessions list
+cargo run -p tokendance-cli -- quality
 ```
 
 Current Rust test coverage:
 
-- CLI: 7 tests
-- Core: 26 tests
+- CLI: 9 tests
+- Core: 63 tests
 - SDK: 7 tests
 
 ## Completed Parallel Slices
@@ -53,17 +58,17 @@ Current Rust test coverage:
 | SDK bridge | AgentHub approval bridge and TokenDanceID OIDC helper | `crates/tokendance-sdk/**` |
 | Npm wrapper | JS binary shim and release-plan checks | `packages/cli/**`, `scripts/**`, release docs |
 | Real provider HTTP | gated OpenAI-compatible Chat / TokenDance Gateway transport without printing credentials |
-| File/shell tools | read/write scaffolds, PowerShell classifier, path subjects |
+| File/shell tools | read/write/edit scaffolds, glob, grep, PowerShell classifier, path subjects |
 | Runtime tool loop | provider tool calls, permission events, tool results, model-call limit |
 | SDK runner parity | context preview, bootstrap, doctor/packageInfo facades |
 | Package smoke | local tarball install of wrapper plus current-platform binary |
+| Config and CLI parity | settings load/merge/validate, config validate, sessions list/show, transcript search, quality |
 
 ## Next Parallel Slices
 
 | Slice | Target |
 |---|---|
 | Real provider smoke | gated smoke against TokenDance Gateway/OpenAI-compatible endpoint without committing credentials or printing key material |
-| CLI parity | top-level command coverage beyond `run`/`doctor`, including config/gateway/auth/session/transcript/quality stubs and usage errors |
 | Runtime safety | richer permission subjects, shell timeout policy, file edit/patch tools, and PowerShell classifier coverage |
 | SDK runtime wiring | approval bridge wired through runtime tool execution, AgentHub context/run parity tests, terminal failure frame hardening |
 | Release packaging | current-platform native package placeholder, wrapper tarball install in `release:next:check`, expanded privacy scan |

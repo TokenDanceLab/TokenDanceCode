@@ -19,9 +19,104 @@ Do not build a hosted service, AgentHub replacement, plugin marketplace, full-sc
 
 | Crate | Role | Current baseline |
 |---|---|---|
-| `tokendance-core` | Runtime, provider trait, session state, permissions, transcript JSONL | Mock provider and one-turn transcript loop compile and test |
+| `tokendance-core` | Runtime, provider trait, session state, permissions, transcript JSONL, config loading | Mock provider, tool catalog with 7 tools, config merge/validate, one-turn transcript loop |
 | `tokendance-sdk` | AgentHub-facing facade and event mapping | Runner facade, schema constants, same-session in-process guard |
-| `tokendance-cli` | `tokendance` binary | `run`, `doctor`, `config validate`, `gateway init`, `auth tokendanceid login-url`, session/transcript/quality stubs |
+| `tokendance-cli` | `tokendance` binary | `run`, `doctor`, `config validate`, `sessions list/show`, `transcript search`, `quality`, `gateway init`, `auth tokendanceid login-url` |
+
+## Tool System Design
+
+The tool system is built around `ToolDefinition`, `ToolRegistry`, and a permission-aware execution pipeline.
+
+### ToolDefinition
+
+Each tool declares:
+
+- **name**: unique identifier (e.g. `echo`, `read_file`, `glob`)
+- **description**: human-readable summary
+- **risk**: `ToolRisk` enum (`Read`, `Write`, `Shell`, `Network`, `Dangerous`)
+- **concurrency**: `ToolConcurrency` enum (`Serial`, `ParallelSafe`, `Exclusive`)
+- **safety_notes**: free-text safety annotations included in permission decisions
+- **subject_metadata**: describes the input field that carries the subject (e.g. `path`, `command`)
+- **subject_guard**: pre-permission hook that can deny or require approval based on input content
+- **executor**: the function that runs when the tool is allowed
+
+### ToolExposure
+
+`ToolExposure` controls whether a tool appears in the catalog for permission evaluation. Default exposure includes all registered tools.
+
+### Subject Guards
+
+Subject guards inspect tool input before the permission engine evaluates the tool policy. They can:
+
+- Extract a subject string (e.g. the target file path or command)
+- Block execution with `ToolSafetyEvidence` (hard-deny regardless of mode)
+- Require approval for specific subjects (e.g. secret-like paths)
+
+Two built-in guard patterns:
+
+- **`workspace_path_subject_guard`**: normalizes and validates file paths under the session workspace. Rejects path traversal, absolute paths, and secret-like paths.
+- **`directory_path_subject_guard`**: like the workspace guard but accepts directory paths (e.g. `.`). Used by `glob` and `grep` which search directories.
+
+### Permission Engine
+
+The `PermissionEngine` evaluates tool policies against the session's `PermissionMode`:
+
+| Mode | Read | Write | Shell | Dangerous |
+|---|---|---|---|---|
+| Default | Allowed | RequiresApproval | RequiresApproval | RequiresApproval |
+| Safe | Allowed | Denied | Denied | Denied |
+| Auto | Allowed | Allowed | Allowed | RequiresApproval |
+| Yolo | Allowed | Allowed | Allowed | Allowed |
+
+Subject guards run before the permission engine and can override the engine (hard-deny destructive commands even in Yolo mode).
+
+### Execution Pipeline
+
+1. Look up `ToolDefinition` by name (fail-closed for unknown tools)
+2. Run subject guard (if present) and check for hard-deny evidence
+3. Run permission engine decision
+4. If allowed, execute the tool function
+5. Return `ToolExecutionResult` with optional `safety_evidence`
+
+## Provider Transport Layer
+
+Provider adapters translate session state into protocol-specific HTTP requests. The transport layer uses gated HTTP with credential redaction.
+
+### Protocol Adapters
+
+| Protocol | Request mapping | Key fields |
+|---|---|---|
+| OpenAI Responses | `input` array with `message` items and `function_call_output` for tool results | `model`, `tool_choice`, `parallel_tool_calls` |
+| OpenAI Chat Completions | `messages` array with `tool` role for results | `model`, `tool_choice`, `tools` schema |
+| Anthropic Messages | Split system prompt, `tool_result` content blocks | `model`, `max_tokens`, `system` |
+
+### Credential Redaction
+
+The `ProviderError` type redacts secret-like values in error messages:
+
+- Values starting with `sk-` or `td-` are replaced with `[redacted]`
+- Long alphanumeric strings (32+ chars) are treated as secrets
+- Key-value pairs like `token=xxx` have the value redacted
+
+HTTP transport uses `reqwest` with `rustls-tls`. API keys are resolved from `TOKENDANCE_GATEWAY_API_KEY` or per-provider env vars and are never printed to stdout or included in error context.
+
+## Config System
+
+Settings are loaded from `settings.json` files and merged:
+
+1. **User config**: `~/.tokendance/settings.json`
+2. **Project config**: `<project>/.tokendance/settings.json`
+3. **Merge**: project values override user values
+
+Settings include:
+
+- `provider.kind`: `openai_chat_completions` | `openai_responses` | `anthropic_messages`
+- `provider.model`: model identifier
+- `provider.baseUrl`: custom API endpoint
+- `permissionMode`: `default` | `safe` | `auto` | `yolo`
+- `allowedTools` / `disallowedTools`: tool-level overrides
+
+Validation catches unknown provider kinds, unknown permission modes, and tools appearing in both allow and disallow lists.
 
 ## Migration Order
 

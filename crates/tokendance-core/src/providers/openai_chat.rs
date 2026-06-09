@@ -1,4 +1,4 @@
-use super::{tool_result_payload, validate_model};
+use super::{build_http_client, tool_result_payload, validate_model};
 use crate::{
     ModelProvider, ProviderConfig, ProviderError, ProviderProtocol, ProviderRequest,
     ProviderResponse,
@@ -16,6 +16,7 @@ const OPENAI_API_KEY_ENV: &str = "OPENAI_API_KEY";
 #[derive(Debug, Clone)]
 pub struct OpenAiChatCompletionsProvider {
     config: ProviderConfig,
+    client: reqwest::Client,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -94,6 +95,7 @@ impl OpenAiChatCompletionsProvider {
     pub fn new(config: ProviderConfig) -> Result<Self, ProviderError> {
         Ok(Self {
             config: validate_model(config, ProviderProtocol::OpenAiChatCompletions)?,
+            client: build_http_client(),
         })
     }
 
@@ -181,7 +183,8 @@ impl OpenAiChatCompletionsProvider {
 
         let url = self.chat_completions_url()?;
         let body = self.build_protocol_request(&request);
-        let response = reqwest::Client::new()
+        let response = self
+            .client
             .post(url)
             .bearer_auth(api_key)
             .json(&body)
@@ -367,19 +370,19 @@ fn parse_chat_completions_response(body: &str) -> Result<ProviderResponse, Provi
 }
 
 fn provider_api_error(status: u16, body: &str) -> ProviderError {
-    if let Ok(envelope) = serde_json::from_str::<OpenAiErrorEnvelope>(body) {
-        if let Some(error) = envelope.error {
-            return ProviderError::new(
-                ProviderProtocol::OpenAiChatCompletions,
-                ProviderProtocol::OpenAiChatCompletions,
-                status,
-                error.error_type,
-                error.code,
-                error
-                    .message
-                    .unwrap_or_else(|| "Chat Completions API request failed".to_string()),
-            );
-        }
+    if let Ok(envelope) = serde_json::from_str::<OpenAiErrorEnvelope>(body)
+        && let Some(error) = envelope.error
+    {
+        return ProviderError::new(
+            ProviderProtocol::OpenAiChatCompletions,
+            ProviderProtocol::OpenAiChatCompletions,
+            status,
+            error.error_type,
+            error.code,
+            error
+                .message
+                .unwrap_or_else(|| "Chat Completions API request failed".to_string()),
+        );
     }
 
     ProviderError::new(

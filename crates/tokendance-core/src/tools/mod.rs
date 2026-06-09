@@ -21,6 +21,7 @@ pub struct ToolDefinition {
     pub description: String,
     pub risk: ToolRisk,
     pub concurrency: ToolConcurrency,
+    pub exposure: ToolExposure,
     pub safety_notes: Vec<String>,
     pub subject_metadata: Option<ToolSubjectMetadata>,
     subject_guard: Option<ToolSubjectGuard>,
@@ -40,6 +41,7 @@ impl ToolDefinition {
             description: description.into(),
             risk,
             concurrency,
+            exposure: ToolExposure::default(),
             safety_notes: Vec::new(),
             subject_metadata: None,
             subject_guard: None,
@@ -59,6 +61,7 @@ impl ToolDefinition {
             description: description.into(),
             risk,
             concurrency,
+            exposure: ToolExposure::default(),
             safety_notes: Vec::new(),
             subject_metadata: None,
             subject_guard: None,
@@ -87,6 +90,11 @@ impl ToolDefinition {
         + 'static,
     ) -> Self {
         self.subject_guard = Some(Arc::new(guard));
+        self
+    }
+
+    pub fn with_exposure(mut self, exposure: ToolExposure) -> Self {
+        self.exposure = exposure;
         self
     }
 
@@ -247,6 +255,7 @@ pub struct ToolMetadata {
     pub risk: ToolRisk,
     pub risk_summary: String,
     pub concurrency: ToolConcurrency,
+    pub exposure: ToolExposure,
     pub permission_profiles: BTreeMap<PermissionMode, PermissionProfileMetadata>,
     pub permission: BTreeMap<PermissionMode, PermissionStatus>,
     pub permission_reasons: BTreeMap<PermissionMode, String>,
@@ -264,6 +273,7 @@ impl ToolMetadata {
             risk: tool.risk,
             risk_summary: risk_summary(tool.risk).to_string(),
             concurrency: tool.concurrency,
+            exposure: tool.exposure,
             permission: permission_modes()
                 .into_iter()
                 .map(|mode| (mode, profiles[&mode].status))
@@ -318,6 +328,18 @@ pub enum ToolSafetyEvidenceSource {
     PermissionEngine,
     SubjectGuard,
     PowerShellClassifier,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolExposure {
+    /// Visible to the model immediately
+    #[default]
+    Direct,
+    /// Registered but hidden from model; discoverable via tool_search
+    Deferred,
+    /// Registered for dispatch only, never shown to model
+    Hidden,
 }
 
 #[derive(Default)]
@@ -398,17 +420,55 @@ pub fn create_write_file_tool() -> ToolDefinition {
 }
 
 pub fn create_run_powershell_tool() -> ToolDefinition {
-    ToolDefinition::new(
+    ToolDefinition::new_with_session(
         "run_powershell",
-        "Classify a PowerShell command and return a mock execution result for safe integration tests.",
+        "Execute PowerShell commands on the local machine after classification and permission checks.",
         ToolRisk::Shell,
         ToolConcurrency::Exclusive,
-        |input| {
+        |input, session| {
             let command = command_from_input(&input)?;
+            let trimmed = command.trim();
+
+            let run_in_background = input
+                .get("run_in_background")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+
+            if run_in_background {
+                return Ok(json!({
+                    "command": trimmed,
+                    "stdout": "",
+                    "stderr": "Background execution is not yet available. This feature will be added in a future version.",
+                    "exit_code": null,
+                    "background": true,
+                }));
+            }
+
+            let _timeout_secs = input
+                .get("timeout")
+                .and_then(Value::as_u64)
+                .unwrap_or(120)
+                .min(600);
+
+            let output = std::process::Command::new("powershell.exe")
+                .arg("-Command")
+                .arg(trimmed)
+                .current_dir(&session.cwd)
+                .output()
+                .map_err(|e| anyhow::anyhow!("Failed to execute PowerShell: {e}"))?;
+
+            let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            let exit_code = output.status.code();
+
+            let success = output.status.success();
+
             Ok(json!({
-                "command": command,
-                "executed": false,
-                "mock": true,
+                "command": trimmed,
+                "stdout": stdout,
+                "stderr": stderr,
+                "exit_code": exit_code,
+                "success": success,
             }))
         },
     )
@@ -419,25 +479,361 @@ pub fn create_run_powershell_tool() -> ToolDefinition {
     })
     .with_subject_guard(powershell_subject_guard)
     .with_safety_notes([
-        "This scaffold classifies commands but does not execute PowerShell.",
         "Destructive command patterns are hard-denied in every permission mode.",
+        "Commands execute with the full PowerShell runtime on the host machine.",
+        "Timeout defaults to 120s, capped at 600s.",
     ])
+}
+
+pub fn create_edit_tool() -> ToolDefinition {
+    ToolDefinition::new_with_session(
+        "edit_file",
+        "Perform exact-string replacement in a file. The old_string must match exactly and be unique within the file.",
+        ToolRisk::Write,
+        ToolConcurrency::Exclusive,
+        |input, session| {
+            let workspace_path = workspace_path_from_input(&input, session)?;
+            let old_string = input
+                .get("old_string")
+                .and_then(Value::as_str)
+                .ok_or_else(|| anyhow::anyhow!("edit_file input requires a string old_string field"))?;
+            let new_string = input
+                .get("new_string")
+                .and_then(Value::as_str)
+                .ok_or_else(|| anyhow::anyhow!("edit_file input requires a string new_string field"))?;
+            let replace_all = input
+                .get("replace_all")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+
+            let content = std::fs::read_to_string(&workspace_path.absolute)
+                .map_err(|e| anyhow::anyhow!("Failed to read file {}: {e}", workspace_path.relative))?;
+
+            let match_count = content.matches(old_string).count();
+            if match_count == 0 {
+                anyhow::bail!(
+                    "old_string not found in {}. The exact text must exist in the file.",
+                    workspace_path.relative
+                );
+            }
+            if !replace_all && match_count > 1 {
+                anyhow::bail!(
+                    "old_string found {} times in {}. Either use a more specific string or set replace_all to true.",
+                    match_count,
+                    workspace_path.relative
+                );
+            }
+
+            let new_content = if replace_all {
+                content.replace(old_string, new_string)
+            } else {
+                // Safe: we verified exactly 1 match above
+                content.replacen(old_string, new_string, 1)
+            };
+
+            std::fs::write(&workspace_path.absolute, &new_content)
+                .map_err(|e| anyhow::anyhow!("Failed to write file {}: {e}", workspace_path.relative))?;
+
+            Ok(json!({
+                "path": workspace_path.relative,
+                "replacements": if replace_all { match_count } else { 1 },
+            }))
+        },
+    )
+    .with_subject_metadata(workspace_path_subject_metadata())
+    .with_subject_guard(workspace_path_subject_guard)
+    .with_safety_notes([
+        "Performs exact-string replacement only — no regex or fuzzy matching.",
+        "Path input is resolved under the session workspace before use.",
+    ])
+}
+
+pub fn create_glob_tool() -> ToolDefinition {
+    ToolDefinition::new_with_session(
+        "glob",
+        "Find files matching a glob pattern. Returns paths sorted by modification time (most recent first).",
+        ToolRisk::Read,
+        ToolConcurrency::ParallelSafe,
+        |input, session| {
+            let pattern = input
+                .get("pattern")
+                .and_then(Value::as_str)
+                .ok_or_else(|| anyhow::anyhow!("glob input requires a string pattern field"))?;
+
+            let search_dir = input
+                .get("path")
+                .and_then(Value::as_str)
+                .unwrap_or(".");
+
+            let search_path = session.cwd.join(search_dir);
+
+            let full_pattern = search_path.join(pattern);
+            let full_pattern_str = full_pattern.to_string_lossy().replace('\\', "/");
+
+            let glob_pattern = glob::glob(&full_pattern_str)
+                .map_err(|e| anyhow::anyhow!("Invalid glob pattern '{}': {e}", full_pattern_str))?;
+
+            let mut entries: Vec<(PathBuf, std::time::SystemTime)> = Vec::new();
+            for entry in glob_pattern {
+                match entry {
+                    Ok(path) => {
+                        if path.is_file() {
+                            let mtime = path.metadata()
+                                .ok()
+                                .and_then(|m| m.modified().ok())
+                                .unwrap_or(std::time::UNIX_EPOCH);
+                            entries.push((path, mtime));
+                        }
+                    }
+                    Err(e) => {
+                        // Skip unreadable paths but continue
+                        let _ = e;
+                    }
+                }
+            }
+
+            // Sort by modification time, most recent first
+            entries.sort_by_key(|b| std::cmp::Reverse(b.1));
+
+            let max_results = 500;
+            entries.truncate(max_results);
+
+            let paths: Vec<String> = entries
+                .into_iter()
+                .map(|(path, _)| {
+                    path.strip_prefix(&session.cwd)
+                        .unwrap_or(&path)
+                        .to_string_lossy()
+                        .replace('\\', "/")
+                })
+                .collect();
+
+            Ok(json!({
+                "files": paths,
+                "count": paths.len(),
+            }))
+        },
+    )
+    .with_subject_metadata(workspace_path_subject_metadata())
+    .with_subject_guard(directory_path_subject_guard)
+    .with_safety_notes([
+        "Read-only tool: inspects workspace state without writing.",
+        "Results are limited to 500 files maximum.",
+    ])
+}
+
+pub fn create_grep_tool() -> ToolDefinition {
+    ToolDefinition::new_with_session(
+        "grep",
+        "Search file contents using regex patterns. Supports content, files_with_matches, and count output modes.",
+        ToolRisk::Read,
+        ToolConcurrency::ParallelSafe,
+        |input, session| {
+            let pattern_str = input
+                .get("pattern")
+                .and_then(Value::as_str)
+                .ok_or_else(|| anyhow::anyhow!("grep input requires a string pattern field"))?;
+
+            let search_dir = input
+                .get("path")
+                .and_then(Value::as_str)
+                .unwrap_or(".");
+
+            let glob_filter = input
+                .get("glob")
+                .and_then(Value::as_str);
+
+            let output_mode = input
+                .get("output_mode")
+                .and_then(Value::as_str)
+                .unwrap_or("content");
+
+            let head_limit = input
+                .get("head_limit")
+                .and_then(Value::as_u64)
+                .unwrap_or(200) as usize;
+
+            let re = regex::Regex::new(pattern_str)
+                .map_err(|e| anyhow::anyhow!("Invalid regex pattern '{}': {e}", pattern_str))?;
+
+            let search_path = session.cwd.join(search_dir);
+            if !search_path.exists() {
+                anyhow::bail!("Search directory does not exist: {}", search_dir);
+            }
+
+            let mut results: Vec<String> = Vec::new();
+            let mut file_count_map: Vec<(String, usize)> = Vec::new();
+            let mut file_matches: Vec<String> = Vec::new();
+
+            grep_walk_directory(
+                &search_path,
+                &session.cwd,
+                &re,
+                glob_filter,
+                output_mode,
+                head_limit,
+                &mut results,
+                &mut file_count_map,
+                &mut file_matches,
+            )?;
+
+            match output_mode {
+                "files_with_matches" => {
+                    file_matches.truncate(head_limit);
+                    Ok(json!({
+                        "files": file_matches,
+                        "count": file_matches.len(),
+                    }))
+                }
+                "count" => {
+                    file_count_map.truncate(head_limit);
+                    let entries: Vec<serde_json::Value> = file_count_map
+                        .into_iter()
+                        .map(|(file, count)| json!({ "file": file, "count": count }))
+                        .collect();
+                    Ok(json!({
+                        "entries": entries,
+                        "total_files": entries.len(),
+                    }))
+                }
+                _ => {
+                    // "content" mode
+                    results.truncate(head_limit);
+                    Ok(json!({
+                        "matches": results,
+                        "count": results.len(),
+                    }))
+                }
+            }
+        },
+    )
+    .with_subject_metadata(workspace_path_subject_metadata())
+    .with_subject_guard(directory_path_subject_guard)
+    .with_safety_notes([
+        "Read-only tool: inspects workspace state without writing.",
+        "Output is limited to 200 lines by default (configurable via head_limit).",
+    ])
+}
+
+/// Recursively walk a directory tree, searching for regex pattern matches.
+/// Skips .git, target, and node_modules directories.
+#[allow(clippy::too_many_arguments)]
+fn grep_walk_directory(
+    dir: &Path,
+    workspace: &Path,
+    re: &regex::Regex,
+    glob_filter: Option<&str>,
+    output_mode: &str,
+    head_limit: usize,
+    results: &mut Vec<String>,
+    file_count_map: &mut Vec<(String, usize)>,
+    file_matches: &mut Vec<String>,
+) -> anyhow::Result<()> {
+    let skip_dirs = [".git", "target", "node_modules"];
+
+    let entries = std::fs::read_dir(dir)
+        .map_err(|e| anyhow::anyhow!("Failed to read directory {}: {e}", dir.display()))?;
+
+    for entry in entries {
+        let entry = match entry {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+
+        let path = entry.path();
+
+        if path.is_dir() {
+            let dir_name = path
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
+            if skip_dirs.contains(&dir_name.as_str()) {
+                continue;
+            }
+            grep_walk_directory(
+                &path,
+                workspace,
+                re,
+                glob_filter,
+                output_mode,
+                head_limit,
+                results,
+                file_count_map,
+                file_matches,
+            )?;
+            continue;
+        }
+
+        // Apply glob filter if specified
+        if let Some(filter) = glob_filter {
+            let file_name = path
+                .file_name()
+                .map(|n| n.to_string_lossy())
+                .unwrap_or_default();
+            let glob_pattern = glob::Pattern::new(filter)
+                .map_err(|e| anyhow::anyhow!("Invalid glob filter '{}': {e}", filter))?;
+            if !glob_pattern.matches(&file_name) {
+                continue;
+            }
+        }
+
+        // Try to read and search the file
+        let content = match std::fs::read_to_string(&path) {
+            Ok(c) => c,
+            Err(_) => continue, // Skip binary/unreadable files
+        };
+
+        let relative = path
+            .strip_prefix(workspace)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .replace('\\', "/");
+
+        let mut count = 0usize;
+        for (line_num, line) in content.lines().enumerate() {
+            if re.is_match(line) {
+                count += 1;
+                if output_mode == "content" && results.len() < head_limit {
+                    results.push(format!("{}:{}:{}", relative, line_num + 1, line));
+                }
+            }
+        }
+
+        if count > 0 {
+            if output_mode == "files_with_matches" {
+                file_matches.push(relative);
+            } else if output_mode == "count" {
+                file_count_map.push((relative, count));
+            }
+        }
+    }
+
+    Ok(())
 }
 
 pub fn create_default_tool_registry() -> ToolRegistry {
     let mut registry = ToolRegistry::new();
     registry
-        .register(create_echo_tool())
+        .register(create_echo_tool().with_exposure(ToolExposure::Direct))
         .expect("echo tool name is unique");
     registry
-        .register(create_read_file_tool())
+        .register(create_read_file_tool().with_exposure(ToolExposure::Direct))
         .expect("read_file tool name is unique");
     registry
-        .register(create_write_file_tool())
+        .register(create_write_file_tool().with_exposure(ToolExposure::Direct))
         .expect("write_file tool name is unique");
     registry
-        .register(create_run_powershell_tool())
+        .register(create_run_powershell_tool().with_exposure(ToolExposure::Direct))
         .expect("run_powershell tool name is unique");
+    registry
+        .register(create_edit_tool().with_exposure(ToolExposure::Direct))
+        .expect("edit_file tool name is unique");
+    registry
+        .register(create_glob_tool().with_exposure(ToolExposure::Direct))
+        .expect("glob tool name is unique");
+    registry
+        .register(create_grep_tool().with_exposure(ToolExposure::Direct))
+        .expect("grep tool name is unique");
     registry
 }
 
@@ -489,6 +885,77 @@ fn workspace_path_subject_guard(
 
     Ok(ToolSubjectGuardResult {
         subject: Some(workspace_path.relative),
+        blocked: None,
+    })
+}
+
+/// Like workspace_path_subject_guard but accepts directory paths ("." etc).
+fn directory_path_subject_guard(
+    input: &Value,
+    _session: &SessionState,
+    mode: PermissionMode,
+) -> anyhow::Result<ToolSubjectGuardResult> {
+    let raw_path = input.get("path").and_then(Value::as_str).unwrap_or(".");
+
+    // Reject absolute paths
+    if !raw_path.trim().is_empty() && Path::new(raw_path).is_absolute() {
+        return Ok(blocked_subject(
+            raw_path,
+            ToolSafetyEvidenceSource::SubjectGuard,
+            PermissionStatus::Denied,
+            "absolute paths are not accepted".to_string(),
+        ));
+    }
+
+    // Normalize and check for escape
+    let mut normalized = PathBuf::new();
+    for component in Path::new(raw_path).components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::Normal(part) => normalized.push(part),
+            std::path::Component::ParentDir => {
+                if !normalized.pop() {
+                    return Ok(blocked_subject(
+                        raw_path,
+                        ToolSafetyEvidenceSource::SubjectGuard,
+                        PermissionStatus::Denied,
+                        "path escapes the workspace".to_string(),
+                    ));
+                }
+            }
+            std::path::Component::Prefix(_) | std::path::Component::RootDir => {
+                return Ok(blocked_subject(
+                    raw_path,
+                    ToolSafetyEvidenceSource::SubjectGuard,
+                    PermissionStatus::Denied,
+                    "path escapes the workspace".to_string(),
+                ));
+            }
+        }
+    }
+
+    let relative = if normalized.as_os_str().is_empty() {
+        ".".to_string()
+    } else {
+        normalized.to_string_lossy().replace('\\', "/")
+    };
+
+    if secret_like_path(&relative) {
+        let status = if mode == PermissionMode::Safe {
+            PermissionStatus::Denied
+        } else {
+            PermissionStatus::RequiresApproval
+        };
+        return Ok(blocked_subject(
+            relative,
+            ToolSafetyEvidenceSource::SubjectGuard,
+            status,
+            "secret-like path requires explicit approval".to_string(),
+        ));
+    }
+
+    Ok(ToolSubjectGuardResult {
+        subject: Some(relative),
         blocked: None,
     })
 }
@@ -917,5 +1384,349 @@ mod tests {
             run_powershell.permission_profiles[&PermissionMode::Default].status,
             PermissionStatus::RequiresApproval
         );
+    }
+
+    // --- New tests for edit, glob, grep, and shell ---
+
+    fn session_with_tmpdir(tmpdir: &std::path::Path, mode: PermissionMode) -> SessionState {
+        SessionState {
+            id: "session-test".to_string(),
+            cwd: tmpdir.to_path_buf(),
+            permission_mode: mode,
+            messages: vec![user_message("test"), assistant_message("testing")],
+        }
+    }
+
+    #[test]
+    fn edit_tool_basic_replace() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let file_path = tmpdir.path().join("hello.txt");
+        std::fs::write(&file_path, "hello world\nfoo bar\n").unwrap();
+
+        let registry = create_default_tool_registry();
+        let session = session_with_tmpdir(tmpdir.path(), PermissionMode::Yolo);
+        let result = registry
+            .execute(
+                &ToolCall {
+                    id: "call-edit".to_string(),
+                    name: "edit_file".to_string(),
+                    input: json!({
+                        "path": "hello.txt",
+                        "old_string": "foo bar",
+                        "new_string": "baz qux",
+                    }),
+                },
+                &session,
+            )
+            .unwrap();
+
+        assert!(result.ok, "edit should succeed: {:?}", result.error);
+        let content = std::fs::read_to_string(&file_path).unwrap();
+        assert_eq!(content, "hello world\nbaz qux\n");
+        assert_eq!(result.output.unwrap()["replacements"], 1);
+    }
+
+    #[test]
+    fn edit_tool_replace_all() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let file_path = tmpdir.path().join("repeat.txt");
+        std::fs::write(&file_path, "aaa bbb aaa\nccc aaa\n").unwrap();
+
+        let registry = create_default_tool_registry();
+        let session = session_with_tmpdir(tmpdir.path(), PermissionMode::Yolo);
+        let result = registry
+            .execute(
+                &ToolCall {
+                    id: "call-edit-all".to_string(),
+                    name: "edit_file".to_string(),
+                    input: json!({
+                        "path": "repeat.txt",
+                        "old_string": "aaa",
+                        "new_string": "zzz",
+                        "replace_all": true,
+                    }),
+                },
+                &session,
+            )
+            .unwrap();
+
+        assert!(result.ok, "replace_all should succeed: {:?}", result.error);
+        let content = std::fs::read_to_string(&file_path).unwrap();
+        assert_eq!(content, "zzz bbb zzz\nccc zzz\n");
+        assert_eq!(result.output.unwrap()["replacements"], 3);
+    }
+
+    #[test]
+    fn edit_tool_old_string_not_found() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let file_path = tmpdir.path().join("missing.txt");
+        std::fs::write(&file_path, "hello\n").unwrap();
+
+        let registry = create_default_tool_registry();
+        let session = session_with_tmpdir(tmpdir.path(), PermissionMode::Yolo);
+        let result = registry
+            .execute(
+                &ToolCall {
+                    id: "call-edit-missing".to_string(),
+                    name: "edit_file".to_string(),
+                    input: json!({
+                        "path": "missing.txt",
+                        "old_string": "nonexistent",
+                        "new_string": "replacement",
+                    }),
+                },
+                &session,
+            )
+            .unwrap();
+
+        assert!(!result.ok);
+        assert!(
+            result.error.as_ref().unwrap().contains("not found"),
+            "expected 'not found' error, got: {:?}",
+            result.error
+        );
+    }
+
+    #[test]
+    fn edit_tool_duplicate_match_error() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let file_path = tmpdir.path().join("dup.txt");
+        std::fs::write(&file_path, "dup line\ndup line\n").unwrap();
+
+        let registry = create_default_tool_registry();
+        let session = session_with_tmpdir(tmpdir.path(), PermissionMode::Yolo);
+        let result = registry
+            .execute(
+                &ToolCall {
+                    id: "call-edit-dup".to_string(),
+                    name: "edit_file".to_string(),
+                    input: json!({
+                        "path": "dup.txt",
+                        "old_string": "dup line",
+                        "new_string": "unique line",
+                    }),
+                },
+                &session,
+            )
+            .unwrap();
+
+        assert!(!result.ok);
+        assert!(
+            result.error.as_ref().unwrap().contains("2 times")
+                || result.error.as_ref().unwrap().contains("found"),
+            "expected duplicate match error, got: {:?}",
+            result.error
+        );
+    }
+
+    #[test]
+    fn glob_tool_basic_pattern_match() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        std::fs::write(tmpdir.path().join("a.rs"), "fn main() {}").unwrap();
+        std::fs::write(tmpdir.path().join("b.rs"), "fn test() {}").unwrap();
+        std::fs::write(tmpdir.path().join("c.txt"), "text").unwrap();
+
+        let registry = create_default_tool_registry();
+        let session = session_with_tmpdir(tmpdir.path(), PermissionMode::Yolo);
+        let result = registry
+            .execute(
+                &ToolCall {
+                    id: "call-glob".to_string(),
+                    name: "glob".to_string(),
+                    input: json!({
+                        "path": ".",
+                        "pattern": "*.rs",
+                    }),
+                },
+                &session,
+            )
+            .unwrap();
+
+        assert!(result.ok, "glob should succeed: {:?}", result.error);
+        let output = result.output.unwrap();
+        let files = output["files"].as_array().unwrap();
+        assert_eq!(files.len(), 2);
+        let file_strs: Vec<&str> = files.iter().map(|v| v.as_str().unwrap()).collect();
+        assert!(file_strs.contains(&"a.rs"));
+        assert!(file_strs.contains(&"b.rs"));
+        assert!(!file_strs.contains(&"c.txt"));
+    }
+
+    #[test]
+    fn glob_tool_no_results() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        std::fs::write(tmpdir.path().join("a.txt"), "text").unwrap();
+
+        let registry = create_default_tool_registry();
+        let session = session_with_tmpdir(tmpdir.path(), PermissionMode::Yolo);
+        let result = registry
+            .execute(
+                &ToolCall {
+                    id: "call-glob-empty".to_string(),
+                    name: "glob".to_string(),
+                    input: json!({
+                        "path": ".",
+                        "pattern": "*.xyz",
+                    }),
+                },
+                &session,
+            )
+            .unwrap();
+
+        assert!(
+            result.ok,
+            "glob should succeed even with no matches: {:?}",
+            result.error
+        );
+        let output = result.output.unwrap();
+        assert_eq!(output["count"], 0);
+        assert!(output["files"].as_array().unwrap().is_empty());
+    }
+
+    #[test]
+    fn grep_tool_files_with_matches() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        std::fs::write(tmpdir.path().join("match.rs"), "fn hello() {}").unwrap();
+        std::fs::write(tmpdir.path().join("nomatch.rs"), "fn world() {}").unwrap();
+
+        let registry = create_default_tool_registry();
+        let session = session_with_tmpdir(tmpdir.path(), PermissionMode::Yolo);
+        let result = registry
+            .execute(
+                &ToolCall {
+                    id: "call-grep".to_string(),
+                    name: "grep".to_string(),
+                    input: json!({
+                        "path": ".",
+                        "pattern": "hello",
+                        "output_mode": "files_with_matches",
+                    }),
+                },
+                &session,
+            )
+            .unwrap();
+
+        assert!(result.ok, "grep should succeed: {:?}", result.error);
+        let output = result.output.unwrap();
+        let files = output["files"].as_array().unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].as_str().unwrap(), "match.rs");
+    }
+
+    #[test]
+    fn grep_tool_content_mode_with_regex() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmpdir.path().join("data.txt"),
+            "line one\nline two\nline three\n",
+        )
+        .unwrap();
+
+        let registry = create_default_tool_registry();
+        let session = session_with_tmpdir(tmpdir.path(), PermissionMode::Yolo);
+        let result = registry
+            .execute(
+                &ToolCall {
+                    id: "call-grep-content".to_string(),
+                    name: "grep".to_string(),
+                    input: json!({
+                        "path": ".",
+                        "pattern": "line (two|three)",
+                        "output_mode": "content",
+                    }),
+                },
+                &session,
+            )
+            .unwrap();
+
+        assert!(result.ok, "grep content should succeed: {:?}", result.error);
+        let output = result.output.unwrap();
+        let matches = output["matches"].as_array().unwrap();
+        assert_eq!(matches.len(), 2);
+        let match_strs: Vec<&str> = matches.iter().map(|v| v.as_str().unwrap()).collect();
+        assert!(match_strs[0].contains("data.txt:2:line two"));
+        assert!(match_strs[1].contains("data.txt:3:line three"));
+    }
+
+    #[test]
+    fn shell_nonzero_exit_code() {
+        let tmpdir = tempfile::tempdir().unwrap();
+
+        let registry = create_default_tool_registry();
+        let session = session_with_tmpdir(tmpdir.path(), PermissionMode::Yolo);
+        let result = registry
+            .execute(
+                &ToolCall {
+                    id: "call-shell-exit".to_string(),
+                    name: "run_powershell".to_string(),
+                    input: json!({
+                        "command": "exit 1",
+                    }),
+                },
+                &session,
+            )
+            .unwrap();
+
+        assert!(
+            result.ok,
+            "shell execution should succeed (non-zero exit is still an execution result): {:?}",
+            result.error
+        );
+        let output = result.output.unwrap();
+        assert_eq!(output["exit_code"], 1);
+        assert_eq!(output["success"], false);
+    }
+
+    #[test]
+    fn shell_background_returns_placeholder() {
+        let tmpdir = tempfile::tempdir().unwrap();
+
+        let registry = create_default_tool_registry();
+        let session = session_with_tmpdir(tmpdir.path(), PermissionMode::Yolo);
+        let result = registry
+            .execute(
+                &ToolCall {
+                    id: "call-shell-bg".to_string(),
+                    name: "run_powershell".to_string(),
+                    input: json!({
+                        "command": "Write-Output hello",
+                        "run_in_background": true,
+                    }),
+                },
+                &session,
+            )
+            .unwrap();
+
+        assert!(
+            result.ok,
+            "background placeholder should succeed: {:?}",
+            result.error
+        );
+        let output = result.output.unwrap();
+        assert_eq!(output["background"], true);
+        assert!(
+            output["stderr"]
+                .as_str()
+                .unwrap()
+                .contains("not yet available")
+        );
+    }
+
+    #[test]
+    fn tool_exposure_is_set_in_metadata() {
+        let registry = create_default_tool_registry();
+        let catalog = registry.metadata();
+
+        let echo = catalog.iter().find(|t| t.name == "echo").unwrap();
+        assert_eq!(echo.exposure, ToolExposure::Direct);
+
+        let edit = catalog.iter().find(|t| t.name == "edit_file").unwrap();
+        assert_eq!(edit.exposure, ToolExposure::Direct);
+
+        let glob = catalog.iter().find(|t| t.name == "glob").unwrap();
+        assert_eq!(glob.exposure, ToolExposure::Direct);
+
+        let grep = catalog.iter().find(|t| t.name == "grep").unwrap();
+        assert_eq!(grep.exposure, ToolExposure::Direct);
     }
 }

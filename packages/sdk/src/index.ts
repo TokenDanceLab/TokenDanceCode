@@ -97,6 +97,10 @@ export interface TranscriptSearchResult {
 
 export type ThreadContext = BuiltContext;
 
+export interface ThreadContextOptions {
+  maxRecentMessages?: number;
+}
+
 export type MemoryScope = "project" | "global";
 
 export interface MemoryOptions {
@@ -393,8 +397,8 @@ export class Thread {
     return this.options.client.searchTranscript(this.options.session, query, options.limit);
   }
 
-  context(input: ThreadInput): Promise<ThreadContext> {
-    return new ContextBuilder().build({
+  context(input: ThreadInput, options: ThreadContextOptions = {}): Promise<ThreadContext> {
+    return new ContextBuilder({ maxRecentMessages: options.maxRecentMessages }).build({
       session: this.options.session,
       userMessage: normalizeInput(input),
       workspaceRoot: this.options.session.cwd

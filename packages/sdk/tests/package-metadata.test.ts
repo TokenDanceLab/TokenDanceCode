@@ -38,6 +38,18 @@ describe("package metadata", () => {
   it("exports AgentHub-readable package entrypoint metadata", () => {
     expect(TOKEN_DANCE_CODE_PACKAGE).toEqual({
       version: "0.2.0-ts.0",
+      agentHub: {
+        sdkContractVersion: "agenthub-sdk.v1",
+        agentStreamSchemaVersion: 1,
+        features: [
+          "runner-options",
+          "event-envelope",
+          "startup-doctor",
+          "session-resume",
+          "context-preview",
+          "remote-approval"
+        ]
+      },
       packages: {
         core: {
           name: "@tokendance/code-core",

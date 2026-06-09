@@ -1,5 +1,17 @@
 export interface TokenDanceCodePackageInfo {
   version: string;
+  agentHub: {
+    sdkContractVersion: "agenthub-sdk.v1";
+    agentStreamSchemaVersion: 1;
+    features: readonly [
+      "runner-options",
+      "event-envelope",
+      "startup-doctor",
+      "session-resume",
+      "context-preview",
+      "remote-approval"
+    ];
+  };
   packages: {
     core: {
       name: "@tokendance/code-core";
@@ -22,8 +34,24 @@ export interface TokenDanceCodePackageInfo {
   };
 }
 
+export const AGENTHUB_SDK_CONTRACT_VERSION = "agenthub-sdk.v1" as const;
+export const AGENTHUB_AGENT_STREAM_SCHEMA_VERSION = 1 as const;
+export const AGENTHUB_AGENT_STREAM_SOURCE = "tokendance-code-sdk" as const;
+
 export const TOKEN_DANCE_CODE_PACKAGE: TokenDanceCodePackageInfo = {
   version: "0.2.0-ts.0",
+  agentHub: {
+    sdkContractVersion: AGENTHUB_SDK_CONTRACT_VERSION,
+    agentStreamSchemaVersion: AGENTHUB_AGENT_STREAM_SCHEMA_VERSION,
+    features: [
+      "runner-options",
+      "event-envelope",
+      "startup-doctor",
+      "session-resume",
+      "context-preview",
+      "remote-approval"
+    ]
+  },
   packages: {
     core: {
       name: "@tokendance/code-core",

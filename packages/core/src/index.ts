@@ -5,6 +5,7 @@ export * from "./config.js";
 export * from "./context-builder.js";
 export * from "./file-tools.js";
 export * from "./git-tools.js";
+export * from "./hooks.js";
 export * from "./memory.js";
 export * from "./mock-provider.js";
 export * from "./openai-chat-provider.js";

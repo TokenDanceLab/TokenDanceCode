@@ -1,8 +1,8 @@
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { AgentRuntime, FileTranscriptStore, MockProvider, type ModelProvider, type ModelTurnRequest, type ModelTurnResponse, type TDMessage } from "../src/index.js";
+import { AgentRuntime, FileTranscriptStore, MockProvider, type ModelProvider, type ModelTurnRequest, type ModelTurnResponse, type RuntimeHookCommand, type TDMessage } from "../src/index.js";
 
 class WriteFileOnceProvider implements ModelProvider {
   async createTurn(request: ModelTurnRequest): Promise<ModelTurnResponse> {
@@ -349,4 +349,162 @@ describe("AgentRuntime", () => {
       })
     );
   });
+
+  it("keeps configured hooks disabled by default", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-core-hooks-disabled-"));
+    const recorder = await createHookRecorder(root);
+    const runtime = new AgentRuntime({
+      cwd: root,
+      provider: new MockProvider(),
+      hooks: {
+        commands: [
+          { event: "PreToolUse", ...recorder }
+        ]
+      }
+    });
+
+    for await (const _event of runtime.runTurn("echo: hooks disabled")) {
+      // Drain the event stream.
+    }
+
+    await expect(stat(recorder.logPath)).rejects.toThrow();
+  });
+
+  it("runs enabled hooks with deterministic JSON payloads", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-core-hooks-"));
+    const recorder = await createHookRecorder(root);
+    const runtime = new AgentRuntime({
+      cwd: root,
+      provider: new MockProvider(),
+      hooks: {
+        enabled: true,
+        commands: [
+          { event: "PreToolUse", ...recorder },
+          { event: "PostToolUse", ...recorder },
+          { event: "TurnCompleted", ...recorder }
+        ]
+      }
+    });
+
+    for await (const _event of runtime.runTurn("echo: hooks enabled")) {
+      // Drain the event stream.
+    }
+
+    const payloads = await readHookPayloads(recorder.logPath);
+    expect(payloads.map((payload) => payload.event)).toEqual(["PreToolUse", "PostToolUse", "TurnCompleted"]);
+    expect(payloads[0]).toMatchObject({
+      event: "PreToolUse",
+      sessionId: runtime.state.id,
+      cwd: root,
+      toolCall: {
+        id: "mock-echo-1",
+        name: "echo",
+        input: { text: "hooks enabled" }
+      },
+      permission: {
+        status: "allowed"
+      }
+    });
+    expect(payloads[1]).toMatchObject({
+      event: "PostToolUse",
+      toolCall: { name: "echo" },
+      result: {
+        callId: "mock-echo-1",
+        toolName: "echo",
+        ok: true,
+        output: { text: "hooks enabled" }
+      }
+    });
+    expect(payloads[2]).toMatchObject({
+      event: "TurnCompleted",
+      finalResponse: 'Tool result: {"text":"hooks enabled"}'
+    });
+  });
+
+  it("emits turn.failed when an enabled hook command fails", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-core-hooks-fail-"));
+    const runtime = new AgentRuntime({
+      cwd: root,
+      provider: new MockProvider(),
+      hooks: {
+        enabled: true,
+        commands: [
+          { event: "PreToolUse", command: process.execPath, args: ["-e", "process.exit(7)"] }
+        ]
+      }
+    });
+    const events = [];
+
+    await expect(async () => {
+      for await (const event of runtime.runTurn("echo: hook fails")) {
+        events.push(event);
+      }
+    }).rejects.toThrow("Hook PreToolUse failed");
+
+    expect(events).toEqual([
+      expect.objectContaining({ type: "user.message" }),
+      expect.objectContaining({
+        type: "tool.started",
+        call: expect.objectContaining({ name: "echo" })
+      }),
+      expect.objectContaining({ type: "tool.permission" }),
+      expect.objectContaining({
+        type: "turn.failed",
+        error: expect.stringContaining("Hook PreToolUse failed")
+      })
+    ]);
+  });
+
+  it("emits turn.failed when an enabled hook command times out", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-core-hooks-timeout-"));
+    const runtime = new AgentRuntime({
+      cwd: root,
+      provider: new MockProvider(),
+      hooks: {
+        enabled: true,
+        commands: [
+          { event: "PreToolUse", command: process.execPath, args: ["-e", "setTimeout(() => {}, 5000)"] }
+        ]
+      }
+    });
+    const events = [];
+
+    await expect(async () => {
+      for await (const event of runtime.runTurn("echo: hook times out")) {
+        events.push(event);
+      }
+    }).rejects.toThrow("timed out after 2000ms");
+
+    expect(events.at(-1)).toMatchObject({
+      type: "turn.failed",
+      error: expect.stringContaining("timed out after 2000ms")
+    });
+  });
 });
+
+async function createHookRecorder(root: string): Promise<Pick<RuntimeHookCommand, "command" | "args"> & { logPath: string }> {
+  const hookPath = join(root, "record-hook.mjs");
+  const logPath = join(root, "hooks.jsonl");
+  await writeFile(
+    hookPath,
+    [
+      'import { appendFileSync } from "node:fs";',
+      'let input = "";',
+      'process.stdin.setEncoding("utf8");',
+      'process.stdin.on("data", (chunk) => { input += chunk; });',
+      'process.stdin.on("end", () => {',
+      '  appendFileSync(process.argv[2], `${JSON.stringify(JSON.parse(input))}\\n`, "utf8");',
+      '});',
+      ""
+    ].join("\n"),
+    "utf8"
+  );
+  return { command: process.execPath, args: [hookPath, logPath], logPath };
+}
+
+async function readHookPayloads(logPath: string): Promise<Array<Record<string, unknown>>> {
+  return (await readFile(logPath, "utf8"))
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+}

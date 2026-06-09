@@ -130,7 +130,14 @@ describe("file tools", () => {
       createSession(root, "default")
     );
 
-    expect(result).toMatchObject({ ok: false, error: "default mode requires approval for write tools" });
+    expect(result).toMatchObject({
+      ok: false,
+      error: "mode=default tool=write_file risk=write action=approval_required: default mode requires approval before running write tools",
+      safetyEvidence: {
+        source: "permission_engine",
+        status: "requires_approval"
+      }
+    });
   });
 });
 

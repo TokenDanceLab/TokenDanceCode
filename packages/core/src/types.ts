@@ -15,6 +15,7 @@ export interface ToolSpec<TInput = unknown, TOutput = unknown> {
   inputSchema?: JsonSchemaObject;
   risk: ToolRisk;
   concurrency: "serial" | "parallel_safe" | "exclusive";
+  safetyNotes?: string[];
   parse(input: unknown): TInput;
   execute(input: TInput, context: ToolExecutionContext): Promise<TOutput>;
 }
@@ -40,12 +41,26 @@ export interface ToolCall {
   input: unknown;
 }
 
+export type PermissionDecision =
+  | { status: "allowed"; reason: string }
+  | { status: "denied"; reason: string }
+  | { status: "requires_approval"; reason: string };
+
+export interface ToolSafetyEvidence {
+  toolName: string;
+  source: "permission_engine" | "powershell_classifier";
+  status: "denied" | "requires_approval";
+  reason: string;
+  decision?: PermissionDecision;
+}
+
 export interface ToolResult {
   callId: string;
   toolName: string;
   ok: boolean;
   output?: unknown;
   error?: string;
+  safetyEvidence?: ToolSafetyEvidence;
 }
 
 export interface ModelTurnRequest {
@@ -78,11 +93,6 @@ export interface SessionState {
   messages: TDMessage[];
   compactSummary?: string;
 }
-
-export type PermissionDecision =
-  | { status: "allowed"; reason: string }
-  | { status: "denied"; reason: string }
-  | { status: "requires_approval"; reason: string };
 
 export interface PermissionApprovalRequest {
   session: SessionState;

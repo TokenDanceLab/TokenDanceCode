@@ -29,7 +29,35 @@ describe("run_powershell tool", () => {
       createSession(root, "yolo")
     );
 
-    expect(result).toMatchObject({ ok: false, error: "Permission denied by PowerShell risk classifier" });
+    expect(result).toMatchObject({
+      ok: false,
+      error: "Tool execution denied by PowerShell risk classifier: command matches blocked pattern 'git reset --hard'",
+      safetyEvidence: {
+        source: "powershell_classifier",
+        status: "denied",
+        reason: "command matches blocked pattern 'git reset --hard'"
+      }
+    });
+  });
+
+  it("uses the dangerous command guard for quality gate override commands", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-shell-"));
+    const orchestrator = new ToolOrchestrator(createDefaultToolRegistry());
+
+    const result = await orchestrator.execute(
+      { id: "quality-danger", name: "quality_gate", input: { command: "git reset --hard", timeout: 5 } },
+      createSession(root, "yolo")
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: "Tool execution denied by PowerShell risk classifier: command matches blocked pattern 'git reset --hard'",
+      safetyEvidence: {
+        toolName: "quality_gate",
+        source: "powershell_classifier",
+        status: "denied"
+      }
+    });
   });
 
   it("requires approval in default mode through the permission engine", async () => {
@@ -41,7 +69,14 @@ describe("run_powershell tool", () => {
       createSession(root, "default")
     );
 
-    expect(result).toMatchObject({ ok: false, error: "default mode requires approval for shell tools" });
+    expect(result).toMatchObject({
+      ok: false,
+      error: "mode=default tool=run_powershell risk=shell action=approval_required: default mode requires approval before running shell tools",
+      safetyEvidence: {
+        source: "permission_engine",
+        status: "requires_approval"
+      }
+    });
   });
 });
 

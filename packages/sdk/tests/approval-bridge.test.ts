@@ -2,7 +2,7 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import type { ModelProvider, ModelTurnRequest, ModelTurnResponse } from "@tokendance/code-core";
+import type { ModelProvider, ModelTurnRequest, ModelTurnResponse, PermissionApprovalRequest } from "@tokendance/code-core";
 import { TokenDanceCode, createAgentHubApprovalBridge } from "../src/index.js";
 
 class WriteFileProvider implements ModelProvider {
@@ -106,4 +106,67 @@ describe("AgentHub approval bridge", () => {
     await expect(readFile(join(root, "remote-approved.txt"), "utf8")).rejects.toThrow();
     expect(bridge.decide("write-remote", "allow")).toBe(false);
   });
+
+  it("returns a denial and clears pending approvals when publishing the request fails", async () => {
+    const bridge = createAgentHubApprovalBridge({
+      onRequest() {
+        throw new Error("hub unavailable");
+      }
+    });
+
+    await expect(bridge.approvalCallback(fakeApprovalRequest("bridge-fail"))).resolves.toEqual({
+      status: "denied",
+      reason: "AgentHub approval request failed: hub unavailable"
+    });
+    expect(bridge.pending()).toEqual([]);
+  });
+
+  it("keeps duplicate tool call IDs as separate pending approvals", async () => {
+    const requests: string[] = [];
+    const bridge = createAgentHubApprovalBridge({
+      onRequest(request) {
+        requests.push(request.requestId);
+      }
+    });
+
+    const first = bridge.approvalCallback(fakeApprovalRequest("duplicate-call"));
+    const second = bridge.approvalCallback(fakeApprovalRequest("duplicate-call"));
+
+    expect(requests).toEqual(["duplicate-call", "duplicate-call#2"]);
+    expect(bridge.pending().map((request) => request.requestId)).toEqual(["duplicate-call", "duplicate-call#2"]);
+
+    expect(bridge.decide("duplicate-call", "deny", "first rejected")).toBe(true);
+    expect(bridge.decide("duplicate-call#2", "allow", "second approved")).toBe(true);
+
+    await expect(first).resolves.toEqual({ status: "denied", reason: "first rejected" });
+    await expect(second).resolves.toEqual({ status: "allowed", reason: "second approved" });
+    expect(bridge.pending()).toEqual([]);
+  });
 });
+
+function fakeApprovalRequest(callId: string): PermissionApprovalRequest {
+  return {
+    session: {
+      id: "session-1",
+      cwd: process.cwd(),
+      createdAt: "2026-06-09T00:00:00.000Z",
+      updatedAt: "2026-06-09T00:00:00.000Z",
+      permissionMode: "default",
+      messages: []
+    },
+    turnId: "turn-1",
+    call: { id: callId, name: "write_file", input: { path: "notes.txt", content: "hello" } },
+    tool: {
+      name: "write_file",
+      description: "Write a file",
+      risk: "write",
+      concurrency: "exclusive",
+      parse: (input) => input,
+      execute: async () => ({})
+    },
+    decision: {
+      status: "requires_approval",
+      reason: "mode=default tool=write_file risk=write action=approval_required: default mode requires approval before running write tools"
+    }
+  };
+}

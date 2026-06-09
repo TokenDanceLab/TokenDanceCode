@@ -16,7 +16,19 @@ describe("tool registry metadata", () => {
       expect.objectContaining({
         name: "worktree_create",
         risk: "shell",
-        concurrency: "exclusive"
+        concurrency: "exclusive",
+        permission: expect.objectContaining({
+          default: "requires_approval",
+          safe: "denied",
+          auto: "allowed",
+          yolo: "allowed"
+        })
+      })
+    );
+    expect(metadata).toContainEqual(
+      expect.objectContaining({
+        name: "run_powershell",
+        safetyNotes: expect.arrayContaining(["PowerShell classifier hard-denies destructive commands before execution."])
       })
     );
     expect(metadata[0]).not.toHaveProperty("execute");

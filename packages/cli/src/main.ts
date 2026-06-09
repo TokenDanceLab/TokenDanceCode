@@ -51,8 +51,7 @@ export async function runCli(argv: string[], io: CliIO = defaultIO()): Promise<n
   }
 
   if (command === "doctor") {
-    await printDoctor(io, rest);
-    return 0;
+    return printDoctor(io, rest);
   }
 
   if (command === "quickstart") {
@@ -617,7 +616,8 @@ async function toolsCommand(io: CliIO): Promise<number> {
 }
 
 async function qualityCommand(args: string[], io: CliIO): Promise<number> {
-  const command = args.join(" ").trim();
+  const format = qualityFormat(args);
+  const command = stripQualityFormatArgs(args).join(" ").trim();
 
   const result = await new TokenDanceCode()
     .tools({ workingDirectory: io.cwd() })
@@ -628,6 +628,11 @@ async function qualityCommand(args: string[], io: CliIO): Promise<number> {
   }
 
   const quality = qualityOutput(result.output);
+  if (format === "json") {
+    await write(io.stdout, `${JSON.stringify(quality, null, 2)}\n`);
+    return quality.passed ? 0 : 1;
+  }
+
   await write(io.stdout, quality.passed ? "Quality passed.\n" : "Quality failed.\n");
   if (quality.result.stdout.trim()) {
     await write(io.stdout, quality.result.stdout);
@@ -636,6 +641,14 @@ async function qualityCommand(args: string[], io: CliIO): Promise<number> {
     await write(io.stderr, quality.result.stderr);
   }
   return quality.passed ? 0 : 1;
+}
+
+function qualityFormat(args: string[]): "text" | "json" {
+  return args[0] === "--json" || args[0] === "json" ? "json" : "text";
+}
+
+function stripQualityFormatArgs(args: string[]): string[] {
+  return qualityFormat(args) === "json" ? args.slice(1) : args;
 }
 
 async function tasksCommand(args: string[], io: CliIO): Promise<number> {
@@ -1030,20 +1043,34 @@ async function printStatus(io: CliIO, thread: Thread): Promise<void> {
   await writeField(io, "messages", String(state.messages.length));
 }
 
-async function printDoctor(io: CliIO, args: string[] = []): Promise<void> {
+async function printDoctor(io: CliIO, args: string[] = []): Promise<number> {
+  if (stripDoctorFormatArgs(args).length > 0) {
+    await write(io.stderr, doctorUsage());
+    return 1;
+  }
+
   const doctor = await new TokenDanceCode({
     storageRoot: io.cwd(),
     env: await readCliEnv(io)
   }).doctor({ projectRoot: io.cwd(), homeDir: homeDirFor(io) });
   if (doctorFormat(args) === "json") {
     await write(io.stdout, `${JSON.stringify(doctor, null, 2)}\n`);
-    return;
+    return 0;
   }
   await printDoctorInfo(io, doctor);
+  return 0;
 }
 
 function doctorFormat(args: string[]): "text" | "json" {
   return args.some((arg) => arg === "--json" || arg === "json") ? "json" : "text";
+}
+
+function stripDoctorFormatArgs(args: string[]): string[] {
+  return args.filter((arg) => arg !== "--json" && arg !== "json");
+}
+
+function doctorUsage(): string {
+  return "Usage: tokendance doctor [--json]\n";
 }
 
 function yesNo(value: boolean): "yes" | "no" {
@@ -1115,7 +1142,7 @@ ${heading("Work:", style)}
   tokendance worktree [list|create|remove] [name] [--discard]
   tokendance diff [path ...]
   tokendance review
-  tokendance quality [command]
+  tokendance quality [--json] [command]
   tokendance tools
 
 ${heading("Diagnostics:", style)}
@@ -1160,7 +1187,7 @@ ${heading("Work:", style)}
   /diff [path ...]
   /review
   /tools
-  /quality [command]
+  /quality [json] [command]
 
 ${heading("Diagnostics:", style)}
   /doctor [json]

@@ -2,6 +2,11 @@ import { describe, expect, it } from "vitest";
 import { OpenAIResponsesProvider, type ModelTurnRequest, type ToolSpec } from "../src/index.js";
 
 describe("OpenAIResponsesProvider", () => {
+  it("rejects missing or blank API keys before making requests", () => {
+    expect(() => new OpenAIResponsesProvider({ apiKey: "", model: "gpt-test" })).toThrow("OPENAI_API_KEY is not configured");
+    expect(() => new OpenAIResponsesProvider({ apiKey: "   ", model: "gpt-test" })).toThrow("OPENAI_API_KEY is not configured");
+  });
+
   it("creates a Responses API request and parses assistant text", async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const provider = new OpenAIResponsesProvider({
@@ -104,6 +109,60 @@ describe("OpenAIResponsesProvider", () => {
       provider: "openai-responses",
       status: 502,
       message: "[openai-responses] HTTP 502: bad gateway"
+    });
+  });
+
+  it("normalizes fetch failures as provider transport errors", async () => {
+    const provider = new OpenAIResponsesProvider({
+      apiKey: "test-key",
+      model: "gpt-test",
+      fetch: async () => {
+        throw new TypeError("fetch failed");
+      }
+    });
+
+    await expect(provider.createTurn(baseRequest())).rejects.toMatchObject({
+      name: "ProviderApiError",
+      provider: "openai-responses",
+      protocol: "openai-responses",
+      status: 0,
+      type: "provider_transport_error",
+      message: "[openai-responses] HTTP 0 provider_transport_error: fetch failed"
+    });
+  });
+
+  it("normalizes aborted fetches as provider timeout errors", async () => {
+    const provider = new OpenAIResponsesProvider({
+      apiKey: "test-key",
+      model: "gpt-test",
+      fetch: async () => {
+        throw new DOMException("The operation was aborted.", "AbortError");
+      }
+    });
+
+    await expect(provider.createTurn(baseRequest())).rejects.toMatchObject({
+      name: "ProviderApiError",
+      provider: "openai-responses",
+      status: 0,
+      type: "provider_timeout",
+      message: "[openai-responses] HTTP 0 provider_timeout: The operation was aborted."
+    });
+  });
+
+  it("rejects malformed successful JSON with a diagnostic error", async () => {
+    const provider = new OpenAIResponsesProvider({
+      apiKey: "test-key",
+      model: "gpt-test",
+      fetch: async () => new Response("{", { status: 200, headers: { "Content-Type": "application/json" } })
+    });
+
+    await expect(provider.createTurn(baseRequest())).rejects.toMatchObject({
+      name: "ProviderApiError",
+      provider: "openai-responses",
+      protocol: "openai-responses",
+      status: 200,
+      type: "malformed_provider_response",
+      message: "[openai-responses] HTTP 200 malformed_provider_response: Provider returned malformed JSON: {"
     });
   });
 

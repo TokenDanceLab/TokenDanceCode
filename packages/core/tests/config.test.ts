@@ -105,6 +105,26 @@ describe("TokenDance config", () => {
     expect(JSON.stringify(info)).not.toContain("gateway-secret");
   });
 
+  it("does not infer a real provider from blank secret env vars", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-config-"));
+    const info = await readTokenDanceConfig({
+      projectRoot: root,
+      env: {
+        TOKENDANCE_GATEWAY_API_KEY: "   ",
+        OPENAI_API_KEY: "\t",
+        ANTHROPIC_API_KEY: "",
+        MODEL_ID: "gpt-test"
+      }
+    });
+
+    expect(info.config).toEqual({
+      provider: "mock",
+      model: "gpt-test",
+      permissionMode: "default"
+    });
+    expect(info.sources.map((source) => source.kind)).toEqual(["defaults", "env"]);
+  });
+
   it("keeps TokenDance Gateway credentials scoped to OpenAI Chat Completions", () => {
     const env = {
       TOKENDANCE_GATEWAY_API_KEY: "gateway-secret",

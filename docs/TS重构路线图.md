@@ -8,7 +8,7 @@
 - worktree：`<workspace>\TokenDanceCode\.worktrees\ts-refactor`
 - 目标：把 TokenDanceCode 从 Python v0.1 参考实现重构为 TypeScript monorepo，并给 AgentHub 暴露稳定 SDK。
 - 当前可验证命令：`pnpm verify`、`pnpm contract:check`、`pnpm pack:check`、`pnpm release:next:check`
-- 最近验证结果：`pnpm release:next:check` 通过，覆盖只读 release contract drift gate、typecheck、Vitest 26 个测试文件 240 个测试、core/sdk/cli dry-run pack 和增强 tarball install smoke。
+- 最近验证结果以当前 `pnpm release:next:check` 输出为准；该 gate 覆盖只读 release contract drift gate、typecheck、Vitest、core/sdk/cli dry-run pack 和增强 tarball install smoke。
 
 旧 `src/tokendance` 和 `tests/` 暂时保留为功能迁移参考。新增 TS 能力默认写入 `packages/*`，不要继续扩展 Python 运行时，除非明确是在补迁移对照或保护旧行为。
 

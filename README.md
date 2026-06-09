@@ -26,7 +26,7 @@ TokenDanceCode 聚焦本地 coding-agent runtime 和 AgentHub 可调用的 SDK s
 | TokenDance Gateway | 可用 | 通过 OpenAI-compatible Chat Completions adapter 接入，API key 平面与 TokenDanceID 登录平面分离 |
 | AgentHub SDK | 可用 | thread run/context、event sink、approval bridge、doctor/config、task/todo/subagent/worktree facade |
 | Subagent / worktree | 早期可用 | 适合隔离修改型任务，还不是常驻团队系统 |
-| npm 发布 | next 准备中 | 本地候选已通过 release gate；registry 状态见 [发布准备](docs/release-readiness.md) |
+| npm 发布 | next 准备中 | 发布门禁已文档化；真实发布前重新运行 `pnpm release:next:check`，registry 状态见 [发布准备](docs/release-readiness.md) |
 
 当前 public npm 包计划为：
 

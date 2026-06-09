@@ -26,7 +26,7 @@ TokenDanceCode focuses on the local coding-agent runtime and the SDK surface Age
 | TokenDance Gateway | Usable | OpenAI-compatible Chat Completions adapter; TokenDance API keys stay separate from TokenDanceID login tokens |
 | AgentHub SDK | Usable | thread run/context, event sink, approval bridge, doctor/config, task/todo/subagent/worktree facade |
 | Subagent / worktree | Early usable | Intended for isolated code-change tasks, not a resident team system |
-| npm release | Preparing `next` | The local candidate passes release gates; registry status is tracked in [Release readiness](docs/release-readiness.md) |
+| npm release | Preparing `next` | Release gates are documented; rerun `pnpm release:next:check` before publishing. Registry status is tracked in [Release readiness](docs/release-readiness.md) |
 
 Planned public packages:
 

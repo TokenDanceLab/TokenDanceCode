@@ -8,6 +8,7 @@ describe("package metadata", () => {
   it("keeps public packages ready for AgentHub consumption", async () => {
     const rootPackage = await readJson("package.json");
     const ignore = await readText(".gitignore");
+    const envExample = await readText(".env.example");
     const license = await readText("LICENSE");
 
     expect(rootPackage.private).toBe(true);
@@ -35,6 +36,10 @@ describe("package metadata", () => {
     ].join(" && "));
     expect(license).toContain("MIT License");
     expect(ignore).toContain("*.tgz");
+    expect(ignore).toContain(".tmp/");
+    expect(envExample).toContain("does not load the repository root .env by default");
+    expect(envExample).toContain("~/.tokendance/.env");
+    expect(envExample).toContain("TOKENDANCE_GATEWAY_API_KEY=<tokendance-gateway-api-key>");
 
     const smokeScript = await readText("scripts/smoke-tarball-install.mjs");
     expect(smokeScript).toContain("@tokendance/code-core");
@@ -54,7 +59,10 @@ describe("package metadata", () => {
     expect(smokeScript).toContain("npm");
     expect(smokeScript).toContain("package-lock-only=false");
     expect(smokeScript).toContain("Packed package privacy scan failed");
+    expect(smokeScript).toContain("sk-[A-Za-z0-9_-]{20,}");
+    expect(smokeScript).toContain("github_pat_");
     expect(smokeScript).toContain("npm_[A-Za-z0-9]{20,}");
+    expect(smokeScript).toContain("TOKENDANCE_GATEWAY_API_KEY");
     expect(smokeScript).toContain("isSymbolicLink");
     expect(smokeScript).toContain("no scannable package files found");
     expect(smokeScript).not.toContain("overrides");
@@ -172,7 +180,8 @@ describe("package metadata", () => {
           "agenthub-event-envelope-schema",
           "agenthub-approval-bridge",
           "agenthub-doctor-readiness",
-          "agenthub-contract-readiness"
+          "agenthub-contract-readiness",
+          "terminal-failure-result"
         ]
       },
       packages: {
@@ -208,7 +217,8 @@ describe("package metadata", () => {
         "agenthub-event-envelope-schema",
         "agenthub-approval-bridge",
         "agenthub-doctor-readiness",
-        "agenthub-contract-readiness"
+        "agenthub-contract-readiness",
+        "terminal-failure-result"
       ])
     );
     expect(new Set(AGENTHUB_FEATURE_FLAGS).size).toBe(AGENTHUB_FEATURE_FLAGS.length);

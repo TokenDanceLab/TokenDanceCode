@@ -52,10 +52,18 @@ export class AgentRuntime {
     await this.persistSession();
     yield* this.emit({ type: "user.message", sessionId: this.session.id, turnId, message: userMessage });
 
+    try {
+      yield* this.runProviderLoop(turnId, context.messages);
+    } catch (error) {
+      yield* this.emit({ type: "turn.failed", sessionId: this.session.id, turnId, error: errorMessage(error) });
+      throw error;
+    }
+  }
+
+  private async *runProviderLoop(turnId: string, contextMessages: TDMessage[]): AsyncGenerator<TDCodeEvent> {
     const orchestrator = new ToolOrchestrator(this.registry);
     const toolResults: ToolResult[] = [];
-    const providerSession: SessionState = { ...this.session, messages: context.messages };
-
+    const providerSession: SessionState = { ...this.session, messages: contextMessages };
     for (let step = 0; step < 8; step += 1) {
       const response = await this.options.provider.createTurn({
         session: providerSession,
@@ -127,4 +135,8 @@ export class AgentRuntime {
   private persistSession(): Promise<void> {
     return this.options.store?.saveSession?.(this.session) ?? Promise.resolve();
   }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

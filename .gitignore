@@ -2,6 +2,7 @@
 .config/
 .tokendance/
 .worktrees/
+.tmp/
 .claude/
 __pycache__/
 *.py[cod]

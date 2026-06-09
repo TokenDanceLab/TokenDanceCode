@@ -16,7 +16,8 @@ export const AGENTHUB_FEATURE_FLAGS = [
   "agenthub-event-envelope-schema",
   "agenthub-approval-bridge",
   "agenthub-doctor-readiness",
-  "agenthub-contract-readiness"
+  "agenthub-contract-readiness",
+  "terminal-failure-result"
 ] as const;
 
 export type AgentHubFeatureFlag = typeof AGENTHUB_FEATURE_FLAGS[number];

@@ -8,6 +8,14 @@ The package installs the `tokendance` bin. It provides local coding-agent sessio
 
 `packages/cli/src/main.ts` is the thin CLI entry point for the `tokendance` bin. Keep argv parsing and top-level command dispatch in `packages/cli/src/commands.ts`; `main.ts` should wire IO-aware handlers such as `doctor`, `config`, `run`, `quality`, transcript, worktree, task, and auth commands without changing their JSON, usage, or text output shapes.
 
+Use `rg` when changing CLI behavior:
+
+```powershell
+rg -n "TOP_LEVEL_COMMAND_METADATA|SLASH_COMMAND_METADATA|runPrompt|printHelp" packages/cli/src packages/cli/tests
+```
+
+Top-level command metadata and slash command metadata are the contract source for help text, categories, aliases, and JSON support. A new command should update metadata, handler wiring, and tests in the same patch.
+
 ## Install
 
 The `next` tag may not be public while release review is in progress. Use workspace source or packed tarballs until `npm view @tokendance/code-cli dist-tags --json` confirms registry visibility. After that:
@@ -32,6 +40,18 @@ Interactive turns use a scrollback-first renderer instead of a full-screen TUI. 
 `tokendance tools` prints the human-readable tool catalog. AgentHub and other structured consumers should use the SDK `tools.list()` facade for the same catalog with `permissionProfiles.default/safe/auto/yolo`, where each profile carries the mode-specific `status`, `reason`, and `riskMetadata`; the CLI text output stays compact.
 
 Help output stays command-palette inspired but plain: the header is a compact ASCII brand banner (`TokenDanceCode`, `TD CODE`, and the scrollback-first tagline), commands are grouped by workflow (`Core`, `Session`, `Work`, `Diagnostics`, `Gateway`), and section headers render as printable `== Name ==` lines. Do not add OpenTUI/full-screen widgets, cursor-managed panes, or renderer behavior that depends on terminal state beyond optional ANSI color.
+
+## Current Gaps
+
+The CLI is usable, but the next hardening lane is explicit:
+
+- local interactive approval for write/shell tools in `default` mode;
+- `tokendance run --json` and `tokendance run --stream-json` for scripts and AgentHub shells;
+- slash dispatch driven by `SLASH_COMMAND_METADATA`, including aliases and unknown-command suggestions;
+- compact width-aware summaries for long paths and session lists;
+- `--color auto|always|never` while preserving `NO_COLOR`.
+
+Keep these improvements incremental and tested. Do not replace the current scrollback renderer with a full-screen TUI.
 
 ## Release Baseline
 

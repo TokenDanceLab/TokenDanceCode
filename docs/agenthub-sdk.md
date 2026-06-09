@@ -98,7 +98,7 @@ console.log(TOKEN_DANCE_CODE_PACKAGE.verification.tarballSmoke);
 console.log(TOKEN_DANCE_CODE_PACKAGE.verification.prerelease);
 ```
 
-当前 manifest 覆盖 core/sdk/cli 包名、SDK/Core import specifier、CLI bin 名、AgentHub SDK contract version、`agent.stream` schema version、SDK feature flags 和推荐验证命令：`pnpm verify`、`pnpm pack:check`、`pnpm pack:smoke`、`pnpm release:next:check`。它不包含本机路径、密钥或 workspace 私有路径，适合进入 AgentHub UI 或日志。AgentHub Hub/Edge 启动检查可以把 `agentHub.sdkContractVersion === "agenthub-sdk.v1"` 和 `agentHub.agentStreamSchemaVersion === 2` 当作当前稳定契约的快速断言。SDK 同时导出 `AGENTHUB_FEATURE_FLAGS` 和 `supportsAgentHubFeature(feature)`，避免 AgentHub 复制 feature flag 字符串。`agentHub.features` 当前还显式标记 `doctor-readiness`、`runner-bootstrap`、`agenthub-consumer-fixture`、`agenthub-package-feature-flags`、`agenthub-event-envelope-schema`、`agenthub-approval-bridge`、`agenthub-doctor-readiness` 和 `agenthub-contract-readiness`，用于区分是否能读取 manifest feature flags、`agent.stream` envelope schema、approval bridge request schema、`doctor.agentHub` 汇总和样例 runner/fixture 链路。
+当前 manifest 覆盖 core/sdk/cli 包名、SDK/Core import specifier、CLI bin 名、AgentHub SDK contract version、`agent.stream` schema version、SDK feature flags 和推荐验证命令：`pnpm verify`、`pnpm pack:check`、`pnpm pack:smoke`、`pnpm release:next:check`。它不包含本机路径、密钥或 workspace 私有路径，适合进入 AgentHub UI 或日志。AgentHub Hub/Edge 启动检查可以把 `agentHub.sdkContractVersion === "agenthub-sdk.v1"` 和 `agentHub.agentStreamSchemaVersion === 2` 当作当前稳定契约的快速断言。SDK 同时导出 `AGENTHUB_FEATURE_FLAGS` 和 `supportsAgentHubFeature(feature)`，避免 AgentHub 复制 feature flag 字符串。`agentHub.features` 当前还显式标记 `doctor-readiness`、`runner-bootstrap`、`agenthub-consumer-fixture`、`agenthub-package-feature-flags`、`agenthub-event-envelope-schema`、`agenthub-approval-bridge`、`agenthub-doctor-readiness`、`agenthub-contract-readiness` 和 `terminal-failure-result`，用于区分是否能读取 manifest feature flags、`agent.stream` envelope schema、approval bridge request schema、`doctor.agentHub` 汇总、失败终态 result frame 和样例 runner/fixture 链路。
 
 ## 4. TokenDanceID OIDC 登录启动
 
@@ -246,6 +246,9 @@ const client = new TokenDanceCode({
 | `tool.permission` + `allowed/denied` | `run.agent.permission_decided` |
 | `tool.completed` | `run.agent.tool_result` |
 | `turn.completed` | `run.agent.result` |
+| `turn.failed` | `run.agent.result` (`success=false`) |
+
+`run.agent.result` 是 AgentHub 的终态事件。成功 turn 的 payload 会带 `success: true`、`summary` 和可选 `usage`；provider/runtime 失败时 payload 会带 `success: false`、`summary` 和 `error`，runner 仍会把原始错误 rethrow 给调用方处理。
 
 也可以直接使用纯函数：
 

@@ -167,6 +167,20 @@ export function toAgentHubRuntimeEvents(event: TDCodeEvent): AgentHubRuntimeEven
           }
         }
       ];
+    case "turn.failed":
+      return [
+        {
+          ...base,
+          eventType: "run.agent.result",
+          payload: {
+            sessionId: event.sessionId,
+            turnId: event.turnId,
+            success: false,
+            summary: event.error,
+            error: event.error
+          }
+        }
+      ];
     default:
       return [];
   }

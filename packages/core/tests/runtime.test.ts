@@ -38,6 +38,12 @@ class DangerousPowerShellOnceProvider implements ModelProvider {
   }
 }
 
+class FailingProvider implements ModelProvider {
+  async createTurn(): Promise<ModelTurnResponse> {
+    throw new Error("provider unavailable");
+  }
+}
+
 describe("AgentRuntime", () => {
   it("runs a mock turn and emits a final response", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-core-"));
@@ -171,6 +177,40 @@ describe("AgentRuntime", () => {
         result: expect.objectContaining({ toolName: "missing_tool", ok: false, error: "Unknown tool: missing_tool" })
       })
     );
+  });
+
+  it("emits and persists a turn.failed event before rethrowing provider errors", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-core-provider-fail-"));
+    const runtime = new AgentRuntime({
+      cwd: root,
+      provider: new FailingProvider(),
+      store: new FileTranscriptStore({ rootDir: root })
+    });
+    const events = [];
+
+    await runtime.initialize();
+    await expect(async () => {
+      for await (const event of runtime.runTurn("call provider")) {
+        events.push(event);
+      }
+    }).rejects.toThrow("provider unavailable");
+
+    expect(events).toEqual([
+      expect.objectContaining({ type: "user.message" }),
+      expect.objectContaining({
+        type: "turn.failed",
+        error: "provider unavailable"
+      })
+    ]);
+    const content = await readFile(
+      join(root, ".tokendance", "sessions", runtime.state.id, "transcript.jsonl"),
+      "utf8"
+    );
+    const transcriptEvents = content
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line).event.type);
+    expect(transcriptEvents).toEqual(["user.message", "turn.failed"]);
   });
 
   it("writes transcript envelopes with stable resume metadata", async () => {

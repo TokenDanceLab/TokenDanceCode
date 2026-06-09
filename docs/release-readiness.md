@@ -1,6 +1,6 @@
 # Release Readiness
 
-Last updated: 2026-06-09 18:55 HKT.
+Last updated: 2026-06-09 19:10 HKT.
 
 TokenDanceCode has a local npm first-candidate commit, but the public registry does not show the packages yet. Treat this repository as ready for release review, not as published.
 
@@ -45,14 +45,14 @@ pnpm smoke:gateway
 
 `pnpm smoke:gateway` requires `TOKENDANCE_RUN_REAL_PROVIDER_SMOKE=1`, `TOKENDANCE_GATEWAY_API_KEY`, `TOKENDANCE_GATEWAY_BASE_URL`, and one or more model names through `TOKENDANCE_REAL_SMOKE_MODELS` or the script defaults. It does not read project `.env`, does not run `npm publish`, and redacts configured provider key and base URL values from subprocess output.
 
-Latest known local result:
+Latest known local result, to be refreshed immediately before publish:
 
-- `pnpm release:next:check` passed.
-- `pnpm verify` passed inside that gate with TypeScript build and Vitest `26` files / `255` tests.
+- `pnpm release:next:check` passed on the release-candidate worktree; use the command output, not this document, as the current test-count evidence.
+- `pnpm verify` passed inside that gate with TypeScript build and the current Vitest suite.
 - `pnpm pack:smoke` installed real packed core, SDK, and CLI tarballs into a temporary npm project, then imported the packed SDK AgentHub consumer fixture and ran a mock AgentHub turn.
 - `pnpm registry:next:check` returned `E404` for core, SDK, and CLI on npmjs; first publish can proceed after release-owner approval.
-- The tarball smoke privacy scan follows pnpm scoped-package symlinks and fails if it scans zero readable package files.
-- `pnpm smoke:gateway` passed locally against TokenDance Gateway for `deepseek-v4-pro`, `glm-5.1`, and `gpt-5.5` using an ignored local `.config/` env file; no provider key was written to tracked files.
+- The tarball smoke privacy scan follows pnpm scoped-package symlinks, fails if it scans zero readable package files, and checks common provider/npm/GitHub token patterns.
+- `pnpm smoke:gateway` passed locally against TokenDance Gateway using configured smoke models from an ignored local `.config/` env file; no provider key or base URL was written to tracked files.
 
 ## Publish Boundary
 

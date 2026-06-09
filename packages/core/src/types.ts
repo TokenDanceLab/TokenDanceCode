@@ -143,7 +143,8 @@ export type TDCodeEvent =
   | { type: "tool.started"; sessionId: string; turnId: string; call: ToolCall }
   | { type: "tool.permission"; sessionId: string; turnId: string; call: ToolCall; decision: PermissionDecision }
   | { type: "tool.completed"; sessionId: string; turnId: string; result: ToolResult }
-  | { type: "turn.completed"; sessionId: string; turnId: string; finalResponse: string; usage?: TokenUsage };
+  | { type: "turn.completed"; sessionId: string; turnId: string; finalResponse: string; usage?: TokenUsage }
+  | { type: "turn.failed"; sessionId: string; turnId: string; error: string };
 
 export interface TranscriptEnvelope {
   version: 1;

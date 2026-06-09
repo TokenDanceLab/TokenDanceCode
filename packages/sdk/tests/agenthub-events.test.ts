@@ -73,6 +73,27 @@ describe("AgentHub event mapping", () => {
     });
   });
 
+  it("maps turn failures to terminal AgentHub result frames", () => {
+    const [mapped] = toAgentHubRuntimeEvents({
+      type: "turn.failed",
+      sessionId: "session-1",
+      turnId: "turn-failed",
+      error: "provider unavailable"
+    });
+
+    expect(mapped).toMatchObject({
+      eventType: "run.agent.result",
+      sourceEventType: "turn.failed",
+      payload: {
+        sessionId: "session-1",
+        turnId: "turn-failed",
+        success: false,
+        summary: "provider unavailable",
+        error: "provider unavailable"
+      }
+    });
+  });
+
   it("creates a TDCode event sink for AgentHub emitters", async () => {
     const received: string[] = [];
     const sink = createAgentHubEventSink((event) => {

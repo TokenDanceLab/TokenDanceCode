@@ -29,8 +29,11 @@ const qualityJsonLabel = "quality --json";
 const forbiddenPackagePatterns = [
   { label: "Windows user path", pattern: /C:[\\/]+Users[\\/]+/i },
   { label: "local workspace path", pattern: /D:[\\/]+Code[\\/]+/i },
+  { label: "OpenAI-style API key", pattern: /sk-[A-Za-z0-9_-]{20,}/ },
+  { label: "GitHub token", pattern: /(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}/ },
   { label: "npm token", pattern: /npm_[A-Za-z0-9]{20,}/ },
   { label: "npm auth token config", pattern: /_authToken\s*=/i },
+  { label: "provider API key assignment", pattern: /\b(?:OPENAI_API_KEY|ANTHROPIC_API_KEY|TOKENDANCE_GATEWAY_API_KEY)\s*=\s*(?!<[^>\r\n]+>|your-|""|'')\S+/i },
   { label: "private key material", pattern: /BEGIN (?:RSA|OPENSSH|EC|PRIVATE) KEY/ }
 ];
 

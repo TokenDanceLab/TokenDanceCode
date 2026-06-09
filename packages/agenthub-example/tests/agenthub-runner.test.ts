@@ -104,6 +104,12 @@ class ConcurrentApprovalProvider implements ModelProvider {
   }
 }
 
+class FailingAgentHubProvider implements ModelProvider {
+  async createTurn() {
+    throw new Error("provider unavailable");
+  }
+}
+
 describe("AgentHub TokenDanceCode runner example", () => {
   it("exposes TokenDanceID OIDC login helpers for AgentHub shells", () => {
     const runner = createAgentHubTokenDanceRunner({
@@ -236,6 +242,47 @@ describe("AgentHub TokenDanceCode runner example", () => {
       sdk_contract_version: "agenthub-sdk.v1",
       source: "tokendance-code-sdk"
     });
+  });
+
+  it("emits a terminal failed AgentHub result frame when the provider rejects", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-agenthub-provider-fail-"));
+    const frames: AgentHubAgentStreamPayload[] = [];
+    const runner = createAgentHubTokenDanceRunner({
+      storageRoot: root,
+      provider: new FailingAgentHubProvider(),
+      emitAgentStream(payload) {
+        frames.push(payload);
+      },
+      clock: () => "2026-06-09T00:00:00.000Z"
+    });
+
+    await expect(
+      runner.run({
+        prompt: "trigger provider failure",
+        workingDirectory: root,
+        permissionMode: "default",
+        taskId: "task-failed",
+        edgeRunId: "edge-failed",
+        sessionId: "hub-session-failed",
+        agentInstanceId: "agent-failed"
+      })
+    ).rejects.toThrow("provider unavailable");
+
+    expect(frames).toEqual([
+      expect.objectContaining({
+        event_type: "run.agent.result",
+        source_event_type: "turn.failed",
+        task_id: "task-failed",
+        edge_run_id: "edge-failed",
+        session_id: "hub-session-failed",
+        agent_instance_id: "agent-failed",
+        payload: expect.objectContaining({
+          success: false,
+          summary: "provider unavailable",
+          error: "provider unavailable"
+        })
+      })
+    ]);
   });
 
   it("resumes the supplied AgentHub session id across runner calls", async () => {

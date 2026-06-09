@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   CompactService,
   FileTranscriptStore,
+  ContextBuilder,
   ResumeService,
   recoverRecentTranscript,
   searchTranscript,
@@ -94,6 +95,71 @@ describe("ResumeService", () => {
       eventCount: 1,
       latest: false
     });
+  });
+
+  it("exposes derived resume metadata without mutating transcript envelopes", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-resume-meta-"));
+    const session = { ...createSession(root, "session-meta"), compactSummary: "Earlier summary." };
+    const store = new FileTranscriptStore({ rootDir: root });
+    await store.initialize(session);
+    await store.append({ type: "user.message", sessionId: session.id, turnId: "turn-1", message: { role: "user", content: "inspect metadata" } });
+    await store.append({ type: "assistant.delta", sessionId: session.id, turnId: "turn-1", text: "metadata" });
+    await store.append({ type: "assistant.completed", sessionId: session.id, turnId: "turn-1", message: { role: "assistant", content: "metadata done" } });
+    await store.append({ type: "turn.completed", sessionId: session.id, turnId: "turn-1", finalResponse: "metadata done" });
+
+    const service = new ResumeService(root);
+    const [listed] = await service.listSessions();
+    const exported = await service.exportSession(session.id);
+    const rawEnvelope = JSON.parse((await readFile(join(root, ".tokendance", "sessions", session.id, "transcript.jsonl"), "utf8")).split(/\r?\n/)[0] ?? "{}");
+
+    expect(listed).toMatchObject({
+      sessionId: session.id,
+      transcriptVersion: 1,
+      firstEventSeq: 1,
+      lastEventSeq: 4,
+      lastEventType: "turn.completed",
+      lastTurnId: "turn-1",
+      recoverableEventCount: 4,
+      turnCount: 1,
+      hasCompactSummary: true
+    });
+    expect(exported.metadata).toMatchObject({
+      transcriptVersion: 1,
+      firstEventSeq: 1,
+      lastEventSeq: 4,
+      eventTypes: ["user.message", "assistant.delta", "assistant.completed", "turn.completed"]
+    });
+    expect(rawEnvelope).toMatchObject({ version: 1, seq: 1, event: { type: "user.message" } });
+    expect(rawEnvelope).not.toHaveProperty("metadata");
+  });
+
+  it("builds read-only context preview metadata for AgentHub debug panels", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-context-meta-"));
+    const session = {
+      ...createSession(root, "session-context"),
+      compactSummary: "Compact context.",
+      messages: [
+        { role: "user" as const, content: "first" },
+        { role: "assistant" as const, content: "second" },
+        { role: "user" as const, content: "third" }
+      ]
+    };
+
+    const preview = await new ContextBuilder({ maxRecentMessages: 2 }).build({
+      session,
+      userMessage: "next",
+      workspaceRoot: root
+    });
+
+    expect(preview.metadata).toMatchObject({
+      workspaceRoot: root,
+      maxRecentMessages: 2,
+      sessionMessageCount: 3,
+      includedRecentMessageCount: 2,
+      hasCompactSummary: true
+    });
+    expect(session.messages).toHaveLength(3);
+    expect(preview.messages.at(-1)).toEqual({ role: "user", content: "next" });
   });
 
   it("exports a selected session without mutating transcript state", async () => {

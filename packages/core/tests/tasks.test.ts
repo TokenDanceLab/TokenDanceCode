@@ -25,6 +25,17 @@ describe("task and todo stores", () => {
     });
     expect(await tasks.get(created.id)).toEqual(completed);
     expect(await tasks.list()).toEqual([completed]);
+    await expect(tasks.metadata()).resolves.toMatchObject({
+      projectRoot: root,
+      taskCount: 1,
+      openCount: 0,
+      inProgressCount: 0,
+      completedCount: 1,
+      linkedSessionCount: 1,
+      linkedWorktreeCount: 1,
+      dependencyEdgeCount: 1,
+      latestTaskId: created.id
+    });
     await expect(readFile(join(root, ".tokendance", "tasks", "tasks.jsonl"), "utf8")).resolves.toContain("task.created");
     await expect(readFile(join(root, ".tokendance", "tasks", "task-index.json"), "utf8")).resolves.toContain(created.id);
   });
@@ -43,6 +54,15 @@ describe("task and todo stores", () => {
       taskId: "task-1"
     });
     expect(await todos.list()).toEqual([updated]);
+    await expect(todos.metadata()).resolves.toMatchObject({
+      projectRoot: root,
+      sessionId: "session-1",
+      todoCount: 1,
+      pendingCount: 0,
+      inProgressCount: 1,
+      completedCount: 0,
+      linkedTaskCount: 1
+    });
     await expect(readFile(join(root, ".tokendance", "sessions", "session-1", "todos.json"), "utf8")).resolves.toContain("Run unittest");
   });
 

@@ -102,6 +102,13 @@ describe("TokenDanceCode SDK", () => {
     expect(context.messages[0]?.content).toContain("Use AgentHub project rules.");
     expect(context.messages[0]?.content).toContain("Prefer short action plans.");
     expect(context.messages.at(-1)).toEqual({ role: "user", content: "next AgentHub turn" });
+    expect(context.metadata).toMatchObject({
+      workspaceRoot: root,
+      maxRecentMessages: 20,
+      sessionMessageCount: 2,
+      includedRecentMessageCount: 2,
+      includedFiles: ["AGENTS.md", "CLAUDE.md", "README.md"]
+    });
     expect(thread.state.messages.map((message) => message.content)).not.toContain("next AgentHub turn");
   });
 
@@ -233,6 +240,9 @@ describe("TokenDanceCode SDK", () => {
       sessionDir: join(root, ".tokendance", "sessions", "session-second"),
       transcriptPath: join(root, ".tokendance", "sessions", "session-second", "transcript.jsonl"),
       eventCount: 4,
+      transcriptVersion: 1,
+      lastEventType: "turn.completed",
+      turnCount: 1,
       latest: true
     });
     expect(sessions[0]?.lastEventTimestamp).toBeDefined();
@@ -303,6 +313,12 @@ describe("TokenDanceCode SDK", () => {
       transcriptPath: join(root, ".tokendance", "sessions", "session-first", "transcript.jsonl")
     });
     expect(exported.transcriptJsonl).toContain("first lifecycle session");
+    expect(exported.metadata).toMatchObject({
+      transcriptVersion: 1,
+      firstEventSeq: 1,
+      lastEventSeq: 4,
+      eventTypes: ["user.message", "assistant.delta", "assistant.completed", "turn.completed"]
+    });
     expect(candidates).toEqual([expect.objectContaining({ sessionId: "session-first", reason: "exceeds_keep_latest" })]);
     expect(diagnostic).toMatchObject({
       ok: false,
@@ -424,6 +440,13 @@ describe("TokenDanceCode SDK", () => {
       summary: "reviewer subagent completed: Inspect SDK surface"
     });
     expect(await subagents.list()).toEqual([result]);
+    expect(await subagents.metadata()).toMatchObject({
+      runCount: 1,
+      readonlyCount: 1,
+      codingCount: 0,
+      dirtyWorktreeCount: 0,
+      latestAgentId: result.id
+    });
   });
 
   it("gets and discards subagent worktrees through the SDK boundary for AgentHub callers", async () => {
@@ -438,9 +461,14 @@ describe("TokenDanceCode SDK", () => {
       id: result.id,
       agentType: "coding",
       worktree: "sdk-agent",
-      taskId: "task-sdk"
+      taskId: "task-sdk",
+      worktreeDirty: true,
+      worktreeDirtyFiles: ["agent.txt"]
     });
-    await expect(subagents.discard(result.id)).rejects.toThrow("uncommitted changes");
+    await expect(subagents.discard(result.id)).rejects.toMatchObject({
+      message: "Worktree sdk-agent has uncommitted changes: agent.txt",
+      dirtyFiles: ["agent.txt"]
+    });
 
     const discarded = await subagents.discard(result.id, { discard: true });
 
@@ -728,6 +756,7 @@ describe("TokenDanceCode SDK", () => {
     const task = await tasks.create({ title: "SDK integration", description: "AgentHub task" });
     await tasks.addDependency(task.id, "task-parent");
     await tasks.linkSession(task.id, "session-sdk");
+    await tasks.linkWorktree(task.id, "sdk-worktree");
     const done = await tasks.updateStatus(task.id, "completed");
     const todo = await todos.add({ text: "Run SDK test", taskId: task.id });
     const activeTodo = await todos.updateStatus(todo.id, "in_progress");
@@ -736,11 +765,14 @@ describe("TokenDanceCode SDK", () => {
       id: task.id,
       status: "completed",
       dependencies: ["task-parent"],
-      linkedSessionId: "session-sdk"
+      linkedSessionId: "session-sdk",
+      linkedWorktree: "sdk-worktree"
     });
     expect(await tasks.list()).toEqual([done]);
+    expect(await tasks.metadata()).toMatchObject({ taskCount: 1, completedCount: 1, linkedSessionCount: 1, linkedWorktreeCount: 1 });
     expect(activeTodo).toMatchObject({ status: "in_progress", taskId: task.id });
     expect(await todos.list()).toEqual([activeTodo]);
+    expect(await todos.metadata()).toMatchObject({ sessionId: "session-sdk", todoCount: 1, inProgressCount: 1, linkedTaskCount: 1 });
   });
 
   it("manages git worktrees through the SDK boundary for AgentHub callers", async () => {
@@ -752,7 +784,8 @@ describe("TokenDanceCode SDK", () => {
 
     expect(created).toMatchObject({ name: "agenthub-wt", branch: "codex/agenthub-wt", dirty: false });
     await writeFile(join(created.path, "dirty.txt"), "dirty\n", "utf8");
-    expect(await worktrees.list()).toEqual([expect.objectContaining({ name: "agenthub-wt", dirty: true })]);
+    expect(await worktrees.list()).toEqual([expect.objectContaining({ name: "agenthub-wt", dirty: true, dirtyFiles: ["dirty.txt"], dirtyFileCount: 1 })]);
+    await expect(worktrees.status("agenthub-wt")).resolves.toMatchObject({ dirty: true, dirtyFiles: ["dirty.txt"], dirtyFileCount: 1 });
 
     await worktrees.remove("agenthub-wt", { discard: true });
 

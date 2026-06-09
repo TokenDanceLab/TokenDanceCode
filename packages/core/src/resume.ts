@@ -1,7 +1,15 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { SessionState, TranscriptEnvelope } from "./types.js";
-import { FileTranscriptStore, readTranscript, searchTranscript, type TranscriptSearchOptions, type TranscriptSearchResult } from "./transcript.js";
+import {
+  FileTranscriptStore,
+  readTranscript,
+  searchTranscript,
+  summarizeTranscript,
+  type TranscriptMetadata,
+  type TranscriptSearchOptions,
+  type TranscriptSearchResult
+} from "./transcript.js";
 
 export interface ResumeResult {
   session: SessionState;
@@ -20,10 +28,20 @@ export interface SessionListItem {
   messageCount: number;
   eventCount: number;
   lastEventTimestamp?: string;
+  transcriptVersion?: TranscriptMetadata["transcriptVersion"];
+  firstEventSeq?: number;
+  lastEventSeq?: number;
+  firstEventTimestamp?: string;
+  lastEventType?: TranscriptMetadata["lastEventType"];
+  lastTurnId?: string;
+  turnCount: number;
+  recoverableEventCount: number;
+  hasCompactSummary: boolean;
   latest: boolean;
 }
 
 export interface SessionExport extends SessionListItem {
+  metadata: TranscriptMetadata;
   session: SessionState;
   transcript: TranscriptEnvelope[];
   transcriptJsonl: string;
@@ -112,6 +130,7 @@ export class ResumeService {
         const sessionDir = store.sessionDir(row.id);
         const transcriptPath = join(sessionDir, "transcript.jsonl");
         const transcript = await readTranscript(transcriptPath);
+        const metadata = summarizeTranscript(transcript);
         return {
           sessionId: session.id,
           sessionDir,
@@ -122,7 +141,16 @@ export class ResumeService {
           permissionMode: session.permissionMode,
           messageCount: session.messages.length,
           eventCount: transcript.length,
-          lastEventTimestamp: transcript.at(-1)?.timestamp,
+          lastEventTimestamp: metadata.lastEventTimestamp,
+          transcriptVersion: metadata.transcriptVersion,
+          firstEventSeq: metadata.firstEventSeq,
+          lastEventSeq: metadata.lastEventSeq,
+          firstEventTimestamp: metadata.firstEventTimestamp,
+          lastEventType: metadata.lastEventType,
+          lastTurnId: metadata.lastTurnId,
+          turnCount: metadata.turnCount,
+          recoverableEventCount: metadata.recoverableEventCount,
+          hasCompactSummary: Boolean(session.compactSummary),
           latest: index === 0
         };
       })
@@ -141,6 +169,7 @@ export class ResumeService {
     const sessionDir = store.sessionDir(sessionId);
     const transcriptPath = join(sessionDir, "transcript.jsonl");
     const transcript = await readTranscript(transcriptPath);
+    const metadata = summarizeTranscript(transcript);
     const transcriptJsonl = await readTranscriptJsonl(transcriptPath);
     const latestSessionId = (await this.listSessionRowsByMtime())[0]?.id;
 
@@ -154,8 +183,18 @@ export class ResumeService {
       permissionMode: result.session.permissionMode,
       messageCount: result.session.messages.length,
       eventCount: transcript.length,
-      lastEventTimestamp: transcript.at(-1)?.timestamp,
+      lastEventTimestamp: metadata.lastEventTimestamp,
+      transcriptVersion: metadata.transcriptVersion,
+      firstEventSeq: metadata.firstEventSeq,
+      lastEventSeq: metadata.lastEventSeq,
+      firstEventTimestamp: metadata.firstEventTimestamp,
+      lastEventType: metadata.lastEventType,
+      lastTurnId: metadata.lastTurnId,
+      turnCount: metadata.turnCount,
+      recoverableEventCount: metadata.recoverableEventCount,
+      hasCompactSummary: Boolean(result.session.compactSummary),
       latest: latestSessionId === sessionId,
+      metadata,
       session: result.session,
       transcript,
       transcriptJsonl

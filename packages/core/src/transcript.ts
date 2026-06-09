@@ -20,6 +20,19 @@ export interface TranscriptSearchResult {
   preview: string;
 }
 
+export interface TranscriptMetadata {
+  transcriptVersion?: TranscriptEnvelope["version"];
+  firstEventSeq?: number;
+  lastEventSeq?: number;
+  firstEventTimestamp?: string;
+  lastEventTimestamp?: string;
+  lastEventType?: TDCodeEvent["type"];
+  lastTurnId?: string;
+  eventTypes: TDCodeEvent["type"][];
+  turnCount: number;
+  recoverableEventCount: number;
+}
+
 export class FileTranscriptStore implements TranscriptStore {
   private readonly cwdBySession = new Map<string, string>();
   private readonly lastUuidBySession = new Map<string, string>();
@@ -114,6 +127,23 @@ export async function readTranscript(path: string): Promise<TranscriptEnvelope[]
   }
 }
 
+export function summarizeTranscript(envelopes: TranscriptEnvelope[]): TranscriptMetadata {
+  const first = envelopes[0];
+  const last = envelopes.at(-1);
+  return {
+    transcriptVersion: first?.version,
+    firstEventSeq: first?.seq,
+    lastEventSeq: last?.seq,
+    firstEventTimestamp: first?.timestamp,
+    lastEventTimestamp: last?.timestamp,
+    lastEventType: last?.event.type,
+    lastTurnId: last?.turnId,
+    eventTypes: envelopes.map((envelope) => envelope.event.type),
+    turnCount: new Set(envelopes.flatMap((envelope) => envelope.turnId ? [envelope.turnId] : [])).size,
+    recoverableEventCount: envelopes.filter((envelope) => envelope.version === 1 && isRecoverableTranscriptEvent(envelope.event)).length
+  };
+}
+
 export async function searchTranscript(
   path: string,
   query: string,
@@ -143,6 +173,10 @@ export async function searchTranscript(
 
 function isSearchableTranscriptEvent(event: TDCodeEvent): boolean {
   return event.type !== "assistant.completed" && event.type !== "turn.completed";
+}
+
+function isRecoverableTranscriptEvent(event: TDCodeEvent): boolean {
+  return event.type !== "tool.started" && event.type !== "tool.permission";
 }
 
 function previewMatch(serialized: string, normalizedQuery: string): string {

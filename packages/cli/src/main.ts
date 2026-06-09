@@ -388,6 +388,9 @@ async function printConfigValidation(io: CliIO, validation: Awaited<ReturnType<T
   if ("baseUrlEnv" in validation.baseUrl) {
     await writeField(io, "baseUrlEnv", validation.baseUrl.baseUrlEnv);
   }
+  if ("defaultUrl" in validation.baseUrl) {
+    await writeField(io, "baseUrlDefault", validation.baseUrl.defaultUrl);
+  }
 }
 
 async function gatewayCommand(args: string[], io: CliIO): Promise<number> {
@@ -426,7 +429,7 @@ async function gatewayCommand(args: string[], io: CliIO): Promise<number> {
   await write(io.stdout, `Configured TokenDance Gateway preset in ${envPath}\n`);
   await write(io.stdout, "Next steps:\n");
   await write(io.stdout, `1. Add TOKENDANCE_GATEWAY_API_KEY to ${envPath} or the current shell.\n`);
-  await write(io.stdout, "2. Run tokendance config to confirm provider/model/base URL.\n");
+  await write(io.stdout, "2. Run tokendance config validate to confirm provider/model/base URL readiness.\n");
   await write(io.stdout, "3. Use TokenDance API keys for Gateway calls; TokenDanceID login tokens are not model API keys.\n");
   return 0;
 }
@@ -1030,7 +1033,8 @@ function yesNo(value: boolean): "yes" | "no" {
 }
 
 async function printDoctorInfo(io: CliIO, doctor: DoctorInfo): Promise<void> {
-  const style = styleFromEnv(await readCliEnv(io));
+  const env = await readCliEnv(io);
+  const style = styleFromEnv(env);
   await write(io.stdout, `TokenDanceCode ${doctor.version}\n`);
   await writeSection(io, "Runtime", style);
   await writeField(io, "Node", doctor.node);
@@ -1039,6 +1043,7 @@ async function printDoctorInfo(io: CliIO, doctor: DoctorInfo): Promise<void> {
   await writeSection(io, "API Keys", style);
   await writeField(io, "api OPENAI_API_KEY", doctor.apiKeys.OPENAI_API_KEY);
   await writeField(io, "api ANTHROPIC_API_KEY", doctor.apiKeys.ANTHROPIC_API_KEY);
+  await writeField(io, "api TOKENDANCE_GATEWAY_API_KEY", env.TOKENDANCE_GATEWAY_API_KEY?.trim() ? "present" : "missing");
   await writeSection(io, "Tools", style);
   await writeField(io, "git available", yesNo(doctor.git.available));
   await writeField(io, "git repository", yesNo(doctor.git.repository));

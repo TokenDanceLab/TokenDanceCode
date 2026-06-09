@@ -102,7 +102,7 @@ node packages/cli/dist/main.js doctor --json
 
 `quickstart` 是只读首次上手提示，会串起安装验证、provider 选择、TokenDance Gateway preset、TokenDanceID 登录 URL helper，以及 `doctor`/`config` 检查。它不会写入 env 文件、打印密钥、打开浏览器、发布 npm 包或触碰生产环境。交互式 REPL 中对应 `/quickstart`。
 
-`doctor` 会按 Runtime、API Keys、Tools、Config、State 分组输出 Node、cwd、platform、OpenAI/Anthropic API key 是否存在、Git/PowerShell 可用性、配置文件路径/source、有效 provider/model、provider readiness 和 `.tokendance` 状态目录可写性。API key 只显示 `present`/`missing`，不会打印密钥值；真实 provider 缺少 key/model 会在 readiness 和 AgentHub Hub startup check 中显示为 `warn`，不会阻断本地 mock 或 Hub 启动自检。需要给脚本或 AgentHub 调试面板读取时使用 `doctor --json`；交互式 REPL 中对应 `/doctor json`。
+`doctor` 会按 Runtime、API Keys、Tools、Config、State 分组输出 Node、cwd、platform、OpenAI/Anthropic/TokenDance Gateway API key 是否存在、Git/PowerShell 可用性、配置文件路径/source、有效 provider/model、provider readiness 和 `.tokendance` 状态目录可写性。API key 只显示 `present`/`missing`，不会打印密钥值；真实 provider 缺少 key/model 会在 readiness 和 AgentHub Hub startup check 中显示为 `warn`，不会阻断本地 mock 或 Hub 启动自检。需要给脚本或 AgentHub 调试面板读取时使用 `doctor --json`；交互式 REPL 中对应 `/doctor json`。
 
 运行一次 mock turn：
 
@@ -123,7 +123,7 @@ Provider key/base URL 优先级按协议隔离：
 | Provider | API key | Base URL | 协议 |
 |---|---|---|---|
 | `openai-responses` | `OPENAI_API_KEY` | `OPENAI_BASE_URL`，默认 `https://api.openai.com/v1` | `POST /v1/responses` |
-| `openai-chat-completions` | `TOKENDANCE_GATEWAY_API_KEY`，缺省回退 `OPENAI_API_KEY` | `TOKENDANCE_GATEWAY_BASE_URL`，缺省回退 `OPENAI_BASE_URL`，默认 `https://api.openai.com/v1` | `POST /v1/chat/completions` |
+| `openai-chat-completions` | `TOKENDANCE_GATEWAY_API_KEY`，缺省回退 `OPENAI_API_KEY` | Gateway key 使用 `TOKENDANCE_GATEWAY_BASE_URL`，默认 `https://api.vectorcontrol.tech/v1`；OpenAI fallback key 使用 `OPENAI_BASE_URL`，默认 `https://api.openai.com/v1` | `POST /v1/chat/completions` |
 | `anthropic-messages` | `ANTHROPIC_API_KEY` | `ANTHROPIC_BASE_URL`，默认 `https://api.anthropic.com` | `POST /v1/messages` |
 
 Provider HTTP 失败会统一抛出 `ProviderApiError`，包含 `provider`、`protocol`、`status`、可用的 upstream `type/code` 和不含密钥的诊断 message。非 JSON 错误响应会归一化为同一异常类型。
@@ -160,7 +160,7 @@ node packages/cli/dist/main.js config set --json provider openai-chat-completion
 node packages/cli/dist/main.js config set --global provider anthropic-messages model claude-sonnet-4-6 permission-mode default
 ```
 
-`config --json` 输出与 SDK `client.config()` 同源的结构化 payload，适合 AgentHub shell、启动向导或脚本读取。`config validate` 检查当前 provider/model 是否具备运行所需环境，文本模式未 ready 时返回非 0，`--json` 返回与 SDK `client.validateConfig()` 同源的结构化结果。`config set` 只写入 `provider`、`model`、`permissionMode` 到 `.tokendance/config.json` 或 `~/.tokendance/config.json`，并会拒绝 `apiKey`、`token`、`secret` 等非白名单字段；`config set --json` 会额外返回 `scope` 和 `savedPath`。Provider key 继续放在受控环境变量或全局 `~/.tokendance/.env`，不要写入 JSON 配置。
+`config --json` 输出与 SDK `client.config()` 同源的结构化 payload，适合 AgentHub shell、启动向导或脚本读取。`config validate` 检查当前 provider/model 是否具备运行所需环境，文本模式未 ready 时返回非 0，并显示 API key 缺失项、base URL 来源或默认值；`--json` 返回与 SDK `client.validateConfig()` 同源的结构化结果。`config set` 只写入 `provider`、`model`、`permissionMode` 到 `.tokendance/config.json` 或 `~/.tokendance/config.json`，并会拒绝 `apiKey`、`token`、`secret` 等非白名单字段；`config set --json` 会额外返回 `scope` 和 `savedPath`。Provider key 继续放在受控环境变量或全局 `~/.tokendance/.env`，不要写入 JSON 配置。
 
 ### 方式一：当前 PowerShell 会话
 
@@ -209,7 +209,7 @@ OpenAI-compatible Gateway 示例：
 node packages/cli/dist/main.js gateway init --model deepseek-v4-pro
 ```
 
-该命令会写入全局 `~/.tokendance/.env` 的 provider/model/base URL preset，不会生成、覆盖或打印 API key。命令输出会给出下一步：设置 `TOKENDANCE_GATEWAY_API_KEY`、运行 `tokendance config` 确认配置，并提示 TokenDance API key 与 TokenDanceID 登录 token 是不同凭据平面。随后在同一个全局 env 文件或当前 shell 中设置：
+该命令会写入全局 `~/.tokendance/.env` 的 provider/model/base URL preset，不会生成、覆盖或打印 API key。命令输出会给出下一步：设置 `TOKENDANCE_GATEWAY_API_KEY`、运行 `tokendance config validate` 确认 provider/model/base URL readiness，并提示 TokenDance API key 与 TokenDanceID 登录 token 是不同凭据平面。随后在同一个全局 env 文件或当前 shell 中设置：
 
 ```env
 TOKENDANCE_GATEWAY_API_KEY=your-tokenDance-api-key

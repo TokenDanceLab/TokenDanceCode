@@ -196,6 +196,20 @@ describe("TokenDance config", () => {
     });
   });
 
+  it("defaults explicit OpenAI Chat Completions config to TokenDance Gateway without credentials", () => {
+    expect(resolveProviderRuntimeEnv("openai-chat-completions", {})).toEqual({
+      baseUrl: "https://api.vectorcontrol.tech/v1"
+    });
+    expect(validateProviderConfig({ provider: "openai-chat-completions", model: "deepseek-v4-pro", permissionMode: "safe" }, {})).toMatchObject({
+      ready: false,
+      missing: ["TOKENDANCE_GATEWAY_API_KEY or OPENAI_API_KEY"],
+      baseUrl: {
+        status: "default",
+        defaultUrl: "https://api.vectorcontrol.tech/v1"
+      }
+    });
+  });
+
   it("requires explicit integration-test gates for each real provider protocol", () => {
     expect(shouldRunProviderIntegration("openai-responses", {})).toEqual({
       enabled: false,

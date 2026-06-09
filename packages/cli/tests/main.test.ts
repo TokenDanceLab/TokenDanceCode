@@ -364,6 +364,7 @@ describe("TokenDanceCode CLI", () => {
     expect(missing.stdoutText()).toContain("Config Validation");
     expect(missing.stdoutText()).toContain("ready: no");
     expect(missing.stdoutText()).toContain("missing: TOKENDANCE_GATEWAY_API_KEY or OPENAI_API_KEY");
+    expect(missing.stdoutText()).toContain("baseUrlDefault: https://api.vectorcontrol.tech/v1");
     expect(missing.stdoutText()).not.toContain("gateway-secret");
     expect(readyExitCode).toBe(0);
     expect(readyJson.validation).toMatchObject({
@@ -433,7 +434,7 @@ describe("TokenDanceCode CLI", () => {
     await mkdir(join(home, ".tokendance"), { recursive: true });
     await writeFile(
       join(home, ".tokendance", ".env"),
-      "OPENAI_API_KEY=global-openai\nANTHROPIC_API_KEY=\"global-anthropic\"\n",
+      "OPENAI_API_KEY=global-openai\nANTHROPIC_API_KEY=\"global-anthropic\"\nTOKENDANCE_GATEWAY_API_KEY=global-gateway\n",
       "utf8"
     );
     const globalEnv = createTestIO("", root, home, {});
@@ -444,7 +445,9 @@ describe("TokenDanceCode CLI", () => {
     expect(globalEnvExitCode).toBe(0);
     expect(globalEnv.stdoutText()).toContain("api OPENAI_API_KEY: present");
     expect(globalEnv.stdoutText()).toContain("api ANTHROPIC_API_KEY: present");
+    expect(globalEnv.stdoutText()).toContain("api TOKENDANCE_GATEWAY_API_KEY: present");
     expect(globalEnv.stdoutText()).not.toContain("global-openai");
+    expect(globalEnv.stdoutText()).not.toContain("global-gateway");
   });
 
   it("derives provider and model from global env for CLI startup", async () => {
@@ -507,7 +510,7 @@ describe("TokenDanceCode CLI", () => {
     expect(init.stdoutText()).toContain("Configured TokenDance Gateway preset");
     expect(init.stdoutText()).toContain("Next steps:");
     expect(init.stdoutText()).toContain("1. Add TOKENDANCE_GATEWAY_API_KEY to");
-    expect(init.stdoutText()).toContain("2. Run tokendance config to confirm provider/model/base URL.");
+    expect(init.stdoutText()).toContain("2. Run tokendance config validate to confirm provider/model/base URL readiness.");
     expect(init.stdoutText()).toContain("3. Use TokenDance API keys for Gateway calls; TokenDanceID login tokens are not model API keys.");
     expect(init.stdoutText()).not.toContain("existing-secret");
     expect(envFile).toContain("TOKENDANCE_GATEWAY_API_KEY=existing-secret");

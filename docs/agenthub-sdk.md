@@ -465,7 +465,7 @@ await todos.updateStatus(todo.id, "in_progress");
 
 Task 写入 `<projectRoot>/.tokendance/tasks/tasks.jsonl` 和可重建的 `<projectRoot>/.tokendance/tasks/task-index.json`。带 `sessionId` 的 Todo 写入 `<projectRoot>/.tokendance/sessions/<sessionId>/todos.json`；未传 `sessionId` 时写入项目级 `<projectRoot>/.tokendance/todos.json`，供 CLI 的 `/todo` 和 `tokendance todo` 使用。
 
-当前 SDK facade 覆盖 `create/list/get/updateStatus/addDependency/linkSession/linkWorktree` 和 `add/list/updateStatus`。CLI 只暴露自用高频操作：list、create/add、doing、done；复杂关联由 SDK 或后续 AgentHub UI 驱动。
+当前 SDK facade 覆盖 `create/list/get/updateStatus/addDependency/linkSession/linkWorktree` 和 `add/list/updateStatus`。CLI 暴露自用高频操作：list、create/add、doing、done，并支持 `tasks link-session <task-id> <session-id>` 与 `tasks link-worktree <task-id> <worktree>`，方便把长期任务、session transcript 和隔离 worktree 关联成可审计闭环；更复杂的依赖图仍由 SDK 或后续 AgentHub UI 驱动。
 
 ## 13. Worktree
 

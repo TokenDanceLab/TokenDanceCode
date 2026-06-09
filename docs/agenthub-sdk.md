@@ -451,9 +451,7 @@ const fixture = createAgentHubTokenDanceConsumerFixture({
   }
 });
 
-const startup = await fixture.startup({
-  workingDirectory: "D:/Code/TokenDance/AgentHub"
-});
+const startup = await fixture.startup();
 const login = fixture.login({
   state: "state-from-agenthub-shell"
 });
@@ -481,7 +479,7 @@ await turnPromise;
 
 `createTokenDanceIdLogin()` 和 `verifyTokenDanceIdCallback()` 是对 SDK TokenDanceID helper 的样例层封装，便于 AgentHub Desktop/Web shell 或调试面板复用同一套 PKCE S256 URL 生成与 callback `state` 校验。runner 只返回 `code`、`codeVerifier` 和 `redirectUri` 给 Hub；Hub Server 仍拥有 authorization code exchange、JWKS/issuer/audience/expiration 验证、`tokendance_sub` 映射和 Hub-local session 签发。不要在 runner 或 shell 中保存 TokenDanceID access/refresh token，也不要把 TokenDanceID token 当作 TokenDance Gateway 模型 API key。
 
-`createAgentHubTokenDanceConsumerFixture()` 适合复制到 AgentHub 测试夹具：`defaultRun` 提供 `workingDirectory/taskId/edgeRunId/sessionId/agentInstanceId` 默认值，`run()` 和 `context()` 可按单次调用覆盖；`defaultLogin` 提供 TokenDanceID shell 默认参数；`events()` 和 `approvals()` 返回已捕获 payload 快照，便于断言事件顺序和远程审批状态；`startup()` 委托 runner bootstrap，一次返回 `packageInfo()` 和 `doctor()`，用于 Hub/Edge 启动检查。生产代码应把这些收集器替换为真实落库和广播，不应把 `@tokendance/code-agenthub-example` 发布或作为 public npm contract。
+`createAgentHubTokenDanceConsumerFixture()` 适合复制到 AgentHub 测试夹具：`defaultRun` 提供 `workingDirectory/taskId/edgeRunId/sessionId/agentInstanceId` 默认值，`run()` 和 `context()` 可按单次调用覆盖；`defaultLogin` 提供 TokenDanceID shell 默认参数；`events()` 和 `approvals()` 返回已捕获 payload 快照，便于断言事件顺序和远程审批状态；`startup()` 委托 runner bootstrap，一次返回 `packageInfo()` 和 `doctor()`，且未显式传入 `workingDirectory` 时会默认检查 `defaultRun.workingDirectory`，用于 Hub/Edge 启动检查。生产代码应把这些收集器替换为真实落库和广播，不应把 `@tokendance/code-agenthub-example` 发布或作为 public npm contract。
 
 `createAgentHubTokenDanceE2EFixture()` 仍保留给需要直接访问可变 `agentStream` / `approvalRequests` 数组的底层测试；新消费侧示例应优先使用 consumer fixture 的方法式入口，避免调用方误把数组当成生产存储。
 

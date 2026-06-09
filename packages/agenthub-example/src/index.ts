@@ -264,7 +264,10 @@ export function createAgentHubTokenDanceE2EFixture(options: AgentHubTokenDanceE2
     approvalRequests,
 
     async bootstrap(doctorOptions) {
-      return runner.bootstrap(doctorOptions);
+      return runner.bootstrap({
+        workingDirectory: options.defaultRun.workingDirectory,
+        ...doctorOptions
+      });
     },
 
     run(runOptions) {

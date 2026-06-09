@@ -22,7 +22,7 @@ import {
   type TranscriptInfo,
   type TranscriptSearchResult
 } from "@tokendance/code-sdk";
-import { runTopLevelCommand, type TopLevelCommandHandler, type TopLevelCommandId } from "./commands.js";
+import { groupedTopLevelCommands, runTopLevelCommand, type TopLevelCommandHandler, type TopLevelCommandId } from "./commands.js";
 import { createEventRenderer } from "./renderer.js";
 import { heading, styleFromEnv, type CliStyle } from "./format.js";
 
@@ -1068,51 +1068,15 @@ async function printDoctorInfo(io: CliIO, doctor: DoctorInfo): Promise<void> {
 
 async function printHelp(io: CliIO): Promise<void> {
   const style = styleFromEnv(io.env?.() ?? process.env);
-  await write(
-    io.stdout,
-    `TokenDanceCode ${version}
-
-${heading("Core:", style)}
-  tokendance
-  tokendance --version
-  tokendance quickstart
-  tokendance run <prompt>
-
-${heading("Session:", style)}
-  tokendance resume [session-id]
-  tokendance sessions
-  tokendance transcript [session-id]
-  tokendance transcript search <query>
-  tokendance transcript <session-id> search <query>
-  tokendance context [--session session-id] <prompt>
-  tokendance compact [session-id]
-  tokendance memory [add|delete] [project|global] [value]
-  tokendance auth tokendanceid login-url --client-id <id> --redirect-uri <uri> [--json]
-
-${heading("Work:", style)}
-  tokendance agents [run investigator|reviewer <prompt>]
-  tokendance agents run coding [--worktree name] <prompt>
-  tokendance agents show <agent-id>
-  tokendance agents accept <agent-id> [--discard-worktree] [--allow-dirty-target]
-  tokendance agents discard <agent-id> [--discard]
-  tokendance tasks [create|doing|done|link-session|link-worktree] [value]
-  tokendance todo [add|doing|done] [value]
-  tokendance worktree [list|create|remove] [name] [--discard]
-  tokendance diff [path ...]
-  tokendance review
-  tokendance quality [--json] [command]
-  tokendance tools
-
-${heading("Diagnostics:", style)}
-  tokendance doctor [--json]
-  tokendance config [--json]
-  tokendance config validate [--json]
-  tokendance config set [--json] [--project|--global] provider <provider> model <model> permission-mode <mode>
-
-${heading("Gateway:", style)}
-  tokendance gateway init [--model model] [--base-url url]
-`
-  );
+  const lines = [`TokenDanceCode ${version}`, ""];
+  for (const group of groupedTopLevelCommands()) {
+    lines.push(heading(`${group.category}:`, style));
+    for (const command of group.commands) {
+      lines.push(`  ${command.usage}`);
+    }
+    lines.push("");
+  }
+  await write(io.stdout, `${lines.join("\n").trimEnd()}\n`);
 }
 
 async function printInteractiveHelp(io: CliIO): Promise<void> {

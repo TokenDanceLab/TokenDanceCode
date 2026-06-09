@@ -217,7 +217,10 @@ async function assertPackSmokeEntrypoint(rootPackage) {
     "quality --json",
     "agentHub.ready",
     "provider-ready",
-    "TOKENDANCE_GATEWAY_API_KEY"
+    "TOKENDANCE_GATEWAY_API_KEY",
+    "assertNoForbiddenPackageContent",
+    "Packed package privacy scan failed",
+    "npm_[A-Za-z0-9]{20,}"
   ]) {
     assert(smokeScript.includes(expected), `pack smoke script missing ${expected}`);
   }

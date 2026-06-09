@@ -58,7 +58,7 @@ async function renderEvent(io: EventRendererIO, event: TDCodeEvent, state: Rende
       return;
     case "tool.permission":
       await flushAssistantLine(io, state);
-      await write(io.stdout, `${badge("permission", permissionBadgeTone(event.decision.status), style)} ${formatPermission(event.decision, style)}\n`);
+      await write(io.stdout, `${badge("permission", permissionBadgeTone(event.decision.status), style)} ${formatPermission(event.decision, event.call, style)}\n`);
       return;
     case "tool.completed":
       await flushAssistantLine(io, state);
@@ -91,10 +91,11 @@ function rendererStyle(io: EventRendererIO): CliStyle {
   return { color: io.color === true };
 }
 
-function formatPermission(decision: PermissionDecision, style: CliStyle): string {
+function formatPermission(decision: PermissionDecision, call: RendererToolCall, style: CliStyle): string {
   const reason = parsePermissionReason(decision.reason);
   const metadata = formatPermissionMetadata(reason, style);
-  return `permission ${permissionStatus(decision.status, style)}${metadata} ${reason.detail}`;
+  const toolName = reason.tool ?? call.name;
+  return `${label(toolName, style)} ${permissionStatus(decision.status, style)}${metadata} ${reason.detail}`;
 }
 
 function formatToolFailure(result: RendererToolResult, style: CliStyle, duration: string): string {
@@ -152,9 +153,6 @@ function formatPermissionMetadata(reason: ParsedPermissionReason, style: CliStyl
   }
   if (reason.mode) {
     fields.push(`mode=${dim(reason.mode, style)}`);
-  }
-  if (reason.tool) {
-    fields.push(`tool=${dim(reason.tool, style)}`);
   }
   return fields.length === 0 ? "" : ` [${fields.join(" ")}]`;
 }

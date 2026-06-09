@@ -33,7 +33,7 @@ TokenDanceCode 负责：
 import { TokenDanceCode } from "@tokendance/code-sdk";
 
 const client = new TokenDanceCode({
-  storageRoot: "D:/Code/TokenDance/AgentHub/.tokendance-code",
+  storageRoot: "<agenthubProject>/.tokendance-code",
   provider: { type: "mock" },
   env: process.env,
   approvalCallback(request) {
@@ -156,7 +156,7 @@ tokendance auth tokendanceid login-url `
 
 ```ts
 const thread = client.startThread({
-  workingDirectory: "D:/Code/TokenDance/AgentHub",
+  workingDirectory: "<agenthubProject>",
   permissionMode: "default"
 });
 
@@ -367,7 +367,7 @@ approvalBridge.decide("tool-call-id", "deny", "rejected in AgentHub");
 import { createAgentHubTokenDanceRunner } from "@tokendance/code-agenthub-example";
 
 const runner = createAgentHubTokenDanceRunner({
-  storageRoot: "D:/Code/TokenDance/AgentHub/.tokendance-code",
+  storageRoot: "<agenthubProject>/.tokendance-code",
   defaultPermissionMode: "default",
   contextMaxRecentMessages: 20,
   streamIdFactory(eventSeq, event) {
@@ -383,7 +383,7 @@ const runner = createAgentHubTokenDanceRunner({
 
 const turn = await runner.run({
   prompt: "summarize this repo",
-  workingDirectory: "D:/Code/TokenDance/AgentHub",
+  workingDirectory: "<agenthubProject>",
   permissionMode: "default",
   taskId: "task_01HX...",
   edgeRunId: "edge_run_01HX...",
@@ -395,7 +395,7 @@ console.log(turn.finalResponse);
 
 const preview = await runner.context({
   prompt: "preview the next turn",
-  workingDirectory: "D:/Code/TokenDance/AgentHub",
+  workingDirectory: "<agenthubProject>",
   permissionMode: "default",
   sessionId: "sess_01HX..."
 });
@@ -403,7 +403,7 @@ const preview = await runner.context({
 console.log(preview.includedFiles);
 
 const startup = await runner.bootstrap({
-  workingDirectory: "D:/Code/TokenDance/AgentHub"
+  workingDirectory: "<agenthubProject>"
 });
 
 console.log(startup.packageInfo.packages.sdk.name);
@@ -439,9 +439,9 @@ await hub.exchangeTokenDanceIdCode({
 import { createAgentHubTokenDanceConsumerFixture } from "@tokendance/code-agenthub-example";
 
 const fixture = createAgentHubTokenDanceConsumerFixture({
-  storageRoot: "D:/Code/TokenDance/AgentHub/.tokendance-code",
+  storageRoot: "<agenthubProject>/.tokendance-code",
   defaultRun: {
-    workingDirectory: "D:/Code/TokenDance/AgentHub",
+    workingDirectory: "<agenthubProject>",
     taskId: "task_01HX...",
     edgeRunId: "edge_run_01HX...",
     sessionId: "sess_01HX...",
@@ -578,8 +578,8 @@ AgentHub 可以通过 SDK 读取 TokenDanceCode 的有效配置，用于调试�
 
 ```ts
 const info = await client.config({
-  projectRoot: "D:/Code/TokenDance/AgentHub",
-  homeDir: "D:/Users/operator"
+  projectRoot: "<agenthubProject>",
+  homeDir: "<operatorHome>"
 });
 
 console.log(info.config.provider);
@@ -597,8 +597,8 @@ const saved = await client.setConfig(
     permissionMode: "safe"
   },
   {
-    projectRoot: "D:/Code/TokenDance/AgentHub",
-    homeDir: "D:/Users/operator",
+    projectRoot: "<agenthubProject>",
+    homeDir: "<operatorHome>",
     scope: "project"
   }
 );
@@ -610,8 +610,8 @@ AgentHub 启动检查或设置页保存后，可以用 `validateConfig()` 判断
 
 ```ts
 const readiness = await client.validateConfig({
-  projectRoot: "D:/Code/TokenDance/AgentHub",
-  homeDir: "D:/Users/operator"
+  projectRoot: "<agenthubProject>",
+  homeDir: "<operatorHome>"
 });
 
 console.log(readiness.validation.ready);
@@ -641,8 +641,8 @@ AgentHub 可以通过 SDK 读取和 CLI `doctor` 同源的结构化诊断，用�
 
 ```ts
 const doctor = await client.doctor({
-  projectRoot: "D:/Code/TokenDance/AgentHub",
-  homeDir: "D:/Users/operator"
+  projectRoot: "<agenthubProject>",
+  homeDir: "<operatorHome>"
 });
 
 console.log(doctor.apiKeys.OPENAI_API_KEY);
@@ -672,7 +672,7 @@ AgentHub 可以通过 SDK 管理持久任务和 session 级 todo，而不需要�
 
 ```ts
 const tasks = client.tasks({
-  projectRoot: "D:/Code/TokenDance/AgentHub"
+  projectRoot: "<agenthubProject>"
 });
 
 const task = await tasks.create({
@@ -682,12 +682,12 @@ const task = await tasks.create({
 
 await tasks.addDependency(task.id, "task-parent");
 await tasks.linkSession(task.id, "sess_01HX...");
-await tasks.linkWorktree(task.id, "D:/Code/TokenDance/TokenDanceCode/.worktrees/ts-refactor");
+await tasks.linkWorktree(task.id, "<workspace>/TokenDanceCode/.worktrees/ts-refactor");
 await tasks.updateStatus(task.id, "completed");
 console.log(await tasks.metadata());
 
 const todos = client.todos({
-  projectRoot: "D:/Code/TokenDance/AgentHub",
+  projectRoot: "<agenthubProject>",
   sessionId: "sess_01HX..."
 });
 
@@ -710,7 +710,7 @@ AgentHub 可以通过 SDK 管理 TokenDanceCode 的受控 Git worktree 池，用
 
 ```ts
 const worktrees = client.worktrees({
-  repositoryRoot: "D:/Code/TokenDance/TokenDanceCode"
+  repositoryRoot: "<workspace>/TokenDanceCode"
 });
 
 const created = await worktrees.create({ name: "agenthub-wt" });
@@ -733,7 +733,7 @@ AgentHub 可以通过 SDK 启动和查看 delegated subagent 结果。首版不�
 
 ```ts
 const subagents = client.subagents({
-  projectRoot: "D:/Code/TokenDance/AgentHub"
+  projectRoot: "<agenthubProject>"
 });
 
 const review = await subagents.runReadonly({
@@ -773,8 +773,8 @@ AgentHub 如果需要把项目约定或用户偏好写入 TokenDanceCode 的上�
 
 ```ts
 const memory = client.memory({
-  projectRoot: "D:/Code/TokenDance/AgentHub",
-  homeDir: "D:/Users/operator"
+  projectRoot: "<agenthubProject>",
+  homeDir: "<operatorHome>"
 });
 
 await memory.add("project", "Use pnpm verify before merging.");
@@ -793,7 +793,7 @@ AgentHub 如果需要在 UI 或任务编排层触发 TokenDanceCode 已注册工
 
 ```ts
 const tools = client.tools({
-  workingDirectory: "D:/Code/TokenDance/AgentHub",
+  workingDirectory: "<agenthubProject>",
   permissionMode: "default"
 });
 

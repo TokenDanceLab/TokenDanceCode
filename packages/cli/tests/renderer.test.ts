@@ -119,8 +119,10 @@ describe("CLI event renderer", () => {
     const lines = output.text().trim().split("\n");
     expect(lines[0]).toBe('[tool] run_powershell started [status=running] command="pnpm verify"');
     expect(lines[1]).toBe(
-      "[permission] permission requires_approval [risk=shell action=approval_required mode=default tool=run_powershell] default mode requires approval"
+      "[permission] run_powershell requires_approval [risk=shell action=approval_required mode=default] default mode requires approval"
     );
+    expect(lines[1]).not.toContain("permission permission");
+    expect(lines[1]).not.toContain("tool=run_powershell]");
     expect(lines[2]).toMatch(
       /^\[error\] run_powershell failed \[risk=shell source=permission_engine action=approval_required mode=default\] duration=\d+ms$/
     );
@@ -244,7 +246,7 @@ describe("CLI event renderer", () => {
     }
 
     expect(output.text()).toContain(
-      "permission requires_approval [risk=shell action=approval_required mode=default tool=run_powershell] default mode requires approval\n"
+      "[permission] run_powershell requires_approval [risk=shell action=approval_required mode=default] default mode requires approval\n"
     );
     expect(output.text()).toMatch(
       /run_powershell failed \[risk=shell source=permission_engine action=approval_required mode=default\]\n  reason: default mode requires approval\n/
@@ -290,7 +292,7 @@ describe("CLI event renderer", () => {
     }
 
     expect(output.text()).toContain(
-      "permission requires_approval [risk=shell action=approval_required mode=default tool=run_powershell] default mode requires approval before running shell tools\n"
+      "run_powershell requires_approval [risk=shell action=approval_required mode=default] default mode requires approval before running shell tools\n"
     );
     expect(output.text()).toMatch(
       /run_powershell failed \[risk=shell source=permission_engine action=approval_required mode=default\]\n  reason: default mode requires approval before running shell tools\n/
@@ -343,7 +345,7 @@ describe("CLI event renderer", () => {
     }
 
     expect(output.text()).toContain(
-      "permission \u001B[31mdenied\u001B[0m [risk=\u001B[33mwrite\u001B[0m action=\u001B[2mdenied\u001B[0m mode=\u001B[2msafe\u001B[0m tool=\u001B[2mwrite_file\u001B[0m]"
+      "\u001B[31m[permission]\u001B[0m \u001B[36mwrite_file\u001B[0m \u001B[31mdenied\u001B[0m [risk=\u001B[33mwrite\u001B[0m action=\u001B[2mdenied\u001B[0m mode=\u001B[2msafe\u001B[0m]"
     );
     expect(output.text()).toContain(
       "\u001B[31mfailed\u001B[0m [risk=\u001B[33mwrite\u001B[0m source=\u001B[2mpermission_engine\u001B[0m action=\u001B[2mdenied\u001B[0m mode=\u001B[2msafe\u001B[0m]"

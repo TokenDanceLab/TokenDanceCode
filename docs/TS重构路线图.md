@@ -5,7 +5,7 @@
 ## 1. 当前分支事实
 
 - 分支：`codex/ts-refactor`
-- worktree：`D:\Code\TokenDance\TokenDanceCode\.worktrees\ts-refactor`
+- worktree：`<workspace>\TokenDanceCode\.worktrees\ts-refactor`
 - 目标：把 TokenDanceCode 从 Python v0.1 参考实现重构为 TypeScript monorepo，并给 AgentHub 暴露稳定 SDK。
 - 当前可验证命令：`pnpm verify`、`pnpm contract:check`、`pnpm pack:check`、`pnpm release:next:check`
 - 最近验证结果：`pnpm release:next:check` 通过，覆盖只读 release contract drift gate、typecheck、Vitest 26 个测试文件 240 个测试、core/sdk/cli dry-run pack 和增强 tarball install smoke。
@@ -16,9 +16,9 @@
 
 本轮只读参考了 AgentHub 的源码镜像：
 
-- `D:\Code\TokenDance\AgentHub\reference\claude-code-source\claude-code-main`
-- `D:\Code\TokenDance\AgentHub\reference\claude-code-viewer`
-- `D:\Code\TokenDance\AgentHub\reference\codex`
+- `<workspace>\AgentHub\reference\claude-code-source\claude-code-main`
+- `<workspace>\AgentHub\reference\claude-code-viewer`
+- `<workspace>\AgentHub\reference\codex`
 
 可借鉴但不照搬的结论：
 
@@ -206,9 +206,12 @@ node packages/cli/dist/main.js run "hello"
 - [x] CLI main.ts 过大风险：把顶层命令、slash command、usage 文案和 JSON contract 收敛到 command registry lane；`main.ts` 只保留 IO-aware handler wiring。
 - [x] Codex contract/schema drift gate：把 SDK manifest、AgentHub event envelope、transcript schema、provider schema 和 CLI JSON 输出的漂移纳入 package metadata / focused tests；`agent.stream` schema 已随 required `source_event_type` 显式 bump 到 v2。
 - [x] OpenCode command metadata registry：吸收 id/category/title/aliases/usage/JSON contract 的 registry 形态，继续拒绝 full-screen palette 和 provider tree。
+- [x] 顶层 command metadata registry：`TOP_LEVEL_COMMAND_METADATA` 已集中维护顶层命令的 category、usage、alias 和 JSON support，`printHelp()`、handler 测试和未来 AgentHub command surface 可以从同一数据源派生；slash command registry 仍留作后续切片。
 - [x] 拒绝 app-server daemon、拒绝 OpenTUI、拒绝 plugin marketplace、拒绝 native installer：这些都不是 Wave 5 或首版 CLI harness 的实现目标。
 - [x] Release/npm baseline：保持 `pnpm contract:check`、`pnpm release:next:check` 和 tarball smoke 作为发布前本地 gate；`npm publish --tag next` 继续只允许 release owner 人工执行。
+- [x] NPM tarball privacy scan：`pack:smoke` 在安装真实 tarball 后扫描 package 内容，跟随 pnpm scoped package symlink，并在扫描 0 个可读包文件时失败，阻止本机绝对路径、npm token、npm auth token 和 private key material 进入发布包。
 - [x] AgentHub SDK contract：继续强化 `agenthub-sdk.v1` manifest、event envelope、approval bridge、doctor readiness 和生产接入边界；SDK barrel 显式 re-export facade 公开类型。
 - [x] Gateway/OIDC onboarding：把 `gateway init`、`doctor`、`config validate`、TokenDanceID OIDC login URL helper 串成可读 quickstart；继续区分 TokenDance API key 与 TokenDanceID session token。
 - [x] Provider protocol hardening：OpenAI Responses、OpenAI-compatible Chat/Gateway、Anthropic Messages 保持统一错误和工具调用结果形态；真实 smoke 继续显式 opt-in。
 - [x] Permission/session/subagent/TUI polish：在不引入 full-screen 复杂 TUI 或常驻 team-agent 系统的前提下，补可审计性、可读性和 AgentHub 调试面板数据；subagent 专属日志使用 `events.jsonl`，避免与 session transcript schema 混淆。
+- [x] Tool-first permission renderer：`tool.permission` 输出与工具生命周期行对齐，保留 risk/action/mode metadata，方便 CLI scrollback 和 AgentHub 日志面板扫描。

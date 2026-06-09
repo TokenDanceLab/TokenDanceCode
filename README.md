@@ -417,7 +417,7 @@ import { TokenDanceCode } from "@tokendance/code-sdk";
 
 const client = new TokenDanceCode({
   provider: { type: "openai-chat-completions", model: "deepseek-v4-pro", baseUrl: "https://api.vectorcontrol.tech/v1" },
-  storageRoot: "D:/Code/TokenDance/AgentHub/.tokendance-code",
+  storageRoot: "<agenthubProject>/.tokendance-code",
   env: process.env,
   approvalCallback(request) {
     return request.tool.risk !== "dangerous";

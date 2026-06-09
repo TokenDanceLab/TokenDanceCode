@@ -5,7 +5,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
-import { resolveTopLevelCommand, runTopLevelCommand, type TopLevelCommandHandler, type TopLevelCommandId } from "../src/commands.js";
+import {
+  TOP_LEVEL_COMMAND_METADATA,
+  groupedTopLevelCommands,
+  resolveTopLevelCommand,
+  runTopLevelCommand,
+  topLevelCommandIds,
+  type TopLevelCommandHandler,
+  type TopLevelCommandId
+} from "../src/commands.js";
 import { runCli, type CliIO } from "../src/main.js";
 
 const execFileAsync = promisify(execFile);
@@ -33,6 +41,29 @@ describe("TokenDanceCode CLI", () => {
     expect(resolveTopLevelCommand(["run", "hello", "cli"])).toEqual({ kind: "handler", id: "run", args: ["hello", "cli"] });
     expect(resolveTopLevelCommand([])).toEqual({ kind: "interactive", args: [] });
     expect(resolveTopLevelCommand(["unknown", "--json"])).toEqual({ kind: "unknown", command: "unknown", args: ["--json"] });
+  });
+
+  it("exposes top-level command metadata for help and AgentHub command surfaces", () => {
+    expect(TOP_LEVEL_COMMAND_METADATA.map((command) => command.id)).toEqual([...topLevelCommandIds]);
+    expect(groupedTopLevelCommands().map((group) => group.category)).toEqual(["Core", "Session", "Work", "Diagnostics", "Gateway"]);
+    expect(TOP_LEVEL_COMMAND_METADATA).toContainEqual(
+      expect.objectContaining({
+        id: "doctor",
+        category: "Diagnostics",
+        title: "Environment and AgentHub readiness diagnostics",
+        aliases: [],
+        usage: "tokendance doctor [--json]",
+        json: true
+      })
+    );
+    expect(TOP_LEVEL_COMMAND_METADATA).toContainEqual(
+      expect.objectContaining({
+        id: "run",
+        category: "Core",
+        usage: "tokendance run <prompt>",
+        json: false
+      })
+    );
   });
 
   it("runs top-level command handlers through the command helper", async () => {
@@ -114,6 +145,9 @@ describe("TokenDanceCode CLI", () => {
     expect(topLevel.stdoutText()).toContain("Work:");
     expect(topLevel.stdoutText()).toContain("Diagnostics:");
     expect(topLevel.stdoutText()).toContain("Gateway:");
+    for (const command of TOP_LEVEL_COMMAND_METADATA) {
+      expect(topLevel.stdoutText()).toContain(command.usage);
+    }
     expect(interactive.stdoutText()).toContain("Session:");
     expect(interactive.stdoutText()).toContain("Work:");
     expect(interactive.stdoutText()).toContain("Diagnostics:");
@@ -652,7 +686,7 @@ describe("TokenDanceCode CLI", () => {
   it("manages tasks and todos in interactive and top-level commands", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-cli-tasks-"));
     const interactive = createTestIO(
-      "/tasks create Stage 15 E2E\n/tasks link-session task-1 session-cli\n/tasks link-worktree task-1 D:/Code/TokenDance/TokenDanceCode/.worktrees/parallel-threads-tasks\n/todo add Run unittest --task task-1\n/tasks done task-1\n/todo doing todo-1\n/tasks\n/todo\n/exit\n",
+      "/tasks create Stage 15 E2E\n/tasks link-session task-1 session-cli\n/tasks link-worktree task-1 .worktrees/parallel-threads-tasks\n/todo add Run unittest --task task-1\n/tasks done task-1\n/todo doing todo-1\n/tasks\n/todo\n/exit\n",
       root
     );
     await runCli([], interactive);
@@ -666,16 +700,16 @@ describe("TokenDanceCode CLI", () => {
 
     expect(interactive.stdoutText()).toContain("Created task task-1.");
     expect(interactive.stdoutText()).toContain("Linked task task-1 to session session-cli.");
-    expect(interactive.stdoutText()).toContain("Linked task task-1 to worktree D:/Code/TokenDance/TokenDanceCode/.worktrees/parallel-threads-tasks.");
+    expect(interactive.stdoutText()).toContain("Linked task task-1 to worktree .worktrees/parallel-threads-tasks.");
     expect(interactive.stdoutText()).toContain("Created todo todo-1.");
     expect(interactive.stdoutText()).toContain("Updated task task-1 to completed.");
     expect(interactive.stdoutText()).toContain("Updated todo todo-1 to in_progress.");
-    expect(interactive.stdoutText()).toContain("[completed] task-1 Stage 15 E2E (session session-cli, worktree D:/Code/TokenDance/TokenDanceCode/.worktrees/parallel-threads-tasks)");
+    expect(interactive.stdoutText()).toContain("[completed] task-1 Stage 15 E2E (session session-cli, worktree .worktrees/parallel-threads-tasks)");
     expect(interactive.stdoutText()).toContain("[in_progress] todo-1 Run unittest (task task-1)");
     expect(tasksExitCode).toBe(0);
     expect(todosExitCode).toBe(0);
     expect(missingLinkArgsExitCode).toBe(1);
-    expect(topLevelTasks.stdoutText()).toContain("[completed] task-1 Stage 15 E2E (session session-cli, worktree D:/Code/TokenDance/TokenDanceCode/.worktrees/parallel-threads-tasks)");
+    expect(topLevelTasks.stdoutText()).toContain("[completed] task-1 Stage 15 E2E (session session-cli, worktree .worktrees/parallel-threads-tasks)");
     expect(topLevelTodos.stdoutText()).toContain("[in_progress] todo-1 Run unittest (task task-1)");
     expect(missingLinkArgs.stderrText()).toContain("Usage: tokendance tasks link-session <task-id> <session-id>");
   });
@@ -995,11 +1029,11 @@ describe("TokenDanceCode CLI", () => {
 
     expect(exitCode).toBe(0);
     expect(output).toContain("[tool] echo started [status=running]");
-    expect(output).toContain("[permission] permission allowed");
+    expect(output).toContain("[permission] echo allowed");
     expect(output).toContain("[ok] echo completed [output=json]");
     expect(output).toContain("[usage] usage input=1 output=10");
     expect(output).toContain("echo started");
-    expect(output).toContain("permission allowed");
+    expect(output).toContain("echo allowed");
     expect(output).toContain("echo completed");
     expect(output).toMatch(/echo completed \[output=json\]: .* duration=\d+ms/);
     expect(output).toContain('Tool result: {"text":"hello renderer"}');
@@ -1101,31 +1135,7 @@ function createTestIO(
 function createCommandHandlers(
   handler: (id: TopLevelCommandId, args: string[]) => Promise<number>
 ): Record<TopLevelCommandId, TopLevelCommandHandler> {
-  const ids: TopLevelCommandId[] = [
-    "help",
-    "version",
-    "doctor",
-    "quickstart",
-    "config",
-    "gateway",
-    "auth",
-    "resume",
-    "sessions",
-    "memory",
-    "agents",
-    "diff",
-    "review",
-    "tools",
-    "quality",
-    "tasks",
-    "todo",
-    "worktree",
-    "transcript",
-    "context",
-    "compact",
-    "run"
-  ];
-  return Object.fromEntries(ids.map((id) => [id, (args: string[]) => handler(id, args)])) as Record<TopLevelCommandId, TopLevelCommandHandler>;
+  return Object.fromEntries(topLevelCommandIds.map((id) => [id, (args: string[]) => handler(id, args)])) as Record<TopLevelCommandId, TopLevelCommandHandler>;
 }
 
 async function initRepo(): Promise<string> {

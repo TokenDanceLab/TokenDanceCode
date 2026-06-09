@@ -42,6 +42,11 @@ describe("package metadata", () => {
     expect(smokeScript).toContain("quality --json");
     expect(smokeScript).toContain("agentHub.ready");
     expect(smokeScript).toContain("provider-ready");
+    expect(smokeScript).toContain("assertNoForbiddenPackageContent");
+    expect(smokeScript).toContain("Packed package privacy scan failed");
+    expect(smokeScript).toContain("npm_[A-Za-z0-9]{20,}");
+    expect(smokeScript).toContain("isSymbolicLink");
+    expect(smokeScript).toContain("no scannable package files found");
 
     const contractScript = await readText("scripts/check-release-contract.mjs");
     expect(contractScript).toContain("assertPackageManifest");
@@ -267,6 +272,18 @@ describe("package metadata", () => {
     expect(readme).toContain("不是 app-server daemon、OpenTUI 前端、plugin marketplace 或 native installer");
     expect(acceptance).toContain("未配置时默认是 `mock` provider、`mock` model 和 `default` permission mode");
     expect(acceptance).not.toContain("当前默认值应为 `openai`、`gpt-5.4`、`default`、`local`、`local`");
+  });
+
+  it("keeps active acceptance docs aligned with TS release and AgentHub v2 contracts", async () => {
+    const acceptance = await readText("docs/端到端验收清单.md");
+    const activeAcceptance = acceptance.split("## 历史附录")[0] ?? acceptance;
+
+    expect(activeAcceptance).toContain("agentStreamSchemaVersion === 2");
+    expect(activeAcceptance).toContain("source_event_type");
+    expect(activeAcceptance).toContain("schema_version");
+    expect(activeAcceptance).not.toContain("python -m unittest");
+    expect(activeAcceptance).not.toContain("pipx");
+    expect(activeAcceptance).not.toContain("tokendance 0.1.0");
   });
 });
 

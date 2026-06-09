@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtemp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,6 +26,13 @@ const smokeEnv = {
 };
 const doctorJsonLabel = "doctor --json";
 const qualityJsonLabel = "quality --json";
+const forbiddenPackagePatterns = [
+  { label: "Windows user path", pattern: /C:[\\/]+Users[\\/]+/i },
+  { label: "local workspace path", pattern: /D:[\\/]+Code[\\/]+/i },
+  { label: "npm token", pattern: /npm_[A-Za-z0-9]{20,}/ },
+  { label: "npm auth token config", pattern: /_authToken\s*=/i },
+  { label: "private key material", pattern: /BEGIN (?:RSA|OPENSSH|EC|PRIVATE) KEY/ }
+];
 
 try {
   await mkdir(tarballDir, { recursive: true });
@@ -72,6 +79,7 @@ try {
   );
 
   run("pnpm", ["install", "--ignore-scripts", "--frozen-lockfile=false"], tempRoot);
+  await assertNoForbiddenPackageContent(join(tempRoot, "node_modules", "@tokendance"));
   run("node", ["smoke.mjs"], tempRoot);
   run("pnpm", ["exec", "tokendance", "--version"], tempRoot);
   const doctor = JSON.parse(runCapture("pnpm", ["exec", "tokendance", "doctor", "--json"], tempRoot, { env: smokeEnv, label: doctorJsonLabel }));
@@ -135,4 +143,54 @@ function quoteCmdArg(value) {
     return value;
   }
   return `"${value.replaceAll('"', '\\"')}"`;
+}
+
+async function assertNoForbiddenPackageContent(root) {
+  let scannedFiles = 0;
+  for (const file of await listFiles(root)) {
+    if (!isScannablePackageFile(file)) {
+      continue;
+    }
+    scannedFiles += 1;
+    const content = await readFile(file, "utf8");
+    for (const forbidden of forbiddenPackagePatterns) {
+      if (forbidden.pattern.test(content)) {
+        throw new Error(`Packed package privacy scan failed: ${forbidden.label} in ${file}`);
+      }
+    }
+  }
+  if (scannedFiles === 0) {
+    throw new Error(`Packed package privacy scan failed: no scannable package files found in ${root}`);
+  }
+}
+
+async function listFiles(root, visited = new Set()) {
+  const resolvedRoot = await realpath(root);
+  if (visited.has(resolvedRoot)) {
+    return [];
+  }
+  visited.add(resolvedRoot);
+
+  const entries = await readdir(root, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const path = join(root, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...await listFiles(path, visited));
+    } else if (entry.isFile()) {
+      files.push(path);
+    } else if (entry.isSymbolicLink()) {
+      const target = await stat(path).catch(() => undefined);
+      if (target?.isDirectory()) {
+        files.push(...await listFiles(path, visited));
+      } else if (target?.isFile()) {
+        files.push(path);
+      }
+    }
+  }
+  return files;
+}
+
+function isScannablePackageFile(path) {
+  return /\.(?:js|mjs|cjs|d\.ts|map|json|md|txt)$/i.test(path);
 }

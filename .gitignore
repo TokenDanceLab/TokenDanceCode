@@ -4,13 +4,8 @@
 .worktrees/
 .tmp/
 .claude/
-__pycache__/
-*.py[cod]
-*.egg-info/
 *.log
 *.tgz
-.pytest_cache/
-.venv/
 .vscode/
 .idea/
 build/
@@ -19,6 +14,5 @@ coverage/
 node_modules/
 *.tsbuildinfo
 .turbo/
-.worktrees/
 Thumbs.db
 Desktop.ini

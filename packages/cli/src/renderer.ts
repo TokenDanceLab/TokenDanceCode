@@ -67,7 +67,7 @@ async function renderEvent(io: EventRendererIO, event: TDCodeEvent, state: Rende
         const summary = summarizeToolOutput(event.result.output);
         await write(
           io.stdout,
-          `${badge("ok", "success", style)} ${event.result.toolName} completed${summary.metadata}${summary.text ? `: ${summary.text}` : ""}${duration}\n`
+          `${badge("done", "success", style)} ${event.result.toolName} completed${summary.metadata}${summary.text ? `: ${summary.text}` : ""}${duration}\n`
         );
         return;
       }

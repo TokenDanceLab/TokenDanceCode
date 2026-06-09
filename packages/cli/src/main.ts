@@ -24,7 +24,7 @@ import {
 } from "@tokendance/code-sdk";
 import { groupedTopLevelCommands, runTopLevelCommand, type TopLevelCommandHandler, type TopLevelCommandId } from "./commands.js";
 import { createEventRenderer } from "./renderer.js";
-import { heading, styleFromEnv, type CliStyle } from "./format.js";
+import { heading, label, styleFromEnv, type CliStyle } from "./format.js";
 import { groupedSlashCommands, slashCommandHelpUsages, slashCommandUsage } from "./slash-commands.js";
 
 const version = "0.2.0-ts.0";
@@ -106,7 +106,7 @@ async function runInteractive(io: CliIO): Promise<void> {
   const configured = await createConfiguredClient(io);
   const client = configured.client;
   let thread = client.startThread({ workingDirectory: io.cwd(), permissionMode: configured.permissionMode });
-  await write(io.stdout, `TokenDanceCode ${version}\n`);
+  await write(io.stdout, `${brandBanner(styleFromEnv(await readCliEnv(io))).join("\n")}\n\n`);
   await write(io.stdout, "Type /help for commands, /exit to quit.\n");
 
   const lines = createInterface({ input: io.stdin, crlfDelay: Infinity });
@@ -1069,7 +1069,7 @@ async function printDoctorInfo(io: CliIO, doctor: DoctorInfo): Promise<void> {
 
 async function printHelp(io: CliIO): Promise<void> {
   const style = styleFromEnv(io.env?.() ?? process.env);
-  const lines = [`TokenDanceCode ${version}`, ""];
+  const lines = [...brandBanner(style), ""];
   for (const group of groupedTopLevelCommands()) {
     lines.push(heading(`${group.category}:`, style));
     for (const command of group.commands) {
@@ -1078,6 +1078,14 @@ async function printHelp(io: CliIO): Promise<void> {
     lines.push("");
   }
   await write(io.stdout, `${lines.join("\n").trimEnd()}\n`);
+}
+
+function brandBanner(style: CliStyle): string[] {
+  return [
+    `TokenDanceCode ${version}`,
+    label("TD CODE", style),
+    "local coding agent | scrollback-first CLI"
+  ];
 }
 
 async function printInteractiveHelp(io: CliIO): Promise<void> {
@@ -1530,11 +1538,11 @@ function unquoteEnvValue(value: string): string {
 }
 
 async function writeSection(io: CliIO, title: string, style: CliStyle): Promise<void> {
-  await write(io.stdout, `${heading(title, style)}\n`);
+  await write(io.stdout, `== ${heading(title, style)} ==\n`);
 }
 
 async function writeField(io: CliIO, name: string, value: string): Promise<void> {
-  await write(io.stdout, `${name}: ${value}\n`);
+  await write(io.stdout, `  ${name}: ${value}\n`);
 }
 
 function homeDirFor(io: CliIO): string {

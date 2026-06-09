@@ -493,15 +493,20 @@ const byId = await client.resume({ sessionId: "session-id", storageRoot });
 
 ```ts
 const sessions = await client.sessions({ storageRoot }).list();
+const matches = await client.sessions({ storageRoot }).searchTranscript("session-id", "needle", { limit: 10 });
 
 for (const session of sessions) {
   console.log(session.sessionId, session.latest, session.eventCount);
   console.log(session.sessionDir);
   console.log(session.transcriptPath);
 }
+
+for (const match of matches) {
+  console.log(match.seq, match.eventType, match.preview);
+}
 ```
 
-每条记录包含 `sessionId`、`sessionDir`、`transcriptPath`、`createdAt`、`updatedAt`、`eventCount`、可选 `lastEventTimestamp` 和 `latest` 标记。该 facade 只读取 session/transcript 文件，不写入 session state，也不改变 transcript schema。
+每条记录包含 `sessionId`、`sessionDir`、`transcriptPath`、`createdAt`、`updatedAt`、`eventCount`、可选 `lastEventTimestamp` 和 `latest` 标记。`sessions.searchTranscript()` 通过 core 共享的 safe search helper 读取指定 session 的 JSONL transcript，只返回 `sessionId`、`seq`、`eventType`、`timestamp`、可选 `turnId` 和 `preview`，不会把完整原始事件交给 UI。该 facade 只读取 session/transcript 文件，不写入 session state，也不改变 transcript schema。
 
 需要把 transcript 路径展示给 AgentHub UI 或调试面板时，使用 `thread.transcript()`：
 
@@ -674,11 +679,12 @@ const worktrees = client.worktrees({
 const created = await worktrees.create({ name: "agenthub-wt" });
 console.log(created.branch); // codex/agenthub-wt
 console.log(created.path);
+console.log(created.dirty);
 
 await worktrees.remove("agenthub-wt");
 ```
 
-默认 worktree 根目录是 `<repositoryRoot>/.worktrees`，默认分支名是 `codex/<name>`。`name` 只允许字母、数字、点、下划线和短横线，避免路径穿越和 Windows 文件名风险。
+默认 worktree 根目录是 `<repositoryRoot>/.worktrees`，默认分支名是 `codex/<name>`。`name` 只允许字母、数字、点、下划线和短横线，避免路径穿越和 Windows 文件名风险。`list()` 和 `create()` 返回的每条记录都包含 `dirty`，由目标 worktree 内的 `git status --porcelain` 计算，供 AgentHub 在展示或删除前做显式确认。
 
 `remove(name)` 会先检查目标 worktree 的 `git status --porcelain`；存在未提交改动时拒绝删除。只有调用方显式传 `remove(name, { discard: true })` 时才会使用 `git worktree remove --force`。CLI 对应 `tokendance worktree remove <name> --discard`。
 
@@ -698,7 +704,8 @@ const review = await subagents.runReadonly({
 
 const coding = await subagents.runCoding({
   prompt: "Prepare isolated change",
-  worktree: "agenthub-coding"
+  worktree: "agenthub-coding",
+  taskId: "task-1"
 });
 
 console.log(review.summary);
@@ -717,7 +724,7 @@ const throwaway = await subagents.runCoding({
 await subagents.discard(throwaway.id, { discard: true });
 ```
 
-Subagent 索引写入 `<projectRoot>/.tokendance/agents/agents.json`，单个 subagent transcript 写入 `<projectRoot>/.tokendance/agents/<agent-id>/transcript.jsonl`。`subagents.get(id)` 读取单条记录；`subagents.accept(id)` 会把 coding subagent worktree 的当前 diff 应用回目标仓库并把 run 标记为 `accepted`，目标仓库存在用户可见未提交改动时默认拒绝，避免把 subagent diff 混进脏工作区；只有显式 `accept(id, { allowDirtyTarget: true })` 才覆盖这个保护。`subagents.discard(id)` 会移除 coding subagent 的 managed worktree 并把 run 标记为 `discarded`，dirty worktree 默认拒绝删除，只有显式 `discard(id, { discard: true })` 才会强制丢弃未提交改动。默认 registry 同时暴露 `subagent_run`、`subagent_list`、`subagent_get`、`subagent_accept` 和 `subagent_discard`；`subagent_run`、`subagent_accept` 和 `subagent_discard` 是 shell 风险工具，因为它们会创建、应用或移除 worktree。
+Subagent 索引写入 `<projectRoot>/.tokendance/agents/agents.json`，单个 subagent transcript 写入 `<projectRoot>/.tokendance/agents/<agent-id>/transcript.jsonl`。`runCoding({ taskId })` 会把任务关联保存到 `AgentRunRecord.taskId`，方便 AgentHub 将 task、subagent transcript 和 worktree diff 串成同一条执行闭环。`subagents.get(id)` 读取单条记录；`subagents.accept(id)` 会把 coding subagent worktree 的当前 diff 应用回目标仓库并把 run 标记为 `accepted`，目标仓库存在用户可见未提交改动时默认拒绝，避免把 subagent diff 混进脏工作区；只有显式 `accept(id, { allowDirtyTarget: true })` 才覆盖这个保护。`subagents.discard(id)` 会移除 coding subagent 的 managed worktree 并把 run 标记为 `discarded`，dirty worktree 默认拒绝删除，只有显式 `discard(id, { discard: true })` 才会强制丢弃未提交改动。默认 registry 同时暴露 `subagent_run`、`subagent_list`、`subagent_get`、`subagent_accept` 和 `subagent_discard`；`subagent_run`、`subagent_accept` 和 `subagent_discard` 是 shell 风险工具，因为它们会创建、应用或移除 worktree。
 
 ## 16. Memory
 

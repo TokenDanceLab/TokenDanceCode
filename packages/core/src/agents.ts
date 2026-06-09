@@ -39,6 +39,7 @@ export interface AgentRunRecord {
   changedFiles: string[];
   diff: string;
   validationResult: string;
+  taskId?: string;
   worktree?: string;
   worktreePath?: string;
   createdAt: string;
@@ -203,6 +204,7 @@ export class AgentManager {
       changedFiles: output.changedFiles ?? changes.changedFiles,
       diff: output.diff ?? changes.diff,
       validationResult: output.validationResult ?? "",
+      taskId: input.taskId,
       worktree: input.worktree,
       worktreePath: input.worktreePath,
       createdAt: now,

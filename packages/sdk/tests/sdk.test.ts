@@ -263,6 +263,28 @@ describe("TokenDanceCode SDK", () => {
     expect(none).toEqual([]);
   });
 
+  it("searches selected session transcripts through the SDK sessions facade", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-session-search-"));
+    const client = new TokenDanceCode({ storageRoot: root });
+    const thread = client.startThread({ id: "session-search", workingDirectory: root });
+    await thread.run("find session facade needle");
+
+    const matches = await client.sessions().searchTranscript("session-search", "needle");
+
+    expect(matches).toEqual([
+      expect.objectContaining({
+        sessionId: "session-search",
+        seq: 1,
+        eventType: "user.message"
+      }),
+      expect.objectContaining({
+        sessionId: "session-search",
+        seq: 2,
+        eventType: "assistant.delta"
+      })
+    ]);
+  });
+
   it("manages memory through the SDK boundary for AgentHub callers", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-sdk-"));
     const client = new TokenDanceCode();
@@ -382,13 +404,14 @@ describe("TokenDanceCode SDK", () => {
     const client = new TokenDanceCode();
     const subagents = client.subagents({ projectRoot: root });
 
-    const result = await subagents.runCoding({ prompt: "Prepare SDK worktree", worktree: "sdk-agent" });
+    const result = await subagents.runCoding({ prompt: "Prepare SDK worktree", worktree: "sdk-agent", taskId: "task-sdk" });
     await writeFile(join(result.worktreePath ?? "", "agent.txt"), "dirty sdk worktree\n", "utf8");
 
     await expect(subagents.get(result.id)).resolves.toMatchObject({
       id: result.id,
       agentType: "coding",
-      worktree: "sdk-agent"
+      worktree: "sdk-agent",
+      taskId: "task-sdk"
     });
     await expect(subagents.discard(result.id)).rejects.toThrow("uncommitted changes");
 
@@ -679,10 +702,11 @@ describe("TokenDanceCode SDK", () => {
 
     const created = await worktrees.create({ name: "agenthub-wt" });
 
-    expect(created).toMatchObject({ name: "agenthub-wt", branch: "codex/agenthub-wt" });
-    expect(await worktrees.list()).toEqual([expect.objectContaining({ name: "agenthub-wt" })]);
+    expect(created).toMatchObject({ name: "agenthub-wt", branch: "codex/agenthub-wt", dirty: false });
+    await writeFile(join(created.path, "dirty.txt"), "dirty\n", "utf8");
+    expect(await worktrees.list()).toEqual([expect.objectContaining({ name: "agenthub-wt", dirty: true })]);
 
-    await worktrees.remove("agenthub-wt");
+    await worktrees.remove("agenthub-wt", { discard: true });
 
     expect(await worktrees.list()).toEqual([]);
   });

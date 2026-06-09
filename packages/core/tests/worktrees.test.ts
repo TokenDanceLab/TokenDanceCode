@@ -18,12 +18,14 @@ describe("worktree manager", () => {
     expect(created).toMatchObject({
       name: "stage15-wt",
       path: join(root, ".worktrees", "stage15-wt"),
-      branch: "codex/stage15-wt"
+      branch: "codex/stage15-wt",
+      dirty: false
     });
-    expect(await manager.list()).toEqual([expect.objectContaining({ name: "stage15-wt", branch: "codex/stage15-wt" })]);
+    expect(await manager.list()).toEqual([expect.objectContaining({ name: "stage15-wt", branch: "codex/stage15-wt", dirty: false })]);
 
     await writeFile(join(created.path, "dirty.txt"), "dirty\n", "utf8");
 
+    expect(await manager.list()).toEqual([expect.objectContaining({ name: "stage15-wt", dirty: true })]);
     await expect(manager.remove("stage15-wt")).rejects.toThrow("Worktree stage15-wt has uncommitted changes.");
 
     await manager.remove("stage15-wt", { discard: true });

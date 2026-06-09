@@ -1,4 +1,5 @@
 import type { JsonSchemaObject, ModelProvider, ModelTurnRequest, ModelTurnResponse, TDMessage, ToolResult, ToolSpec } from "./types.js";
+import { createProviderApiError, readProviderJson } from "./provider-errors.js";
 
 type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
@@ -71,9 +72,15 @@ export class OpenAIChatCompletionsProvider implements ModelProvider {
       })
     });
 
-    const payload = (await response.json()) as OpenAIChatResponsePayload;
+    const { payload = {}, rawText } = await readProviderJson<OpenAIChatResponsePayload>(response);
     if (!response.ok) {
-      throw new Error(payload.error?.message ?? `OpenAI Chat Completions API returned HTTP ${response.status}`);
+      throw createProviderApiError({
+        provider: "openai-chat-completions",
+        status: response.status,
+        payload,
+        rawText,
+        fallbackMessage: `OpenAI Chat Completions API returned HTTP ${response.status}`
+      });
     }
 
     const message = payload.choices?.[0]?.message;

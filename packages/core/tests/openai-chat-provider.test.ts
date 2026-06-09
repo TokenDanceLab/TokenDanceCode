@@ -102,10 +102,35 @@ describe("OpenAIChatCompletionsProvider", () => {
     const provider = new OpenAIChatCompletionsProvider({
       apiKey: "test-key",
       model: "gpt-test",
-      fetch: async () => jsonResponse({ error: { message: "bad request" } }, { status: 400 })
+      fetch: async () => jsonResponse({ error: { message: "bad request", type: "invalid_request_error", code: "bad_request" } }, { status: 400 })
     });
 
-    await expect(provider.createTurn(baseRequest())).rejects.toThrow("bad request");
+    await expect(provider.createTurn(baseRequest())).rejects.toMatchObject({
+      name: "ProviderApiError",
+      provider: "openai-chat-completions",
+      protocol: "openai-chat-completions",
+      status: 400,
+      type: "invalid_request_error",
+      code: "bad_request",
+      message: "[openai-chat-completions] HTTP 400 bad_request: bad request"
+    });
+  });
+
+  it("normalizes TokenDance Gateway HTTP errors", async () => {
+    const provider = new OpenAIChatCompletionsProvider({
+      apiKey: "gateway-key",
+      model: "deepseek-v4-pro",
+      baseUrl: "https://api.vectorcontrol.tech/v1",
+      fetch: async () => jsonResponse({ error: { message: "quota exceeded", code: "insufficient_quota" } }, { status: 429 })
+    });
+
+    await expect(provider.createTurn(baseRequest())).rejects.toMatchObject({
+      name: "ProviderApiError",
+      provider: "openai-chat-completions",
+      status: 429,
+      code: "insufficient_quota",
+      message: "[openai-chat-completions] HTTP 429 insufficient_quota: quota exceeded"
+    });
   });
 });
 

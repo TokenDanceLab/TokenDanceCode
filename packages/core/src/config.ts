@@ -3,6 +3,8 @@ import { join } from "node:path";
 import type { PermissionMode } from "./types.js";
 
 export type ConfigProvider = "mock" | "openai-responses" | "openai-chat-completions" | "anthropic-messages";
+export type ProviderApiKeyEnv = "OPENAI_API_KEY" | "ANTHROPIC_API_KEY" | "TOKENDANCE_GATEWAY_API_KEY";
+export type ProviderBaseUrlEnv = "OPENAI_BASE_URL" | "ANTHROPIC_BASE_URL" | "TOKENDANCE_GATEWAY_BASE_URL";
 
 export interface TokenDanceConfig {
   provider: ConfigProvider;
@@ -26,6 +28,18 @@ export interface ConfigReadOptions {
   projectRoot: string;
   homeDir?: string;
   env?: Record<string, string | undefined>;
+}
+
+export interface ProviderRuntimeEnv {
+  apiKey?: string;
+  apiKeyEnv?: ProviderApiKeyEnv;
+  baseUrl?: string;
+  baseUrlEnv?: ProviderBaseUrlEnv;
+}
+
+export interface ProviderIntegrationGate {
+  enabled: boolean;
+  missing: string[];
 }
 
 const defaultConfig: TokenDanceConfig = {
@@ -105,6 +119,62 @@ function readEnvConfig(env: Record<string, string | undefined> | undefined): Par
   return Object.keys(config).length > 0 ? config : undefined;
 }
 
+export function resolveProviderRuntimeEnv(provider: ConfigProvider, env: Record<string, string | undefined> = process.env): ProviderRuntimeEnv {
+  if (provider === "openai-chat-completions") {
+    return {
+      ...firstPresent([
+        ["TOKENDANCE_GATEWAY_API_KEY", env.TOKENDANCE_GATEWAY_API_KEY],
+        ["OPENAI_API_KEY", env.OPENAI_API_KEY]
+      ]),
+      ...firstPresentBaseUrl([
+        ["TOKENDANCE_GATEWAY_BASE_URL", env.TOKENDANCE_GATEWAY_BASE_URL],
+        ["OPENAI_BASE_URL", env.OPENAI_BASE_URL]
+      ])
+    };
+  }
+
+  if (provider === "openai-responses") {
+    return {
+      ...firstPresent([["OPENAI_API_KEY", env.OPENAI_API_KEY]]),
+      ...firstPresentBaseUrl([["OPENAI_BASE_URL", env.OPENAI_BASE_URL]])
+    };
+  }
+
+  if (provider === "anthropic-messages") {
+    return {
+      ...firstPresent([["ANTHROPIC_API_KEY", env.ANTHROPIC_API_KEY]]),
+      ...firstPresentBaseUrl([["ANTHROPIC_BASE_URL", env.ANTHROPIC_BASE_URL]])
+    };
+  }
+
+  return {};
+}
+
+export function shouldRunProviderIntegration(provider: ConfigProvider, env: Record<string, string | undefined> = process.env): ProviderIntegrationGate {
+  if (provider === "mock") {
+    return { enabled: false, missing: ["real provider"] };
+  }
+
+  const missing: string[] = [];
+  if (env.TOKENDANCE_RUN_MODEL_INTEGRATION !== "1") {
+    missing.push("TOKENDANCE_RUN_MODEL_INTEGRATION=1");
+  }
+
+  const runtimeEnv = resolveProviderRuntimeEnv(provider, env);
+  const modelEnv = integrationModelEnv(provider);
+  if (!runtimeEnv.apiKey) {
+    missing.push(provider === "openai-chat-completions" ? "TOKENDANCE_GATEWAY_API_KEY or OPENAI_API_KEY" : requiredApiKeyEnv(provider));
+  }
+  if (!envValue(env[modelEnv])) {
+    missing.push(modelEnv);
+  }
+
+  return {
+    enabled: missing.length === 0,
+    missing
+  };
+}
+
 function sanitizeConfig(value: unknown): Partial<TokenDanceConfig> {
   if (typeof value !== "object" || value === null) {
     return {};
@@ -134,4 +204,43 @@ function isConfigProvider(value: unknown): value is ConfigProvider {
 
 function parsePermissionMode(value: string | undefined): PermissionMode | undefined {
   return value === "default" || value === "safe" || value === "auto" || value === "yolo" ? value : undefined;
+}
+
+function firstPresent(candidates: Array<[ProviderApiKeyEnv, string | undefined]>): Pick<ProviderRuntimeEnv, "apiKey" | "apiKeyEnv"> {
+  for (const [apiKeyEnv, value] of candidates) {
+    const apiKey = envValue(value);
+    if (apiKey) {
+      return { apiKey, apiKeyEnv };
+    }
+  }
+  return {};
+}
+
+function firstPresentBaseUrl(candidates: Array<[ProviderBaseUrlEnv, string | undefined]>): Pick<ProviderRuntimeEnv, "baseUrl" | "baseUrlEnv"> {
+  for (const [baseUrlEnv, value] of candidates) {
+    const baseUrl = envValue(value);
+    if (baseUrl) {
+      return { baseUrl, baseUrlEnv };
+    }
+  }
+  return {};
+}
+
+function envValue(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed || undefined;
+}
+
+function requiredApiKeyEnv(provider: Exclude<ConfigProvider, "mock" | "openai-chat-completions">): ProviderApiKeyEnv {
+  return provider === "openai-responses" ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY";
+}
+
+function integrationModelEnv(provider: Exclude<ConfigProvider, "mock">): string {
+  if (provider === "openai-responses") {
+    return "TOKENDANCE_OPENAI_RESPONSES_TEST_MODEL";
+  }
+  if (provider === "openai-chat-completions") {
+    return "TOKENDANCE_OPENAI_CHAT_TEST_MODEL";
+  }
+  return "TOKENDANCE_ANTHROPIC_TEST_MODEL";
 }

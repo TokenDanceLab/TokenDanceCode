@@ -16,6 +16,7 @@ import {
   ToolOrchestrator,
   createDefaultToolRegistry,
   readTokenDanceConfig,
+  resolveProviderRuntimeEnv,
   readTranscript,
   type AgentRunRecord,
   type AgentType,
@@ -313,23 +314,26 @@ export class TokenDanceCode {
       return new MockProvider();
     }
     if (provider.type === "openai-responses") {
+      const runtimeEnv = resolveProviderRuntimeEnv(provider.type, env);
       return new OpenAIResponsesProvider({
-        apiKey: provider.apiKey ?? env.OPENAI_API_KEY ?? "",
+        apiKey: provider.apiKey ?? runtimeEnv.apiKey ?? "",
         model: provider.model,
-        baseUrl: provider.baseUrl
+        baseUrl: provider.baseUrl ?? runtimeEnv.baseUrl
       });
     }
     if (provider.type === "openai-chat-completions") {
+      const runtimeEnv = resolveProviderRuntimeEnv(provider.type, env);
       return new OpenAIChatCompletionsProvider({
-        apiKey: provider.apiKey ?? env.OPENAI_API_KEY ?? "",
+        apiKey: provider.apiKey ?? runtimeEnv.apiKey ?? "",
         model: provider.model,
-        baseUrl: provider.baseUrl
+        baseUrl: provider.baseUrl ?? runtimeEnv.baseUrl
       });
     }
+    const runtimeEnv = resolveProviderRuntimeEnv(provider.type, env);
     return new AnthropicMessagesProvider({
-      apiKey: provider.apiKey ?? env.ANTHROPIC_API_KEY ?? "",
+      apiKey: provider.apiKey ?? runtimeEnv.apiKey ?? "",
       model: provider.model,
-      baseUrl: provider.baseUrl,
+      baseUrl: provider.baseUrl ?? runtimeEnv.baseUrl,
       maxTokens: provider.maxTokens,
       anthropicVersion: provider.anthropicVersion
     });

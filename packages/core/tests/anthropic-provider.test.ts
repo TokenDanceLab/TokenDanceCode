@@ -83,10 +83,32 @@ describe("AnthropicMessagesProvider", () => {
     const provider = new AnthropicMessagesProvider({
       apiKey: "test-key",
       model: "claude-test",
-      fetch: async () => jsonResponse({ error: { message: "auth failed" } }, { status: 401 })
+      fetch: async () => jsonResponse({ error: { message: "auth failed", type: "authentication_error" } }, { status: 401 })
     });
 
-    await expect(provider.createTurn(baseRequest())).rejects.toThrow("auth failed");
+    await expect(provider.createTurn(baseRequest())).rejects.toMatchObject({
+      name: "ProviderApiError",
+      provider: "anthropic-messages",
+      protocol: "anthropic-messages",
+      status: 401,
+      type: "authentication_error",
+      message: "[anthropic-messages] HTTP 401 authentication_error: auth failed"
+    });
+  });
+
+  it("normalizes non-JSON HTTP errors", async () => {
+    const provider = new AnthropicMessagesProvider({
+      apiKey: "test-key",
+      model: "claude-test",
+      fetch: async () => new Response("bad gateway", { status: 502 })
+    });
+
+    await expect(provider.createTurn(baseRequest())).rejects.toMatchObject({
+      name: "ProviderApiError",
+      provider: "anthropic-messages",
+      status: 502,
+      message: "[anthropic-messages] HTTP 502: bad gateway"
+    });
   });
 });
 

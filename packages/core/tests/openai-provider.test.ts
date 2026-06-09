@@ -78,10 +78,33 @@ describe("OpenAIResponsesProvider", () => {
     const provider = new OpenAIResponsesProvider({
       apiKey: "test-key",
       model: "gpt-test",
-      fetch: async () => jsonResponse({ error: { message: "bad request" } }, { status: 400 })
+      fetch: async () => jsonResponse({ error: { message: "bad request", type: "invalid_request_error", code: "bad_request" } }, { status: 400 })
     });
 
-    await expect(provider.createTurn(baseRequest())).rejects.toThrow("bad request");
+    await expect(provider.createTurn(baseRequest())).rejects.toMatchObject({
+      name: "ProviderApiError",
+      provider: "openai-responses",
+      protocol: "openai-responses",
+      status: 400,
+      type: "invalid_request_error",
+      code: "bad_request",
+      message: "[openai-responses] HTTP 400 bad_request: bad request"
+    });
+  });
+
+  it("normalizes non-JSON HTTP errors", async () => {
+    const provider = new OpenAIResponsesProvider({
+      apiKey: "test-key",
+      model: "gpt-test",
+      fetch: async () => new Response("bad gateway", { status: 502 })
+    });
+
+    await expect(provider.createTurn(baseRequest())).rejects.toMatchObject({
+      name: "ProviderApiError",
+      provider: "openai-responses",
+      status: 502,
+      message: "[openai-responses] HTTP 502: bad gateway"
+    });
   });
 });
 

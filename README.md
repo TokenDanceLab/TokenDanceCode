@@ -491,6 +491,8 @@ const client = new TokenDanceCode({
 - `auto`：自动允许更多常规操作。
 - `yolo`：限制最少，使用时要小心。
 
+权限决策会同时返回可读 `reason` 和结构化 `riskMetadata`，包含 mode、tool、risk、action、并发策略和工具安全说明。PowerShell 工具即使在 `yolo` 下仍会硬拒绝已知高危命令，并在 `safetyEvidence.evidence` 中记录命中的规则、命令片段和短命令预览。AgentHub 远程审批 bridge 支持可选 timeout；重复、过期或未知决策会返回 `false`，不会重新放行已结算请求。
+
 ## 项目结构
 
 ```text
@@ -598,7 +600,7 @@ tokendance doctor
 - CLI 通过 runtime event 渲染工具开始、权限决策、工具完成耗时、失败原因、成功结果摘要和 assistant 文本；结构化 permission reason 会压缩成 `risk/action/mode/tool` 元数据和可读详情。测试默认保持纯文本，设置 `FORCE_COLOR=1` 时 renderer 会对工具、权限状态、工具风险、失败状态和 usage 数字使用 ANSI 高亮，usage 行同时显示 input/output/total token 数。
 - CLI 帮助按 Core、Session、Work、Diagnostics、Gateway 分组；交互式 `/status`、`/config`、`/doctor` 使用小节输出，便于扫描但仍保持薄 CLI。
 - 真实模型 smoke 默认跳过，需要显式设置 `TOKENDANCE_RUN_REAL_PROVIDER_SMOKE=1`、对应 API key 和测试模型 env 后才会运行；默认测试不读取项目根目录 `.env`。
-- AgentHub 集成应使用 SDK 的 `approvalCallback` / `createAgentHubApprovalBridge()` 和 `eventSink`，不要直接调用 core runtime 内部类。
+- AgentHub 集成应使用 SDK 的 `approvalCallback` / `createAgentHubApprovalBridge()` 和 `eventSink`，不要直接调用 core runtime 内部类；远程审批应设置适合 Hub 会话生命周期的 timeout，并用 `decide()` 的 boolean 返回值忽略重复或过期决策。
 - `doctor` 只输出 API key 是否存在，不输出 secret 值；配置输出也只展示白名单字段、路径和 provider readiness。真实 provider 未 ready 会作为 startup warning 暴露给 AgentHub，不会让 Hub `ok` 变成 `false`。
 
 ## 当前状态

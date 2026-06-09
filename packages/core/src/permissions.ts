@@ -1,4 +1,4 @@
-import type { PermissionDecision, PermissionMode, ToolSpec } from "./types.js";
+import type { PermissionDecision, PermissionDecisionAction, PermissionMode, PermissionRiskMetadata, ToolSpec } from "./types.js";
 
 export class PermissionEngine {
   constructor(private readonly mode: PermissionMode) {}
@@ -27,21 +27,32 @@ export class PermissionEngine {
 }
 
 function allowed(mode: PermissionMode, tool: ToolSpec, detail: string): PermissionDecision {
-  return { status: "allowed", reason: reason(mode, tool, "allowed", detail) };
+  return { status: "allowed", reason: reason(mode, tool, "allowed", detail), riskMetadata: riskMetadata(mode, tool, "allowed") };
 }
 
 function denied(mode: PermissionMode, tool: ToolSpec, detail: string): PermissionDecision {
-  return { status: "denied", reason: reason(mode, tool, "denied", detail) };
+  return { status: "denied", reason: reason(mode, tool, "denied", detail), riskMetadata: riskMetadata(mode, tool, "denied") };
 }
 
 function requiresApproval(mode: PermissionMode, tool: ToolSpec, detail: string): PermissionDecision {
-  return { status: "requires_approval", reason: reason(mode, tool, "approval_required", detail) };
+  return { status: "requires_approval", reason: reason(mode, tool, "approval_required", detail), riskMetadata: riskMetadata(mode, tool, "approval_required") };
 }
 
-function reason(mode: PermissionMode, tool: ToolSpec, action: string, detail: string): string {
+function reason(mode: PermissionMode, tool: ToolSpec, action: PermissionDecisionAction, detail: string): string {
   const safetyNotes = tool.safetyNotes ?? [];
   const auditContext = safetyNotes.length > 0
     ? `; concurrency=${tool.concurrency}; safety=${safetyNotes.join(" ")}`
     : "";
   return `mode=${mode} tool=${tool.name} risk=${tool.risk} action=${action}: ${detail}${auditContext}`;
+}
+
+function riskMetadata(mode: PermissionMode, tool: ToolSpec, action: PermissionDecisionAction): PermissionRiskMetadata {
+  return {
+    mode,
+    toolName: tool.name,
+    toolRisk: tool.risk,
+    action,
+    concurrency: tool.concurrency,
+    safetyNotes: [...(tool.safetyNotes ?? [])]
+  };
 }

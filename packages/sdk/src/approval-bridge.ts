@@ -18,6 +18,7 @@ export interface AgentHubApprovalRequest {
 export interface AgentHubApprovalBridgeOptions {
   onRequest: (request: AgentHubApprovalRequest) => void | Promise<void>;
   clock?: () => string;
+  timeoutMs?: number;
 }
 
 export interface AgentHubApprovalBridge {
@@ -30,6 +31,7 @@ interface PendingApproval {
   request: AgentHubApprovalRequest;
   resolve: (decision: PermissionDecision) => void;
   settledDecision?: PermissionDecision;
+  timeout?: ReturnType<typeof setTimeout>;
 }
 
 export function createAgentHubApprovalBridge(options: AgentHubApprovalBridgeOptions): AgentHubApprovalBridge {
@@ -45,11 +47,25 @@ export function createAgentHubApprovalBridge(options: AgentHubApprovalBridgeOpti
         approval = {
           request: approvalRequest,
           resolve(decision) {
+            if (approval.timeout) {
+              clearTimeout(approval.timeout);
+            }
             approval.settledDecision = decision;
             resolve(decision);
           }
         };
         pending.set(approvalRequest.requestId, approval);
+        if (options.timeoutMs !== undefined) {
+          approval.timeout = setTimeout(() => {
+            if (!pending.delete(approvalRequest.requestId)) {
+              return;
+            }
+            approval.resolve({
+              status: "denied",
+              reason: `AgentHub approval timed out after ${options.timeoutMs}ms`
+            });
+          }, Math.max(0, Math.floor(options.timeoutMs)));
+        }
       });
       try {
         await options.onRequest(approvalRequest);

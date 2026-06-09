@@ -143,6 +143,42 @@ describe("AgentHub approval bridge", () => {
     expect(bridge.pending()).toEqual([]);
   });
 
+  it("denies and clears stale approvals after the configured timeout", async () => {
+    const requests: string[] = [];
+    const bridge = createAgentHubApprovalBridge({
+      timeoutMs: 5,
+      onRequest(request) {
+        requests.push(request.requestId);
+      }
+    });
+
+    const approval = bridge.approvalCallback(fakeApprovalRequest("stale-call"));
+    expect(requests).toEqual(["stale-call"]);
+    expect(bridge.pending().map((request) => request.requestId)).toEqual(["stale-call"]);
+
+    await expect(approval).resolves.toEqual({
+      status: "denied",
+      reason: "AgentHub approval timed out after 5ms"
+    });
+    expect(bridge.pending()).toEqual([]);
+    expect(bridge.decide("stale-call", "allow", "late approval")).toBe(false);
+  });
+
+  it("rejects duplicate decisions after the first decision settles the approval", async () => {
+    const bridge = createAgentHubApprovalBridge({
+      timeoutMs: 1000,
+      onRequest() {}
+    });
+
+    const approval = bridge.approvalCallback(fakeApprovalRequest("single-decision"));
+
+    expect(bridge.decide("single-decision", "allow", "first decision")).toBe(true);
+    expect(bridge.decide("single-decision", "deny", "duplicate decision")).toBe(false);
+
+    await expect(approval).resolves.toEqual({ status: "allowed", reason: "first decision" });
+    expect(bridge.pending()).toEqual([]);
+  });
+
   it("keeps an in-flight decision when request publishing fails after a decision", async () => {
     let bridge!: ReturnType<typeof createAgentHubApprovalBridge>;
     bridge = createAgentHubApprovalBridge({

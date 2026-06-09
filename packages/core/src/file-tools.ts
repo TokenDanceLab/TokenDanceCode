@@ -1,6 +1,7 @@
-import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
-import type { ToolExecutionContext, ToolSpec } from "./types.js";
+import { mkdir, readFile, readdir, realpath, rename, rm, writeFile } from "node:fs/promises";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { isSecretLikePath } from "./permissions.js";
+import type { PermissionSubject, PermissionSubjectFlag, ToolExecutionContext, ToolSpec } from "./types.js";
 
 const excludedGlobParts = new Set([
   ".git",
@@ -46,6 +47,7 @@ export function createReadFileTool(): ToolSpec<PathInput, { path: string; conten
     risk: "read",
     concurrency: "parallel_safe",
     parse: parsePathInput,
+    permissionSubjects: (input, context) => pathPermissionSubjects(input.path, context, "read"),
     async execute(input, context) {
       const path = resolveWorkspacePath(context, input.path);
       try {
@@ -73,6 +75,7 @@ export function createWriteFileTool(): ToolSpec<WriteInput, { path: string; byte
       }
       return { path, content: (input as { content: string }).content };
     },
+    permissionSubjects: (input, context) => pathPermissionSubjects(input.path, context, "write"),
     async execute(input, context) {
       const path = resolveWorkspacePath(context, input.path);
       await atomicWriteText(path, input.content);
@@ -97,6 +100,7 @@ export function createEditFileTool(): ToolSpec<EditInput, { path: string; replac
       }
       return { path, oldText, newText };
     },
+    permissionSubjects: (input, context) => pathPermissionSubjects(input.path, context, "edit"),
     async execute(input, context) {
       const path = resolveWorkspacePath(context, input.path);
       const content = await readFile(path, "utf8");
@@ -141,6 +145,49 @@ function parsePathInput(input: unknown): PathInput {
   return { path: (input as { path: string }).path };
 }
 
+async function pathPermissionSubjects(
+  rawPath: string,
+  context: ToolExecutionContext,
+  operation: Extract<PermissionSubject, { kind: "path" }>["operation"]
+): Promise<PermissionSubject[]> {
+  return [await createPathPermissionSubject(rawPath, context, operation)];
+}
+
+async function createPathPermissionSubject(
+  rawPath: string,
+  context: ToolExecutionContext,
+  operation: Extract<PermissionSubject, { kind: "path" }>["operation"]
+): Promise<PermissionSubject> {
+  const root = resolve(context.cwd);
+  const candidate = resolve(root, rawPath);
+  const normalizedPath = relativePathFromRoot(root, candidate);
+  const flags = new Set<PermissionSubjectFlag>();
+  if (isSecretLikePath(rawPath) || isSecretLikePath(normalizedPath)) {
+    flags.add("secret_like");
+  }
+
+  let realRelativePath: string | undefined;
+  if (isWithinRoot(root, candidate)) {
+    const realCandidate = await realExistingOrProjectedPath(candidate);
+    if (realCandidate) {
+      const realRoot = await safeRealpath(root) ?? root;
+      realRelativePath = relativePathFromRoot(realRoot, realCandidate);
+      if (!isWithinRoot(realRoot, realCandidate)) {
+        flags.add("workspace_escape");
+      }
+    }
+  }
+
+  return {
+    kind: "path",
+    operation,
+    rawPath,
+    normalizedPath,
+    realPath: realRelativePath,
+    flags: [...flags]
+  };
+}
+
 function resolveWorkspacePath(context: ToolExecutionContext, rawPath: string): string {
   const root = resolve(context.cwd);
   const candidate = resolve(root, rawPath);
@@ -149,6 +196,42 @@ function resolveWorkspacePath(context: ToolExecutionContext, rawPath: string): s
     return candidate;
   }
   throw new Error("Path is outside the workspace");
+}
+
+function relativePathFromRoot(root: string, path: string): string {
+  const rel = relative(root, path);
+  return (rel === "" ? "." : rel).split(sep).join("/");
+}
+
+async function realExistingOrProjectedPath(path: string): Promise<string | undefined> {
+  const missingParts: string[] = [];
+  let current = path;
+  while (true) {
+    const currentRealpath = await safeRealpath(current);
+    if (currentRealpath) {
+      return missingParts.length > 0 ? resolve(currentRealpath, ...missingParts.reverse()) : currentRealpath;
+    }
+
+    const parent = dirname(current);
+    if (parent === current) {
+      return undefined;
+    }
+    missingParts.push(basename(current));
+    current = parent;
+  }
+}
+
+async function safeRealpath(path: string): Promise<string | undefined> {
+  try {
+    return await realpath(path);
+  } catch {
+    return undefined;
+  }
+}
+
+function isWithinRoot(root: string, path: string): boolean {
+  const rel = relative(root, path);
+  return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 }
 
 function relativePath(context: ToolExecutionContext, path: string): string {

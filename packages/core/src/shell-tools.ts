@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { createShellCommandPermissionSubject } from "./permissions.js";
 import { classifyPowerShellCommandWithReason } from "./powershell.js";
 import type { ToolSafetyEvidence, ToolSpec } from "./types.js";
 
@@ -35,6 +36,9 @@ export function createRunPowerShellTool(): ToolSpec<RunPowerShellInput, CommandR
         command: (input as { command: string }).command,
         timeoutMs: Math.max(1, Math.floor((timeout ?? 60) * 1000))
       };
+    },
+    permissionSubjects(input) {
+      return [createShellCommandPermissionSubject(input.command)];
     },
     async execute(input, context) {
       return runPowerShell(input.command, context.cwd, input.timeoutMs);

@@ -17,6 +17,7 @@ export interface ToolSpec<TInput = unknown, TOutput = unknown> {
   concurrency: "serial" | "parallel_safe" | "exclusive";
   safetyNotes?: string[];
   parse(input: unknown): TInput;
+  permissionSubjects?(input: TInput, context: ToolExecutionContext): PermissionSubject[] | Promise<PermissionSubject[]>;
   execute(input: TInput, context: ToolExecutionContext): Promise<TOutput>;
 }
 
@@ -42,6 +43,37 @@ export interface ToolCall {
 }
 
 export type PermissionDecisionAction = "allowed" | "denied" | "approval_required";
+export type PermissionSubjectFlag = "secret_like" | "workspace_escape";
+
+export type PermissionSubject =
+  | {
+      kind: "path";
+      operation: "read" | "write" | "edit" | "glob";
+      rawPath: string;
+      normalizedPath: string;
+      realPath?: string;
+      flags: PermissionSubjectFlag[];
+    }
+  | {
+      kind: "shell_command";
+      command: string;
+      flags: PermissionSubjectFlag[];
+    };
+
+export type PermissionSubjectMetadata =
+  | {
+      kind: "path";
+      operation: Extract<PermissionSubject, { kind: "path" }>["operation"];
+      raw: string;
+      normalized: string;
+      real?: string;
+      flags: PermissionSubjectFlag[];
+    }
+  | {
+      kind: "shell_command";
+      commandPreview: string;
+      flags: PermissionSubjectFlag[];
+    };
 
 export interface PermissionRiskMetadata {
   mode: PermissionMode;
@@ -51,6 +83,7 @@ export interface PermissionRiskMetadata {
   approvalScope: "none" | "tool_call";
   concurrency: ToolSpec["concurrency"];
   safetyNotes: string[];
+  subject?: PermissionSubjectMetadata;
 }
 
 export type PermissionDecision =

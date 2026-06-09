@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -47,6 +47,71 @@ describe("file tools", () => {
     );
 
     expect(result).toMatchObject({ ok: false, error: "Path is outside the workspace" });
+  });
+
+  it("requires approval before reading .env files even in yolo mode", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-files-"));
+    await writeFile(join(root, ".env"), "TOKEN=secret", "utf8");
+    const orchestrator = new ToolOrchestrator(createDefaultToolRegistry());
+
+    const result = await orchestrator.execute(
+      { id: "read-env", name: "read_file", input: { path: ".env" } },
+      createSession(root, "yolo")
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: "mode=yolo tool=read_file risk=read action=approval_required subject=path:.env: secret-like path requires approval before access",
+      safetyEvidence: {
+        source: "permission_engine",
+        status: "requires_approval"
+      }
+    });
+  });
+
+  it("requires approval before writing secret-like paths even in yolo mode", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-files-"));
+    const orchestrator = new ToolOrchestrator(createDefaultToolRegistry());
+
+    const result = await orchestrator.execute(
+      { id: "write-secret", name: "write_file", input: { path: "config/production.secret", content: "secret" } },
+      createSession(root, "yolo")
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: "mode=yolo tool=write_file risk=write action=approval_required subject=path:config/production.secret: secret-like path requires approval before access",
+      safetyEvidence: {
+        source: "permission_engine",
+        status: "requires_approval"
+      }
+    });
+  });
+
+  it("denies paths that escape the workspace through a symlink target when the platform exposes realpath", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-files-"));
+    const outside = await mkdtemp(join(tmpdir(), "tdcode-outside-"));
+    await writeFile(join(outside, "outside.txt"), "outside", "utf8");
+    try {
+      await symlink(outside, join(root, "linked"), "junction");
+    } catch {
+      return;
+    }
+    const orchestrator = new ToolOrchestrator(createDefaultToolRegistry());
+
+    const result = await orchestrator.execute(
+      { id: "read-linked-outside", name: "read_file", input: { path: "linked/outside.txt" } },
+      createSession(root, "yolo")
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: "mode=yolo tool=read_file risk=read action=denied subject=path:linked/outside.txt: resolved path escapes the workspace",
+      safetyEvidence: {
+        source: "permission_engine",
+        status: "denied"
+      }
+    });
   });
 
   it("reports missing files with a stable error", async () => {

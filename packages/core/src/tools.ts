@@ -81,7 +81,21 @@ export class ToolOrchestrator {
 
     try {
       const input = tool.parse(call.input);
-      const output = await tool.execute(input, { session, cwd: session.cwd });
+      const context = { session, cwd: session.cwd };
+      const subjects = await tool.permissionSubjects?.(input, context) ?? [];
+      for (const subject of subjects) {
+        const subjectDecision = new PermissionEngine(session.permissionMode).decideSubject(tool, subject);
+        if (subjectDecision.status !== "allowed") {
+          return {
+            callId: call.id,
+            toolName: call.name,
+            ok: false,
+            error: subjectDecision.reason,
+            safetyEvidence: permissionSafetyEvidence(call.name, subjectDecision)
+          };
+        }
+      }
+      const output = await tool.execute(input, context);
       return { callId: call.id, toolName: call.name, ok: true, output };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

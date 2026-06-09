@@ -64,6 +64,26 @@ describe("run_powershell tool", () => {
     });
   });
 
+  it("requires approval for commands that reference secret-like files even when shell is otherwise allowed", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-shell-"));
+    await writeFile(join(root, ".env"), "TOKEN=secret", "utf8");
+    const orchestrator = new ToolOrchestrator(createDefaultToolRegistry());
+
+    const result = await orchestrator.execute(
+      { id: "shell-secret", name: "run_powershell", input: { command: "Get-Content .env", timeout: 5 } },
+      createSession(root, "auto")
+    );
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: "mode=auto tool=run_powershell risk=shell action=approval_required subject=shell_command:Get-Content .env: secret-like command input requires approval before execution",
+      safetyEvidence: {
+        source: "permission_engine",
+        status: "requires_approval"
+      }
+    });
+  });
+
   it("uses the dangerous command guard for quality gate override commands", async () => {
     const root = await mkdtemp(join(tmpdir(), "tdcode-shell-"));
     const orchestrator = new ToolOrchestrator(createDefaultToolRegistry());

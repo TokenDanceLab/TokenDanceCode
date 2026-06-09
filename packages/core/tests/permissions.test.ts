@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PermissionEngine, normalizeApprovalDecision, type ToolRisk, type ToolSpec } from "../src/index.js";
+import { PermissionEngine, normalizeApprovalDecision, type PermissionSubject, type ToolRisk, type ToolSpec } from "../src/index.js";
 
 const shellTool: ToolSpec = {
   name: "shell",
@@ -123,6 +123,66 @@ describe("PermissionEngine", () => {
     expect(new PermissionEngine("default").decide(annotatedWriteTool).reason).toBe(
       "mode=default tool=write_file risk=write action=approval_required: default mode requires approval before running write tools; concurrency=exclusive; safety=Workspace-relative paths only."
     );
+  });
+
+  it("requires approval for secret-like file subjects without changing the base tool mode decision", () => {
+    const subject: PermissionSubject = {
+      kind: "path",
+      operation: "read",
+      rawPath: "config/.env",
+      normalizedPath: "config/.env",
+      flags: ["secret_like"]
+    };
+    const engine = new PermissionEngine("yolo");
+
+    expect(engine.decide(toolWithRisk("read")).status).toBe("allowed");
+    expect(engine.decideSubject(toolWithRisk("read"), subject)).toMatchObject({
+      status: "requires_approval",
+      reason: "mode=yolo tool=read_tool risk=read action=approval_required subject=path:config/.env: secret-like path requires approval before access",
+      riskMetadata: {
+        mode: "yolo",
+        toolName: "read_tool",
+        toolRisk: "read",
+        action: "approval_required",
+        approvalScope: "tool_call",
+        subject: {
+          kind: "path",
+          operation: "read",
+          raw: "config/.env",
+          normalized: "config/.env",
+          flags: ["secret_like"]
+        }
+      }
+    });
+  });
+
+  it("denies path subjects that escape the workspace after resolution", () => {
+    const subject: PermissionSubject = {
+      kind: "path",
+      operation: "read",
+      rawPath: "linked/outside.txt",
+      normalizedPath: "linked/outside.txt",
+      realPath: "../outside/outside.txt",
+      flags: ["workspace_escape"]
+    };
+
+    expect(new PermissionEngine("yolo").decideSubject(toolWithRisk("read"), subject)).toMatchObject({
+      status: "denied",
+      reason: "mode=yolo tool=read_tool risk=read action=denied subject=path:linked/outside.txt: resolved path escapes the workspace"
+    });
+  });
+
+  it("requires approval for shell command subjects that reference secret-like paths", () => {
+    const subject: PermissionSubject = {
+      kind: "shell_command",
+      command: "Get-Content .env",
+      flags: ["secret_like"]
+    };
+
+    expect(new PermissionEngine("auto").decideSubject(shellTool, subject)).toMatchObject({
+      status: "requires_approval",
+      reason: "mode=auto tool=shell risk=shell action=approval_required subject=shell_command:Get-Content .env: secret-like command input requires approval before execution"
+    });
   });
 
   it("normalizes approval callback decisions against the base risk metadata", () => {

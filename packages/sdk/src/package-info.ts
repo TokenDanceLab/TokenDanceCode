@@ -9,7 +9,8 @@ export interface TokenDanceCodePackageInfo {
       "startup-doctor",
       "session-resume",
       "context-preview",
-      "remote-approval"
+      "remote-approval",
+      "tokendanceid-oidc-login"
     ];
   };
   packages: {
@@ -51,7 +52,8 @@ export const TOKEN_DANCE_CODE_PACKAGE: TokenDanceCodePackageInfo = {
       "startup-doctor",
       "session-resume",
       "context-preview",
-      "remote-approval"
+      "remote-approval",
+      "tokendanceid-oidc-login"
     ]
   },
   packages: {

@@ -45,6 +45,7 @@ export * from "./agenthub-events.js";
 export * from "./approval-bridge.js";
 export * from "./doctor.js";
 export * from "./package-info.js";
+export * from "./tokendance-id.js";
 
 export type ThreadInput = string | Array<{ type: "text"; text: string }>;
 

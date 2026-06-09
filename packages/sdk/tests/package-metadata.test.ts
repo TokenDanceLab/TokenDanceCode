@@ -83,7 +83,8 @@ describe("package metadata", () => {
           "startup-doctor",
           "session-resume",
           "context-preview",
-          "remote-approval"
+          "remote-approval",
+          "tokendanceid-oidc-login"
         ]
       },
       packages: {

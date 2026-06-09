@@ -21,7 +21,7 @@ tokendance
 当前分支已经建立 TypeScript 第一批可验证闭环：
 
 - `@tokendance/code-core`：session、event、runtime、tool registry、permission engine、JSONL transcript store、task/todo/subagent/worktree store、MockProvider。
-- `@tokendance/code-sdk`：AgentHub 可消费的 `TokenDanceCode -> Thread -> run/runStreamed/context` 编程接口，支持 provider 配置、审批回调、事件下沉、AgentHub runtime event 映射、recent transcript resume、transcript search、task/todo/subagent/worktree facade。
+- `@tokendance/code-sdk`：AgentHub 可消费的 `TokenDanceCode -> Thread -> run/runStreamed/context` 编程接口，支持 provider 配置、审批回调、事件下沉、AgentHub runtime event 映射、recent transcript resume、transcript search、task/todo/subagent/worktree facade，以及 TokenDanceID OIDC Authorization Code + PKCE 登录启动 helper。
 - `@tokendance/code-cli`：薄 CLI 入口，支持 `--version`、`doctor`、`run <prompt>`、分组帮助、可读 status/config/doctor 输出、Gateway 首次配置提示、最小交互式 REPL、context preview、task/todo/subagent/worktree 管理和工具事件渲染。
 - `@tokendance/code-agenthub-example`：私有示例包，演示 AgentHub emitter 如何通过 SDK 接收 `agent.stream` payload 并桥接远程审批。
 - `pnpm verify`：同时执行 TypeScript typecheck 和 Vitest 测试。
@@ -322,6 +322,22 @@ console.log(config.config.provider, config.config.model);
 
 const doctor = await client.doctor({ projectRoot: process.cwd() });
 console.log(doctor.git.available, doctor.stateDir.writable);
+```
+
+SDK 也提供 TokenDanceID OIDC 登录 URL helper。它只生成 Authorization Code + PKCE 登录参数并校验 callback `state`；真正 code exchange、JWKS 验证、`tokendance_sub` 映射和 Hub-local session 仍由 AgentHub Hub Server 负责。
+
+```ts
+import { createTokenDanceIdLoginRequest, verifyTokenDanceIdCallback } from "@tokendance/code-sdk";
+
+const login = createTokenDanceIdLoginRequest({
+  clientId: "agenthub-local",
+  redirectUri: "http://127.0.0.1:48731/callback"
+});
+
+console.log(login.authorizationUrl);
+
+const callback = verifyTokenDanceIdCallback("http://127.0.0.1:48731/callback?code=...&state=...", login);
+console.log(callback.codeVerifier);
 ```
 
 AgentHub 集成可以接管审批和事件分发：

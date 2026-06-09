@@ -99,7 +99,38 @@ console.log(TOKEN_DANCE_CODE_PACKAGE.verification.prerelease);
 
 当前 manifest 覆盖 core/sdk/cli 包名、SDK/Core import specifier、CLI bin 名、AgentHub SDK contract version、`agent.stream` schema version、SDK feature flags 和推荐验证命令：`pnpm verify`、`pnpm pack:check`、`pnpm pack:smoke`、`pnpm release:next:check`。它不包含本机路径、密钥或 workspace 私有路径，适合进入 AgentHub UI 或日志。AgentHub Hub/Edge 启动检查可以把 `agentHub.sdkContractVersion === "agenthub-sdk.v1"` 和 `agentHub.agentStreamSchemaVersion === 1` 当作当前稳定契约的快速断言。
 
-## 4. 启动 Thread
+## 4. TokenDanceID OIDC 登录启动
+
+SDK 提供轻量 TokenDanceID OIDC helper，帮助 AgentHub Hub/Desktop/Web 或本地壳层启动 Authorization Code + PKCE S256 登录流。它只生成登录 URL、`state`、`nonce`、`codeVerifier` 并校验 callback state；不交换 authorization code、不验证 ID token、不保存 access/refresh token。
+
+AgentHub Hub Server 仍然负责 code exchange、JWKS/issuer/audience/expiration 验证、`tokendance_sub` 映射和 Hub-local session 签发。
+
+```ts
+import { createTokenDanceIdLoginRequest, verifyTokenDanceIdCallback } from "@tokendance/code-sdk";
+
+const login = createTokenDanceIdLoginRequest({
+  clientId: "agenthub-local",
+  redirectUri: "http://127.0.0.1:48731/callback",
+  extraParams: {
+    device_type: "desktop",
+    device_id: "00000000-0000-4000-8000-000000000001"
+  }
+});
+
+openSystemBrowser(login.authorizationUrl);
+
+const callback = verifyTokenDanceIdCallback(callbackUrlFromLoopbackServer, login);
+
+await hub.exchangeTokenDanceIdCode({
+  code: callback.code,
+  codeVerifier: callback.codeVerifier,
+  redirectUri: callback.redirectUri
+});
+```
+
+默认 issuer 是 `https://id.vectorcontrol.tech`，默认 scope 是 `openid profile email`。Desktop/native 场景应使用 TokenDanceID 已登记的 loopback callback 策略；生产 Hub/Web 场景应使用 Hub-owned backend callback。TokenDanceID/OIDC 登录 token 只用于身份和 Hub session，不是 TokenDance Gateway 模型 API key。
+
+## 5. 启动 Thread
 
 ```ts
 const thread = client.startThread({
@@ -140,7 +171,7 @@ const shortPreview = await thread.context("next prompt", {
 
 `thread.context()` 只返回 transient preview，不会把本轮 user message 或 system context 写入 `thread.state`、session 文件或 transcript。`maxRecentMessages` 可限制 preview 中带入的历史消息数量，供 AgentHub resume 面板、运行前调试或低上下文预算场景使用；不传时保持默认最近 20 条消息。
 
-## 5. 流式事件
+## 6. 流式事件
 
 ```ts
 const streamed = await thread.runStreamed("read README and propose next step");
@@ -163,7 +194,7 @@ import type { TDCodeEvent } from "@tokendance/code-sdk";
 
 AgentHub 前端建议以 `event.type` 做 discriminated union 分发，不要解析 provider 原始响应。
 
-## 6. AgentHub Runtime Event 映射
+## 7. AgentHub Runtime Event 映射
 
 TokenDanceCode SDK 提供轻量 mapper，把 `TDCodeEvent` 投影为 AgentHub Edge adapter 已使用的 `run.agent.*` 事件名。SDK 不依赖 AgentHub 包；Hub/Edge 仍负责真正的 WebSocket、REST 或 event bus 投递。
 
@@ -244,7 +275,7 @@ const client = new TokenDanceCode({
 
 `schema_version`、`sdk_contract_version` 和 `source` 是稳定 envelope 字段，方便 Hub/Edge 在启动检查、事件落库和前端调试中快速区分 SDK 契约版本。`event_seq` 只对这个 sink 实例递增；如果 AgentHub 有自己的全局 event sequence 或 ID 生成器，可以通过 `idFactory` 和外层 emitter 继续覆盖。
 
-## 7. 审批回调
+## 8. 审批回调
 
 简单场景可以直接传 `approvalCallback`：
 
@@ -299,7 +330,7 @@ approvalBridge.decide("tool-call-id", "deny", "rejected in AgentHub");
 
 被拒绝的工具结果会在 `tool.completed` 事件中携带 `safetyEvidence`：权限引擎拒绝使用 `source: "permission_engine"`，PowerShell 硬拒绝使用 `source: "powershell_classifier"`。这份结果会随 transcript 持久化，供 AgentHub 回放拒绝证据。
 
-## 8. AgentHub 最小集成样例包
+## 9. AgentHub 最小集成样例包
 
 `packages/agenthub-example` 是私有 workspace 示例包，用来展示 AgentHub Hub/Edge 侧如何把 SDK、`agent.stream` emitter 和远程审批桥接拼起来。它不是新的稳定边界；正式集成仍应依赖 `@tokendance/code-sdk`。
 
@@ -361,7 +392,7 @@ runner.decideApproval("tool-call-id", "allow", "approved in AgentHub");
 
 当 runner 配置了 `onApprovalRequest` 时，远程审批请求会先发出 `run.agent.permission_requested` envelope，再等待 Hub/Edge 调用 `runner.decideApproval()`。决策返回后，runtime 会继续发出 `run.agent.permission_decided`、`run.agent.tool_result` 和最终结果事件。`pendingApprovals()` 返回待处理请求快照；`decideApproval()` 对重复、过期或未知 request id 返回 `false`。
 
-## 9. Resume
+## 10. Resume
 
 ```ts
 const latest = await client.resume({ storageRoot });
@@ -411,7 +442,7 @@ console.log(selectedCompact.eventCount);
 
 `client.compact()` 先通过同一套 resume 入口定位 latest 或指定 session，再生成 deterministic compact summary；调用方也可以在已持有 `Thread` 时继续使用 `thread.compact()`。
 
-## 10. Config
+## 11. Config
 
 AgentHub 可以通过 SDK 读取 TokenDanceCode 的有效配置，用于调试面板、启动前检查或把 Hub 侧配置投影给 Edge 运行：
 
@@ -433,7 +464,7 @@ console.log(info.config.permissionMode);
 
 首版只读取 `provider`、`model`、`permissionMode` 三个白名单字段，忽略 `apiKey`、`token` 等 secret 字段，避免把密钥带入 CLI 输出、文档或 AgentHub 调试事件。调用方通过 SDK `env` 显式注入环境时，`MODEL_ID` / `TOKENDANCE_MODEL` 可设置模型，`TOKENDANCE_PROVIDER` 可显式设置 provider；未显式设置 provider 但存在 `MODEL_ID` 和对应 API key 时，SDK config facade 会把 `ANTHROPIC_API_KEY` 推断为 `anthropic-messages`、把 `OPENAI_API_KEY` 推断为 `openai-responses`。存在 `TOKENDANCE_GATEWAY_API_KEY` 和模型时会推断为 `openai-chat-completions`。需要 OpenAI-compatible `/v1/chat/completions` 时显式设置 `TOKENDANCE_PROVIDER=openai-chat-completions`。密钥只参与 present/missing 和 provider 推断，不会进入 `config()` 输出。
 
-## 11. Doctor
+## 12. Doctor
 
 AgentHub 可以通过 SDK 读取和 CLI `doctor` 同源的结构化诊断，用于启动前检查、调试面板或 Edge 环境报告：
 
@@ -455,7 +486,7 @@ console.log(doctor.startup.edge.ok);
 
 `doctor.apiKeys` 只返回 `present`/`missing`，不会返回实际 API key。诊断结果还包括版本、Node、cwd、platform、Git 仓库状态、PowerShell 可用性、config 路径/source、`.tokendance` 状态目录可写性、只读 `packageInfo` manifest，以及 `startup.hub` / `startup.edge` 检查组。Hub 侧当前检查 package manifest、config 可读性和状态目录可写性；Edge 侧当前检查 `agent.stream` envelope 契约、Git 可用性和 PowerShell 可用性。`warn` 级检查不会让 `ok` 变成 `false`；`fail` 代表启动前必须处理的阻断项。
 
-## 12. Task / Todo
+## 13. Task / Todo
 
 AgentHub 可以通过 SDK 管理持久任务和 session 级 todo，而不需要直接依赖 core store。Task 是跨 session 的长期任务图，Todo 是当前 session 或当前任务内的短期执行计划。
 
@@ -491,7 +522,7 @@ Task 写入 `<projectRoot>/.tokendance/tasks/tasks.jsonl` 和可重建的 `<proj
 
 当前 SDK facade 覆盖 `create/list/get/updateStatus/addDependency/linkSession/linkWorktree` 和 `add/list/updateStatus`。CLI 暴露自用高频操作：list、create/add、doing、done，并支持 `tasks link-session <task-id> <session-id>` 与 `tasks link-worktree <task-id> <worktree>`，方便把长期任务、session transcript 和隔离 worktree 关联成可审计闭环；更复杂的依赖图仍由 SDK 或后续 AgentHub UI 驱动。
 
-## 13. Worktree
+## 14. Worktree
 
 AgentHub 可以通过 SDK 管理 TokenDanceCode 的受控 Git worktree 池，用于后续 coding subagent 隔离。当前只提供最小 list/create/remove，不包含 subagent 调度器。
 
@@ -511,7 +542,7 @@ await worktrees.remove("agenthub-wt");
 
 `remove(name)` 会先检查目标 worktree 的 `git status --porcelain`；存在未提交改动时拒绝删除。只有调用方显式传 `remove(name, { discard: true })` 时才会使用 `git worktree remove --force`。CLI 对应 `tokendance worktree remove <name> --discard`。
 
-## 14. Subagents
+## 15. Subagents
 
 AgentHub 可以通过 SDK 启动和查看 delegated subagent 结果。首版不是多 Agent 团队系统，而是自用的 bounded delegation：readonly investigator/reviewer 返回 summary 且不报告文件修改；coding subagent 在 managed worktree 中运行，并报告 changed files、diff、validation result。
 
@@ -548,7 +579,7 @@ await subagents.discard(throwaway.id, { discard: true });
 
 Subagent 索引写入 `<projectRoot>/.tokendance/agents/agents.json`，单个 subagent transcript 写入 `<projectRoot>/.tokendance/agents/<agent-id>/transcript.jsonl`。`subagents.get(id)` 读取单条记录；`subagents.accept(id)` 会把 coding subagent worktree 的当前 diff 应用回目标仓库并把 run 标记为 `accepted`，目标仓库存在用户可见未提交改动时默认拒绝，避免把 subagent diff 混进脏工作区；只有显式 `accept(id, { allowDirtyTarget: true })` 才覆盖这个保护。`subagents.discard(id)` 会移除 coding subagent 的 managed worktree 并把 run 标记为 `discarded`，dirty worktree 默认拒绝删除，只有显式 `discard(id, { discard: true })` 才会强制丢弃未提交改动。默认 registry 同时暴露 `subagent_run`、`subagent_list`、`subagent_get`、`subagent_accept` 和 `subagent_discard`；`subagent_run`、`subagent_accept` 和 `subagent_discard` 是 shell 风险工具，因为它们会创建、应用或移除 worktree。
 
-## 15. Memory
+## 16. Memory
 
 AgentHub 如果需要把项目约定或用户偏好写入 TokenDanceCode 的上下文来源，可以通过 SDK 管理 project/global memory，不需要直接依赖 core `MemoryStore`：
 
@@ -568,7 +599,7 @@ await memory.delete("project", 0);
 
 `project` memory 写入 `<projectRoot>/.tokendance/memory/project.md`，`global` memory 写入 `<homeDir>/.tokendance/memory/global.md`。当前只做显式增删查和 ContextBuilder 注入，不做自动抽取、自动改写或隐式上传。
 
-## 16. Tool Facade
+## 17. Tool Facade
 
 AgentHub 如果需要在 UI 或任务编排层触发 TokenDanceCode 已注册工具，可以使用 SDK 的 `client.tools()`，避免直接依赖 core `ToolOrchestrator`：
 
@@ -598,7 +629,7 @@ const quality = await tools.execute(
 
 这个 facade 的 `execute()` 返回 core `ToolResult`，用于 AgentHub 调试面板、手动质量门、Git diff/review、worktree/subagent 管理工作流和受控工具执行。`quality_gate` 不传 `command` 时会自动发现 `package.json` 的 `verify` 脚本，缺少 `verify` 时回退到 `test`；传入 `command` 时使用显式命令覆盖。即使用 `yolo` 让质量命令运行，PowerShell 工具层仍会拒绝已知高风险命令。`worktree_create`、`worktree_remove`、`subagent_run`、`subagent_accept` 和 `subagent_discard` 是 shell 风险工具，默认模式下需要审批或显式 tool facade 覆盖权限。
 
-## 17. 当前测试覆盖
+## 18. 当前测试覆盖
 
 - `packages/sdk/tests/sdk.test.ts` 覆盖 buffered turn、streamed events、多轮 thread、context preview/history limit、latest/by-id resume、latest/by-id compact、transcript metadata/search、config facade、doctor facade/startup checks、memory facade、task/todo facade、subagent facade、worktree facade、tool metadata facade、tool execution facade、worktree/subagent tools、审批允许/拒绝、provider env 配置错误、event sink。
 - `packages/sdk/tests/package-metadata.test.ts` 覆盖 public package metadata、`pack:check` 脚本、tarball ignore 规则和 SDK 导出的 AgentHub-readable package manifest。

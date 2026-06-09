@@ -37,10 +37,47 @@ export class MockProvider implements ModelProvider {
       };
     }
 
+    if (text.startsWith("writefile:")) {
+      const parsed = parseLeadingArgument(text.slice("writefile:".length));
+      return {
+        toolCalls: [
+          {
+            id: "mock-write-file-1",
+            name: "write_file",
+            input: { path: parsed.argument, content: parsed.rest }
+          }
+        ]
+      };
+    }
+
+    if (text.startsWith("shell:")) {
+      return {
+        toolCalls: [
+          {
+            id: "mock-shell-1",
+            name: "run_powershell",
+            input: { command: text.slice("shell:".length).trim() }
+          }
+        ]
+      };
+    }
+
     return {
       assistantMessage: `Mock response: ${text}`,
       toolCalls: [],
       usage: { inputTokens: text.length, outputTokens: 5 }
     };
   }
+}
+
+function parseLeadingArgument(value: string): { argument: string; rest: string } {
+  const trimmed = value.trim();
+  const separator = trimmed.search(/\s/);
+  if (separator < 0) {
+    return { argument: trimmed, rest: "" };
+  }
+  return {
+    argument: trimmed.slice(0, separator),
+    rest: trimmed.slice(separator).trimStart()
+  };
 }

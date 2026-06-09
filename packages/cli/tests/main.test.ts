@@ -1078,6 +1078,37 @@ describe("TokenDanceCode CLI", () => {
     expect(output).toContain("usage input=1 output=10");
   });
 
+  it("asks for local approval before default-mode interactive write tools", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-approval-"));
+    const io = createTestIO(
+      "writefile: denied.txt denied content\nn\nwritefile: approved.txt approved content\ny\n/exit\n",
+      root
+    );
+
+    const exitCode = await runCli([], io);
+    const output = io.stdoutText();
+
+    expect(exitCode).toBe(0);
+    expect(output.match(/Allow write_file \[write\]\? \(y\/N\):/g)).toHaveLength(2);
+    expect(output).toContain("[permission] write_file denied");
+    expect(output).toContain("[permission] write_file allowed");
+    await expect(readFile(join(root, "approved.txt"), "utf8")).resolves.toBe("approved content");
+    await expect(stat(join(root, "denied.txt"))).rejects.toThrow();
+  });
+
+  it("keeps top-level run noninteractive when default-mode tools require approval", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-cli-approval-run-"));
+    const io = createTestIO("", root);
+
+    const exitCode = await runCli(["run", "writefile:", "blocked.txt", "blocked content"], io);
+    const output = io.stdoutText();
+
+    expect(exitCode).toBe(0);
+    expect(output).toContain("[permission] write_file requires_approval");
+    expect(output).not.toContain("Allow write_file");
+    await expect(stat(join(root, "blocked.txt"))).rejects.toThrow();
+  });
+
   it("renders token usage for direct assistant turns", async () => {
     const io = createTestIO("hello usage\n/exit\n");
 

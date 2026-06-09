@@ -19,6 +19,7 @@ import {
   type ThreadContext,
   type TokenDanceTools,
   type TokenDanceProviderConfig,
+  type PermissionApprovalCallback,
   type TranscriptInfo,
   type TranscriptSearchResult
 } from "@tokendance/code-sdk";
@@ -103,14 +104,20 @@ async function runCommand(args: string[], io: CliIO): Promise<number> {
 }
 
 async function runInteractive(io: CliIO): Promise<void> {
-  const configured = await createConfiguredClient(io);
+  const lines = createInterface({ input: io.stdin, crlfDelay: Infinity });
+  const lineIterator = lines[Symbol.asyncIterator]();
+  const configured = await createConfiguredClient(io, createLocalApprovalCallback(io, lineIterator));
   const client = configured.client;
   let thread = client.startThread({ workingDirectory: io.cwd(), permissionMode: configured.permissionMode });
   await write(io.stdout, `${brandBanner(styleFromEnv(await readCliEnv(io))).join("\n")}\n\n`);
   await write(io.stdout, "Type /help for commands, /exit to quit.\n");
 
-  const lines = createInterface({ input: io.stdin, crlfDelay: Infinity });
-  for await (const rawLine of lines) {
+  while (true) {
+    const nextLine = await lineIterator.next();
+    if (nextLine.done) {
+      return;
+    }
+    const rawLine = nextLine.value;
     const line = rawLine.trim();
     if (!line) {
       continue;
@@ -239,6 +246,23 @@ async function runInteractive(io: CliIO): Promise<void> {
 
     await runPrompt(io, thread, line);
   }
+}
+
+function createLocalApprovalCallback(io: CliIO, lineIterator: AsyncIterator<string>): PermissionApprovalCallback {
+  return async (request) => {
+    await write(io.stdout, `Approval required: ${request.call.name} [${request.tool.risk}]\n`);
+    await write(io.stdout, `Reason: ${request.decision.reason}\n`);
+    await write(io.stdout, `Input: ${previewToolInput(request.call.input)}\n`);
+    await write(io.stdout, `Allow ${request.call.name} [${request.tool.risk}]? (y/N): `);
+
+    const answer = await lineIterator.next();
+    await write(io.stdout, "\n");
+    const normalized = answer.done ? "" : answer.value.trim().toLowerCase();
+    if (normalized === "y" || normalized === "yes") {
+      return { status: "allowed", reason: "approved by local CLI prompt" };
+    }
+    return { status: "denied", reason: "denied by local CLI prompt" };
+  };
 }
 
 async function warnUncommittedChanges(io: CliIO): Promise<void> {
@@ -1237,7 +1261,10 @@ function parseTodoAddArgs(args: string[]): { text: string; taskId?: string } {
   };
 }
 
-async function createConfiguredClient(io: CliIO): Promise<{ client: TokenDanceCode; permissionMode: PermissionMode }> {
+async function createConfiguredClient(
+  io: CliIO,
+  approvalCallback?: PermissionApprovalCallback
+): Promise<{ client: TokenDanceCode; permissionMode: PermissionMode }> {
   const env = await readCliEnv(io);
   const baseClient = new TokenDanceCode({ storageRoot: io.cwd(), env });
   const info = await baseClient.config({ projectRoot: io.cwd(), homeDir: homeDirFor(io) });
@@ -1245,6 +1272,7 @@ async function createConfiguredClient(io: CliIO): Promise<{ client: TokenDanceCo
     client: new TokenDanceCode({
       storageRoot: io.cwd(),
       provider: providerFromConfig(info.config, env),
+      approvalCallback,
       env
     }),
     permissionMode: info.config.permissionMode
@@ -1273,6 +1301,15 @@ function providerFromConfig(
 function previewText(value: string): string {
   const normalized = value.replace(/\s+/g, " ").trim();
   return normalized.length <= 140 ? normalized : `${normalized.slice(0, 137)}...`;
+}
+
+function previewToolInput(input: unknown): string {
+  try {
+    const json = JSON.stringify(input);
+    return previewText(json ?? String(input));
+  } catch {
+    return previewText(String(input));
+  }
 }
 
 function parseGatewayInitArgs(args: string[]): { model: string; baseUrl: string } | undefined {

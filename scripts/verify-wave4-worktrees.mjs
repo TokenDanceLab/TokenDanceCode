@@ -4,7 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 
-const expectedHead = "82096a6";
+const expectedBase = "82096a6";
 const wave4Worktrees = [
   { label: "W18-CLI-Command-Architecture", name: "wave4-cli-command-architecture", branch: "codex/wave4-cli-command-architecture" },
   { label: "W19-SDK-AgentHub-Consumer-Fixture", name: "wave4-sdk-agenthub-consumer-fixture", branch: "codex/wave4-sdk-agenthub-consumer-fixture" },
@@ -24,7 +24,7 @@ const results = wave4Worktrees.map((worktree) => inspectWorktree(worktree));
 const ok = results.every((result) => result.ok);
 
 if (json) {
-  process.stdout.write(`${JSON.stringify({ ok, expectedHead, results }, null, 2)}\n`);
+  process.stdout.write(`${JSON.stringify({ ok, expectedBase, results }, null, 2)}\n`);
 } else {
   for (const result of results) {
     const marker = result.ok ? (result.dirty ? "DIRTY" : "PASS") : "FAIL";
@@ -49,12 +49,13 @@ function inspectWorktree(worktree) {
 
   const head = git(path, ["rev-parse", "--short", "HEAD"]);
   const currentBranch = git(path, ["branch", "--show-current"]);
+  const baseAncestor = git(path, ["merge-base", "--is-ancestor", expectedBase, "HEAD"]);
   const dirty = git(path, ["status", "--short"]);
 
   if (head.status !== 0) {
     issues.push(`could not read HEAD: ${head.stderr || head.stdout}`);
-  } else if (!head.stdout.startsWith(expectedHead)) {
-    issues.push(`expected HEAD prefix ${expectedHead}, got ${head.stdout}`);
+  } else if (baseAncestor.status !== 0) {
+    issues.push(`expected ${expectedBase} to be an ancestor of ${head.stdout}`);
   }
 
   if (currentBranch.status !== 0) {

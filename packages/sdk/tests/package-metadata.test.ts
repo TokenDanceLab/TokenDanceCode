@@ -48,6 +48,7 @@ describe("package metadata", () => {
     expect(wave4Script).toContain("codex/wave4-permission-policy-audit");
     expect(wave4Script).toContain("codex/wave4-thread-session-lifecycle");
     expect(wave4Script).toContain("82096a6");
+    expect(wave4Script).toContain("merge-base");
 
     const publicPackages = [
       { directory: "packages/core", packageJson: await readJson("packages/core/package.json") },

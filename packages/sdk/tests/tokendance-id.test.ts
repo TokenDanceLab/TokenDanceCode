@@ -36,6 +36,32 @@ describe("TokenDanceID OIDC helpers", () => {
     expect(url.searchParams.get("device_id")).toBe("00000000-0000-4000-8000-000000000001");
   });
 
+  it("requires custom TokenDanceID scopes to keep openid", () => {
+    const withStringScope = createTokenDanceIdLoginRequest({
+      clientId: "agenthub-local",
+      redirectUri: "http://127.0.0.1:48731/callback",
+      scope: "openid profile"
+    });
+    const withArrayScope = createTokenDanceIdLoginRequest({
+      clientId: "agenthub-local",
+      redirectUri: "http://127.0.0.1:48731/callback",
+      scope: ["openid", "email"]
+    });
+
+    expect(new URL(withStringScope.authorizationUrl).searchParams.get("scope")).toBe("openid profile");
+    expect(new URL(withArrayScope.authorizationUrl).searchParams.get("scope")).toBe("openid email");
+    expect(() => createTokenDanceIdLoginRequest({
+      clientId: "agenthub-local",
+      redirectUri: "http://127.0.0.1:48731/callback",
+      scope: "profile email"
+    })).toThrow("TokenDanceID OIDC scope must include openid.");
+    expect(() => createTokenDanceIdLoginRequest({
+      clientId: "agenthub-local",
+      redirectUri: "http://127.0.0.1:48731/callback",
+      scope: ["profile", "email"]
+    })).toThrow("TokenDanceID OIDC scope must include openid.");
+  });
+
   it("verifies callback state and returns the code verifier for backend exchange", () => {
     const login = createTokenDanceIdLoginRequest({
       clientId: "agenthub-local",

@@ -604,6 +604,7 @@ describe("TokenDanceCode CLI", () => {
       root
     );
     const missingArgs = createTestIO("", root);
+    const missingOpenId = createTestIO("", root);
 
     const topLevelExitCode = await runCli(
       [
@@ -625,6 +626,10 @@ describe("TokenDanceCode CLI", () => {
       topLevel
     );
     const missingArgsExitCode = await runCli(["auth", "tokendanceid", "login-url", "--client-id", "agenthub-local"], missingArgs);
+    const missingOpenIdExitCode = await runCli(
+      ["auth", "tokendanceid", "login-url", "--client-id", "agenthub-local", "--redirect-uri", "http://127.0.0.1:48731/callback", "--scope", "profile email"],
+      missingOpenId
+    );
     const parsed = JSON.parse(topLevel.stdoutText());
     await runCli([], interactive);
 
@@ -669,6 +674,9 @@ describe("TokenDanceCode CLI", () => {
     expect(interactive.stdoutText()).toContain("TokenDanceID login tokens are not TokenDance Gateway model API keys.");
     expect(missingArgsExitCode).toBe(1);
     expect(missingArgs.stderrText()).toContain("Usage: tokendance auth tokendanceid login-url --client-id <id> --redirect-uri <uri>");
+    expect(missingOpenIdExitCode).toBe(1);
+    expect(missingOpenId.stderrText()).toContain("TokenDanceID OIDC scope must include openid.");
+    expect(missingOpenId.stdoutText()).not.toContain("TokenDanceID authorize URL:");
   });
 
   it("prints read-only quickstart steps in top-level and interactive commands", async () => {

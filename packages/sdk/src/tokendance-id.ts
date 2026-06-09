@@ -284,10 +284,14 @@ function normalizeIssuerUrl(value: string): string {
 }
 
 function normalizeScope(value: string | string[] | undefined): string {
-  if (Array.isArray(value)) {
-    return value.map((scope) => scope.trim()).filter(Boolean).join(" ") || defaultScopes.join(" ");
+  const scope = Array.isArray(value)
+    ? value.map((item) => item.trim()).filter(Boolean).join(" ")
+    : value?.trim();
+  const normalized = scope || defaultScopes.join(" ");
+  if (!normalized.split(/\s+/).includes("openid")) {
+    throw new Error("TokenDanceID OIDC scope must include openid.");
   }
-  return value?.trim() || defaultScopes.join(" ");
+  return normalized;
 }
 
 function requiredTrimmed(value: string, message: string): string {

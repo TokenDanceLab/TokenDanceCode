@@ -25,6 +25,7 @@ import {
 import { groupedTopLevelCommands, runTopLevelCommand, type TopLevelCommandHandler, type TopLevelCommandId } from "./commands.js";
 import { createEventRenderer } from "./renderer.js";
 import { heading, styleFromEnv, type CliStyle } from "./format.js";
+import { groupedSlashCommands, slashCommandHelpUsages, slashCommandUsage } from "./slash-commands.js";
 
 const version = "0.2.0-ts.0";
 const permissionModes = new Set<PermissionMode>(["default", "safe", "auto", "yolo"]);
@@ -815,7 +816,7 @@ async function handlePermissions(io: CliIO, client: TokenDanceCode, thread: Thre
   }
 
   if (!permissionModes.has(rawMode as PermissionMode)) {
-    await write(io.stdout, "Usage: /permissions default|safe|auto|yolo\n");
+    await write(io.stdout, `Usage: ${slashCommandUsage("permissions")}\n`);
     return thread;
   }
 
@@ -850,7 +851,7 @@ async function handleTranscript(io: CliIO, thread: Thread, line: string): Promis
 async function handleContext(io: CliIO, thread: Thread, line: string): Promise<void> {
   const prompt = line.split(/\s+/).slice(1).join(" ").trim();
   if (!prompt) {
-    await write(io.stdout, "Usage: /context <prompt>\n");
+    await write(io.stdout, `Usage: ${slashCommandUsage("context")}\n`);
     return;
   }
   await printContextPreview(io, await thread.context(prompt));
@@ -1081,49 +1082,19 @@ async function printHelp(io: CliIO): Promise<void> {
 
 async function printInteractiveHelp(io: CliIO): Promise<void> {
   const style = styleFromEnv(io.env?.() ?? process.env);
-  await write(
-    io.stdout,
-    `Commands:
-${heading("Session:", style)}
-  /new
-  /status
-  /quickstart
-  /permissions [default|safe|auto|yolo]
-  /resume
-  /sessions
-  /memory [add|delete] [project|global] [value]
-  /auth tokendanceid login-url --client-id <id> --redirect-uri <uri> [--json]
-  /transcript [search <query>]
-  /context <prompt>
-  /compact
-
-${heading("Work:", style)}
-  /agents [run investigator|reviewer <prompt>]
-  /agents run coding [--worktree name] <prompt>
-  /agents show <agent-id>
-  /agents accept <agent-id> [--discard-worktree] [--allow-dirty-target]
-  /agents discard <agent-id> [--discard]
-  /tasks [create|doing|done|link-session|link-worktree] [value]
-  /todo [add|doing|done] [value]
-  /worktree [list|create|remove] [name] [--discard]
-  /diff [path ...]
-  /review
-  /tools
-  /quality [json] [command]
-
-${heading("Diagnostics:", style)}
-  /doctor [json]
-  /config [json]
-  /config validate [json]
-  /config set [json] [--project|--global] provider <provider> model <model> permission-mode <mode>
-
-${heading("Gateway:", style)}
-  tokendance gateway init [--model model] [--base-url url]
-
-${heading("Exit:", style)}
-  /exit
-`
-  );
+  const lines = ["Commands:"];
+  for (const group of groupedSlashCommands()) {
+    lines.push(heading(`${group.category}:`, style));
+    for (const command of group.commands) {
+      for (const usage of slashCommandHelpUsages(command)) {
+        lines.push(`  ${usage}`);
+      }
+    }
+    lines.push("");
+  }
+  lines.push(heading("Gateway:", style));
+  lines.push("  tokendance gateway init [--model model] [--base-url url]");
+  await write(io.stdout, `${lines.join("\n").trimEnd()}\n`);
 }
 
 async function printQuickstart(io: CliIO): Promise<void> {

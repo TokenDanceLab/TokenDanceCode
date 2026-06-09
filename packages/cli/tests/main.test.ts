@@ -15,6 +15,7 @@ import {
   type TopLevelCommandId
 } from "../src/commands.js";
 import { runCli, type CliIO } from "../src/main.js";
+import { SLASH_COMMAND_METADATA, groupedSlashCommands, slashCommandIds } from "../src/slash-commands.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -61,6 +62,32 @@ describe("TokenDanceCode CLI", () => {
         id: "run",
         category: "Core",
         usage: "tokendance run <prompt>",
+        json: false
+      })
+    );
+  });
+
+  it("exposes interactive slash command metadata for help and usage surfaces", () => {
+    expect(SLASH_COMMAND_METADATA.map((command) => command.id)).toEqual([...slashCommandIds]);
+    expect(groupedSlashCommands().map((group) => group.category)).toEqual(["Session", "Work", "Diagnostics", "Exit"]);
+    expect(SLASH_COMMAND_METADATA.every((command) => command.usage.startsWith("/"))).toBe(true);
+    expect(SLASH_COMMAND_METADATA.map((command) => command.id)).not.toContain("gateway");
+    expect(SLASH_COMMAND_METADATA).toContainEqual(
+      expect.objectContaining({
+        id: "doctor",
+        category: "Diagnostics",
+        title: "Environment and AgentHub readiness diagnostics",
+        aliases: [],
+        usage: "/doctor [json]",
+        json: true
+      })
+    );
+    expect(SLASH_COMMAND_METADATA).toContainEqual(
+      expect.objectContaining({
+        id: "exit",
+        category: "Exit",
+        usage: "/exit",
+        aliases: ["/quit"],
         json: false
       })
     );
@@ -152,6 +179,9 @@ describe("TokenDanceCode CLI", () => {
     expect(interactive.stdoutText()).toContain("Work:");
     expect(interactive.stdoutText()).toContain("Diagnostics:");
     expect(interactive.stdoutText()).toContain("Gateway:");
+    for (const command of SLASH_COMMAND_METADATA) {
+      expect(interactive.stdoutText()).toContain(command.usage);
+    }
   });
 
   it("runs an interactive shell with status, permissions, normal turns, and exit", async () => {

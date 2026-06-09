@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { resolveTopLevelCommand, runTopLevelCommand, type TopLevelCommandHandler, type TopLevelCommandId } from "../src/commands.js";
 import { runCli, type CliIO } from "../src/main.js";
 
 const execFileAsync = promisify(execFile);
@@ -17,6 +18,86 @@ describe("TokenDanceCode CLI", () => {
 
     expect(exitCode).toBe(0);
     expect(io.stdoutText()).toBe("0.2.0-ts.0\n");
+  });
+
+  it("resolves top-level command dispatch through a pure command helper", () => {
+    expect(resolveTopLevelCommand(["--help"])).toEqual({ kind: "handler", id: "help", args: [] });
+    expect(resolveTopLevelCommand(["-v"])).toEqual({ kind: "handler", id: "version", args: [] });
+    expect(resolveTopLevelCommand(["doctor", "--json"])).toEqual({ kind: "handler", id: "doctor", args: ["--json"] });
+    expect(resolveTopLevelCommand(["config", "validate", "--json"])).toEqual({
+      kind: "handler",
+      id: "config",
+      args: ["validate", "--json"]
+    });
+    expect(resolveTopLevelCommand(["quality", "--json"])).toEqual({ kind: "handler", id: "quality", args: ["--json"] });
+    expect(resolveTopLevelCommand(["run", "hello", "cli"])).toEqual({ kind: "handler", id: "run", args: ["hello", "cli"] });
+    expect(resolveTopLevelCommand([])).toEqual({ kind: "interactive", args: [] });
+    expect(resolveTopLevelCommand(["unknown", "--json"])).toEqual({ kind: "unknown", command: "unknown", args: ["--json"] });
+  });
+
+  it("runs top-level command handlers through the command helper", async () => {
+    const calls: string[] = [];
+    const handlers = createCommandHandlers(async (id, args) => {
+      calls.push(`${id}:${args.join(" ")}`);
+      return 17;
+    });
+
+    const handlerExitCode = await runTopLevelCommand(["quality", "--json"], {
+      handlers,
+      interactive: async () => {
+        calls.push("interactive");
+        return 3;
+      },
+      unknown: async (command, args) => {
+        calls.push(`unknown:${command}:${args.join(" ")}`);
+        return 9;
+      }
+    });
+    const interactiveExitCode = await runTopLevelCommand([], {
+      handlers,
+      interactive: async () => {
+        calls.push("interactive");
+        return 3;
+      },
+      unknown: async (command, args) => {
+        calls.push(`unknown:${command}:${args.join(" ")}`);
+        return 9;
+      }
+    });
+    const unknownExitCode = await runTopLevelCommand(["missing", "--json"], {
+      handlers,
+      interactive: async () => {
+        calls.push("interactive");
+        return 3;
+      },
+      unknown: async (command, args) => {
+        calls.push(`unknown:${command}:${args.join(" ")}`);
+        return 9;
+      }
+    });
+
+    expect(handlerExitCode).toBe(17);
+    expect(interactiveExitCode).toBe(3);
+    expect(unknownExitCode).toBe(9);
+    expect(calls).toEqual(["quality:--json", "interactive", "unknown:missing:--json"]);
+  });
+
+  it("keeps diagnostics dispatch JSON and usage shapes stable", async () => {
+    const doctorJson = createTestIO();
+    const doctorUsage = createTestIO();
+
+    const jsonExitCode = await runCli(["doctor", "--json"], doctorJson);
+    const usageExitCode = await runCli(["doctor", "--verbose"], doctorUsage);
+
+    expect(jsonExitCode).toBe(0);
+    expect(JSON.parse(doctorJson.stdoutText())).toMatchObject({
+      version: "0.2.0-ts.0",
+      cwd: "D:/workspace"
+    });
+    expect(doctorJson.stderrText()).toBe("");
+    expect(usageExitCode).toBe(1);
+    expect(doctorUsage.stderrText()).toBe("Usage: tokendance doctor [--json]\n");
+    expect(doctorUsage.stdoutText()).toBe("");
   });
 
   it("groups top-level and interactive help by workflow", async () => {
@@ -983,6 +1064,36 @@ function createTestIO(
     stdoutText: () => stdout,
     stderrText: () => stderr
   };
+}
+
+function createCommandHandlers(
+  handler: (id: TopLevelCommandId, args: string[]) => Promise<number>
+): Record<TopLevelCommandId, TopLevelCommandHandler> {
+  const ids: TopLevelCommandId[] = [
+    "help",
+    "version",
+    "doctor",
+    "quickstart",
+    "config",
+    "gateway",
+    "auth",
+    "resume",
+    "sessions",
+    "memory",
+    "agents",
+    "diff",
+    "review",
+    "tools",
+    "quality",
+    "tasks",
+    "todo",
+    "worktree",
+    "transcript",
+    "context",
+    "compact",
+    "run"
+  ];
+  return Object.fromEntries(ids.map((id) => [id, (args: string[]) => handler(id, args)])) as Record<TopLevelCommandId, TopLevelCommandHandler>;
 }
 
 async function initRepo(): Promise<string> {

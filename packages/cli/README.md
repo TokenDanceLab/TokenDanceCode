@@ -4,6 +4,10 @@ Command line interface for TokenDanceCode.
 
 The package installs the `tokendance` bin. It provides local coding-agent sessions, doctor/config checks, mock runs, transcript commands, memory/task helpers, AgentHub-oriented tooling, quality gates, and Windows/PowerShell-first local workflow support.
 
+## Command Architecture
+
+`packages/cli/src/main.ts` is the thin CLI entry point for the `tokendance` bin. Keep argv parsing and top-level command dispatch in `packages/cli/src/commands.ts`; `main.ts` should wire IO-aware handlers such as `doctor`, `config`, `run`, `quality`, transcript, worktree, task, and auth commands without changing their JSON, usage, or text output shapes.
+
 ## Install
 
 ```powershell

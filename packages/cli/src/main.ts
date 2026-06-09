@@ -21,6 +21,7 @@ import {
   type TranscriptInfo,
   type TranscriptSearchResult
 } from "@tokendance/code-sdk";
+import { runTopLevelCommand, type TopLevelCommandHandler, type TopLevelCommandId } from "./commands.js";
 import { createEventRenderer } from "./renderer.js";
 import { heading, styleFromEnv, type CliStyle } from "./format.js";
 
@@ -38,114 +39,65 @@ export interface CliIO {
 }
 
 export async function runCli(argv: string[], io: CliIO = defaultIO()): Promise<number> {
-  const [command, ...rest] = argv;
-
-  if (command === "--help" || command === "-h") {
-    await printHelp(io);
-    return 0;
-  }
-
-  if (command === "--version" || command === "-v") {
-    await write(io.stdout, `${version}\n`);
-    return 0;
-  }
-
-  if (command === "doctor") {
-    return printDoctor(io, rest);
-  }
-
-  if (command === "quickstart") {
-    await printQuickstart(io);
-    return 0;
-  }
-
-  if (command === "config") {
-    return configCommand(rest, io);
-  }
-
-  if (command === "gateway") {
-    return gatewayCommand(rest, io);
-  }
-
-  if (command === "auth") {
-    return authCommand(rest, io);
-  }
-
-  if (command === "resume") {
-    return resumeCommand(rest, io);
-  }
-
-  if (command === "sessions") {
-    return sessionsCommand(io);
-  }
-
-  if (command === "memory") {
-    return memoryCommand(rest, io);
-  }
-
-  if (command === "agents") {
-    return agentsCommand(rest, io);
-  }
-
-  if (command === "diff") {
-    return diffCommand(rest, io);
-  }
-
-  if (command === "review") {
-    return reviewCommand(io);
-  }
-
-  if (command === "tools") {
-    return toolsCommand(io);
-  }
-
-  if (command === "quality") {
-    return qualityCommand(rest, io);
-  }
-
-  if (command === "tasks") {
-    return tasksCommand(rest, io);
-  }
-
-  if (command === "todo") {
-    return todoCommand(rest, io);
-  }
-
-  if (command === "worktree") {
-    return worktreeCommand(rest, io);
-  }
-
-  if (command === "transcript") {
-    return transcriptCommand(rest, io);
-  }
-
-  if (command === "context") {
-    return contextCommand(rest, io);
-  }
-
-  if (command === "compact") {
-    return compactCommand(rest, io);
-  }
-
-  if (command === "run") {
-    const prompt = rest.join(" ").trim();
-    if (!prompt) {
-      await write(io.stderr, "tokendance run requires a prompt\n");
+  return runTopLevelCommand(argv, {
+    handlers: createTopLevelCommandHandlers(io),
+    interactive: async () => {
+      await runInteractive(io);
+      return 0;
+    },
+    unknown: async (command) => {
+      await write(io.stderr, `Unknown command: ${command}\n`);
       return 1;
     }
-    const configured = await createConfiguredClient(io);
-    const thread = configured.client.startThread({ workingDirectory: io.cwd(), permissionMode: configured.permissionMode });
-    await runPrompt(io, thread, prompt);
-    return 0;
-  }
+  });
+}
 
-  if (!command) {
-    await runInteractive(io);
-    return 0;
-  }
+function createTopLevelCommandHandlers(io: CliIO): Record<TopLevelCommandId, TopLevelCommandHandler> {
+  return {
+    help: async () => {
+      await printHelp(io);
+      return 0;
+    },
+    version: async () => {
+      await write(io.stdout, `${version}\n`);
+      return 0;
+    },
+    doctor: (args) => printDoctor(io, args),
+    quickstart: async () => {
+      await printQuickstart(io);
+      return 0;
+    },
+    config: (args) => configCommand(args, io),
+    gateway: (args) => gatewayCommand(args, io),
+    auth: (args) => authCommand(args, io),
+    resume: (args) => resumeCommand(args, io),
+    sessions: () => sessionsCommand(io),
+    memory: (args) => memoryCommand(args, io),
+    agents: (args) => agentsCommand(args, io),
+    diff: (args) => diffCommand(args, io),
+    review: () => reviewCommand(io),
+    tools: () => toolsCommand(io),
+    quality: (args) => qualityCommand(args, io),
+    tasks: (args) => tasksCommand(args, io),
+    todo: (args) => todoCommand(args, io),
+    worktree: (args) => worktreeCommand(args, io),
+    transcript: (args) => transcriptCommand(args, io),
+    context: (args) => contextCommand(args, io),
+    compact: (args) => compactCommand(args, io),
+    run: (args) => runCommand(args, io)
+  };
+}
 
-  await write(io.stderr, `Unknown command: ${command}\n`);
-  return 1;
+async function runCommand(args: string[], io: CliIO): Promise<number> {
+  const prompt = args.join(" ").trim();
+  if (!prompt) {
+    await write(io.stderr, "tokendance run requires a prompt\n");
+    return 1;
+  }
+  const configured = await createConfiguredClient(io);
+  const thread = configured.client.startThread({ workingDirectory: io.cwd(), permissionMode: configured.permissionMode });
+  await runPrompt(io, thread, prompt);
+  return 0;
 }
 
 async function runInteractive(io: CliIO): Promise<void> {

@@ -15,6 +15,7 @@ import {
   type SessionListItem,
   type ConfigPatch,
   type ConfigWriteScope,
+  type TDCodeEvent,
   type Thread,
   type ThreadContext,
   type TokenDanceTools,
@@ -92,10 +93,29 @@ function createTopLevelCommandHandlers(io: CliIO): Record<TopLevelCommandId, Top
 }
 
 async function runCommand(args: string[], io: CliIO): Promise<number> {
-  const prompt = args.join(" ").trim();
+  const parsed = parseRunArgs(args);
+  if ("error" in parsed) {
+    await write(io.stderr, `${parsed.error}\n`);
+    return 1;
+  }
+  const prompt = parsed.prompt;
   if (!prompt) {
+    if (parsed.format !== "text") {
+      await writeStructuredRunFailure(io, parsed.format, "", "tokendance run requires a prompt");
+      return 1;
+    }
     await write(io.stderr, "tokendance run requires a prompt\n");
     return 1;
+  }
+  if (parsed.format !== "text") {
+    try {
+      const configured = await createConfiguredClient(io);
+      const thread = configured.client.startThread({ workingDirectory: io.cwd(), permissionMode: configured.permissionMode });
+      return runPromptStructured(io, thread, prompt, parsed.format);
+    } catch (error) {
+      await writeStructuredRunFailure(io, parsed.format, "", structureRunError(error));
+      return 1;
+    }
   }
   const configured = await createConfiguredClient(io);
   const thread = configured.client.startThread({ workingDirectory: io.cwd(), permissionMode: configured.permissionMode });
@@ -843,6 +863,170 @@ async function runPrompt(io: CliIO, thread: Thread, prompt: string): Promise<voi
   for await (const event of streamed.events) {
     await renderer.render(event);
   }
+}
+
+type RunOutputFormat = "text" | "json" | "stream-json";
+
+interface RunCommandArgs {
+  format: RunOutputFormat;
+  prompt: string;
+}
+
+interface StructuredRunResult {
+  schemaVersion: 1;
+  command: "run";
+  threadId: string;
+  sessionId: string;
+  success: boolean;
+  finalResponse: string;
+  events: StructuredRunEvent[];
+  error: StructuredRunError | null;
+}
+
+type StructuredRunEvent = { schemaVersion: 1; command: "run"; threadId: string; eventType: TDCodeEvent["type"] } & TDCodeEvent;
+
+interface StructuredRunTerminalEvent {
+  schemaVersion: 1;
+  command: "run";
+  threadId: string;
+  sessionId: string;
+  eventType: "run.result";
+  success: boolean;
+  finalResponse: string;
+  error: StructuredRunError | null;
+}
+
+interface StructuredRunError {
+  name: string;
+  message: string;
+}
+
+function parseRunArgs(args: string[]): RunCommandArgs | { error: string } {
+  let format: RunOutputFormat = "text";
+  const promptArgs: string[] = [];
+
+  for (const arg of args) {
+    if (arg === "--json" || arg === "--stream-json") {
+      const nextFormat = arg === "--json" ? "json" : "stream-json";
+      if (format !== "text" && format !== nextFormat) {
+        return { error: "Usage: tokendance run [--json|--stream-json] <prompt>" };
+      }
+      format = nextFormat;
+      continue;
+    }
+    promptArgs.push(arg);
+  }
+
+  return { format, prompt: promptArgs.join(" ").trim() };
+}
+
+async function runPromptStructured(io: CliIO, thread: Thread, prompt: string, format: Exclude<RunOutputFormat, "text">): Promise<number> {
+  const events: StructuredRunEvent[] = [];
+  let finalResponse = "";
+
+  try {
+    const streamed = await thread.runStreamed(prompt);
+    for await (const event of streamed.events) {
+      const structuredEvent = structureRunEvent(thread.id, event);
+      events.push(structuredEvent);
+      if (event.type === "turn.completed") {
+        finalResponse = event.finalResponse;
+      }
+      if (format === "stream-json") {
+        await writeJsonLine(io.stdout, structuredEvent);
+      }
+    }
+  } catch (error) {
+    const structuredError = structureRunError(error);
+    await writeStructuredRunResult(io, format, {
+      schemaVersion: 1,
+      command: "run",
+      threadId: thread.id,
+      sessionId: thread.id,
+      success: false,
+      finalResponse,
+      events,
+      error: structuredError
+    });
+    return 1;
+  }
+
+  await writeStructuredRunResult(io, format, {
+    schemaVersion: 1,
+    command: "run",
+    threadId: thread.id,
+    sessionId: thread.id,
+    success: true,
+    finalResponse,
+    events,
+    error: null
+  });
+  return 0;
+}
+
+async function writeStructuredRunFailure(
+  io: CliIO,
+  format: Exclude<RunOutputFormat, "text">,
+  sessionId: string,
+  error: string | StructuredRunError
+): Promise<void> {
+  const result: StructuredRunResult = {
+    schemaVersion: 1,
+    command: "run",
+    threadId: sessionId,
+    sessionId,
+    success: false,
+    finalResponse: "",
+    events: [],
+    error: typeof error === "string" ? { name: "Error", message: error } : error
+  };
+  await writeStructuredRunResult(io, format, result);
+}
+
+async function writeStructuredRunResult(
+  io: CliIO,
+  format: Exclude<RunOutputFormat, "text">,
+  result: StructuredRunResult
+): Promise<void> {
+  if (format === "stream-json") {
+    await writeJsonLine(io.stdout, terminalRunEvent(result));
+    return;
+  }
+  await write(io.stdout, `${JSON.stringify(result)}\n`);
+}
+
+function structureRunEvent(threadId: string, event: TDCodeEvent): StructuredRunEvent {
+  return {
+    schemaVersion: 1,
+    command: "run",
+    threadId,
+    eventType: event.type,
+    ...event
+  };
+}
+
+function terminalRunEvent(result: StructuredRunResult): StructuredRunTerminalEvent {
+  return {
+    schemaVersion: 1,
+    command: "run",
+    threadId: result.threadId,
+    sessionId: result.sessionId,
+    eventType: "run.result",
+    success: result.success,
+    finalResponse: result.finalResponse,
+    error: result.error
+  };
+}
+
+function structureRunError(error: unknown): StructuredRunError {
+  if (error instanceof Error) {
+    return { name: error.name || "Error", message: error.message };
+  }
+  return { name: "Error", message: String(error) };
+}
+
+function writeJsonLine(stream: Writable, value: unknown): Promise<void> {
+  return write(stream, `${JSON.stringify(value)}\n`);
 }
 
 async function handlePermissions(io: CliIO, client: TokenDanceCode, thread: Thread, line: string): Promise<Thread> {

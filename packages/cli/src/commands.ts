@@ -31,7 +31,7 @@ export const TOP_LEVEL_COMMAND_METADATA = [
   { id: "transcript", category: "Session", title: "Inspect or search session transcript", usage: "tokendance transcript [session-id|search <query>]", aliases: [], json: false },
   { id: "context", category: "Session", title: "Preview next-turn model context", usage: "tokendance context [--session session-id] <prompt>", aliases: [], json: false },
   { id: "compact", category: "Session", title: "Write a compact summary for a session", usage: "tokendance compact [session-id]", aliases: [], json: false },
-  { id: "run", category: "Core", title: "Run a single prompt", usage: "tokendance run <prompt>", aliases: [], json: false }
+  { id: "run", category: "Core", title: "Run a single prompt", usage: "tokendance run [--json|--stream-json] <prompt>", aliases: [], json: true }
 ] as const satisfies readonly TopLevelCommandMetadata[];
 
 export type TopLevelCommandId = typeof TOP_LEVEL_COMMAND_METADATA[number]["id"];

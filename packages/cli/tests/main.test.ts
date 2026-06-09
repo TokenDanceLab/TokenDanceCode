@@ -61,8 +61,8 @@ describe("TokenDanceCode CLI", () => {
       expect.objectContaining({
         id: "run",
         category: "Core",
-        usage: "tokendance run <prompt>",
-        json: false
+        usage: "tokendance run [--json|--stream-json] <prompt>",
+        json: true
       })
     );
   });
@@ -1161,6 +1161,108 @@ describe("TokenDanceCode CLI", () => {
     expect(exitCode).toBe(0);
     expect(output).toContain("Mock response: hello usage");
     expect(output).toContain("usage input=11 output=5");
+  });
+
+  it("keeps top-level run text mode unchanged", async () => {
+    const io = createTestIO();
+
+    const exitCode = await runCli(["run", "hello", "top", "level"], io);
+
+    expect(exitCode).toBe(0);
+    expect(io.stdoutText()).toContain("Mock response: hello top level\n");
+    expect(io.stdoutText()).toContain("[usage] usage input=15 output=5 total=20\n");
+    expect(io.stderrText()).toBe("");
+  });
+
+  it("prints aggregate JSON for top-level run with final result and tool events", async () => {
+    const io = createTestIO();
+
+    const exitCode = await runCli(["run", "--json", "echo:", "json", "payload"], io);
+    const payload = JSON.parse(io.stdoutText());
+
+    expect(exitCode).toBe(0);
+    expect(io.stderrText()).toBe("");
+    expect(payload).toMatchObject({
+      schemaVersion: 1,
+      command: "run",
+      success: true,
+      finalResponse: 'Tool result: {"text":"json payload"}',
+      error: null
+    });
+    expect(payload.threadId).toBe(payload.sessionId);
+    expect(payload.sessionId).toEqual(expect.any(String));
+    expect(payload.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ eventType: "tool.started", sessionId: payload.sessionId, call: expect.objectContaining({ name: "echo" }) }),
+        expect.objectContaining({
+          eventType: "tool.permission",
+          sessionId: payload.sessionId,
+          decision: expect.objectContaining({ status: "allowed" })
+        }),
+        expect.objectContaining({
+          eventType: "tool.completed",
+          sessionId: payload.sessionId,
+          result: expect.objectContaining({ toolName: "echo", ok: true, output: { text: "json payload" } })
+        }),
+        expect.objectContaining({ eventType: "turn.completed", sessionId: payload.sessionId })
+      ])
+    );
+  });
+
+  it("streams top-level run JSONL events and terminal result", async () => {
+    const io = createTestIO();
+
+    const exitCode = await runCli(["run", "--stream-json", "echo:", "jsonl"], io);
+    const lines = io.stdoutText().trim().split("\n").map((line) => JSON.parse(line));
+
+    expect(exitCode).toBe(0);
+    expect(io.stderrText()).toBe("");
+    expect(lines.map((line) => line.eventType)).toEqual([
+      "user.message",
+      "tool.started",
+      "tool.permission",
+      "tool.completed",
+      "assistant.delta",
+      "assistant.completed",
+      "turn.completed",
+      "run.result"
+    ]);
+    expect(lines.at(0)).toMatchObject({ schemaVersion: 1, command: "run", eventType: "user.message" });
+    expect(lines.at(-1)).toMatchObject({
+      schemaVersion: 1,
+      command: "run",
+      eventType: "run.result",
+      success: true,
+      finalResponse: 'Tool result: {"text":"jsonl"}',
+      error: null
+    });
+    expect(lines.every((line) => line.sessionId === lines[0].sessionId && line.threadId === lines[0].threadId)).toBe(true);
+  });
+
+  it("prints structured JSON errors for top-level run failures", async () => {
+    const io = createTestIO("", "D:/workspace", undefined, {
+      TOKENDANCE_PROVIDER: "openai-responses",
+      TOKENDANCE_MODEL: "gpt-test"
+    });
+
+    const exitCode = await runCli(["run", "--json", "hello"], io);
+    const payload = JSON.parse(io.stdoutText());
+
+    expect(exitCode).toBe(1);
+    expect(io.stderrText()).toBe("");
+    expect(payload).toMatchObject({
+      schemaVersion: 1,
+      command: "run",
+      success: false,
+      finalResponse: "",
+      events: [],
+      error: {
+        name: "Error",
+        message: "OPENAI_API_KEY is not configured"
+      }
+    });
+    expect(payload.threadId).toBe(payload.sessionId);
+    expect(payload.sessionId).toEqual(expect.any(String));
   });
 
   it("renders compact summaries for successful tool results", async () => {

@@ -28,12 +28,14 @@ tokendance config --json
 tokendance config validate --json
 tokendance config set provider openai-chat-completions model <model-name> permission-mode safe
 tokendance config set --json provider openai-chat-completions model <model-name> permission-mode safe
+tokendance run --json "summarize this repository"
+tokendance run --stream-json "echo: smoke"
 tokendance quality --json
 ```
 
 `tokendance config --json` prints the same structured payload as the SDK config facade for scripts and AgentHub shells. `tokendance config validate` checks current provider readiness without printing secrets and returns non-zero when required env/model values are missing. `tokendance config set` writes only safe JSON config fields (`provider`, `model`, `permissionMode`) and refuses API keys, tokens, and other secret-like fields; `--json` also returns `scope` and `savedPath`. Put provider keys in environment variables or the global `~/.tokendance/.env` instead.
 
-`tokendance doctor` accepts only text output or `--json`; unknown flags return usage before diagnostics run. `tokendance quality --json [command]` returns the quality gate result as `{ passed, result: { stdout, stderr, exitCode } }` for scripts, while `tokendance quality [command]` keeps the human-readable output.
+`tokendance doctor` accepts only text output or `--json`; unknown flags return usage before diagnostics run. `tokendance run --json <prompt>` returns one `{ schemaVersion, command, threadId, sessionId, success, finalResponse, events, error }` payload. `tokendance run --stream-json <prompt>` writes runtime events as JSONL and ends with a `run.result` line carrying `success`, `finalResponse`, and structured `error`; plain `tokendance run <prompt>` keeps the scrollback text renderer. `tokendance quality --json [command]` returns the quality gate result as `{ passed, result: { stdout, stderr, exitCode } }` for scripts, while `tokendance quality [command]` keeps the human-readable output.
 
 Interactive turns use a scrollback-first renderer instead of a full-screen TUI. Tool lifecycle, permission, success, error, and token usage lines keep stable plain-text badges such as `[tool]`, `[permission]`, `[done]`, `[error]`, and `[usage]`; ANSI color only highlights those same tokens when color is enabled, so `NO_COLOR` and test captures remain deterministic. Tool events include compact command/path/output summaries, text output is collapsed to one scrollback line with character and line counts, and failures render as small reason/evidence blocks for copy-paste debugging.
 
@@ -47,7 +49,6 @@ Help output stays command-palette inspired but plain: the header is a compact AS
 
 The CLI is usable, but the next hardening lane is explicit:
 
-- `tokendance run --json` and `tokendance run --stream-json` for scripts and AgentHub shells;
 - slash dispatch driven by `SLASH_COMMAND_METADATA`, including aliases and unknown-command suggestions;
 - compact width-aware summaries for long paths and session lists;
 - `--color auto|always|never` while preserving `NO_COLOR`.

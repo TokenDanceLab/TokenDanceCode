@@ -47,7 +47,7 @@ Latest known local evidence, to be refreshed immediately before publish:
 - `pnpm verify` passed inside that gate with TypeScript build and Vitest `26` files / `301` tests passing.
 - `pnpm pack:smoke` installed real packed core, SDK, and CLI tarballs into a temporary npm project, imported the packed SDK AgentHub consumer fixture, and ran a mock AgentHub turn.
 - `pnpm registry:next:check` reported npm `E404` for core, SDK, and CLI.
-- `pnpm release:publish:check` is the final local preflight before a human publish: it requires a clean worktree, requires `HEAD` to match local and remote `release/npm-first`, reruns `pnpm registry:next:check`, and reruns `pnpm release:next:check`.
+- `pnpm release:publish:check` is the final local preflight before a human publish: it requires a clean worktree, requires `HEAD` to match local and remote `release/npm-first`, reruns registry/contract/verify/build/pack gates, stages reviewed tarballs under `.tmp/release-publish/<version>-<commit>`, smoke-tests those exact tarballs, prints SHA-256 hashes, and prints explicit publish commands with `--registry https://registry.npmjs.org/`.
 - `git diff --check` passed after README/docs cleanup.
 - The tarball smoke privacy scan follows pnpm scoped-package symlinks, fails if it scans zero readable package files, and checks common provider, npm, GitHub token, local path, and private-key patterns.
 
@@ -64,13 +64,13 @@ Before publishing:
 3. Run `pnpm registry:next:check`; `E404` is allowed for first publish, but the current candidate version must not already exist.
 4. Run `pnpm release:publish:check` on a clean worktree.
 5. Review packed contents from `pnpm pack:dry-run`.
-6. Create publish tarballs with `pnpm pack --pack-destination` and review each tarball path.
+6. Publish only the staged tarball paths printed by `pnpm release:publish:check`; verify their SHA-256 hashes before publishing.
 7. Release owner runs the private publish checklist from the operator secret store.
 
 Public command shape:
 
 ```powershell
-npm publish "<tarballPath>" --access public --tag next
+npm publish "<tarballPath>" --access public --tag next --registry https://registry.npmjs.org/
 ```
 
 Run the publish command once per reviewed tarball. Keep token-bearing npm configuration outside this repository and out of logs.

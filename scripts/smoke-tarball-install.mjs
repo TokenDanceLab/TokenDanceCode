@@ -12,7 +12,7 @@ const packages = [
 ];
 
 const tempRoot = await mkdtemp(join(tmpdir(), "tokendance-code-pack-smoke-"));
-const tarballDir = join(tempRoot, "tarballs");
+const tarballDir = process.env.TOKENDANCE_PACK_TARBALL_DIR ? resolve(process.env.TOKENDANCE_PACK_TARBALL_DIR) : join(tempRoot, "tarballs");
 const smokeEnv = {
   ...process.env,
   HOME: tempRoot,
@@ -29,11 +29,15 @@ const qualityJsonLabel = "quality --json";
 const forbiddenPackagePatterns = [
   { label: "Windows user path", pattern: /C:[\\/]+Users[\\/]+/i },
   { label: "local workspace path", pattern: /D:[\\/]+Code[\\/]+/i },
+  { label: "UNC path", pattern: /\\\\[A-Za-z0-9._$-]+\\[^\s"'`]+/ },
+  { label: "POSIX home path", pattern: /\/home\/[A-Za-z0-9._-]+\// },
+  { label: "POSIX user path", pattern: /\/Users\/[A-Za-z0-9._-]+\// },
   { label: "OpenAI-style API key", pattern: /sk-[A-Za-z0-9_-]{20,}/ },
   { label: "GitHub token", pattern: /(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}/ },
   { label: "npm token", pattern: /npm_[A-Za-z0-9]{20,}/ },
   { label: "npm auth token config", pattern: /_authToken\s*=/i },
   { label: "provider API key assignment", pattern: /\b(?:OPENAI_API_KEY|ANTHROPIC_API_KEY|TOKENDANCE_GATEWAY_API_KEY)\s*=\s*(?!<[^>\r\n]+>|your-|""|'')\S+/i },
+  { label: "bearer token assignment", pattern: /\b(?:TOKEN|AUTH_TOKEN|BEARER_TOKEN|API_TOKEN|NPM_TOKEN|GITHUB_TOKEN)\s*=\s*(?!<[^>\r\n]+>|your-|""|'')\S+/i },
   { label: "private key material", pattern: /BEGIN (?:RSA|OPENSSH|EC|PRIVATE) KEY/ }
 ];
 
@@ -102,6 +106,9 @@ try {
   }
 
   console.log(`Tarball npm install smoke passed in ${tempRoot}`);
+  if (process.env.TOKENDANCE_PACK_TARBALL_DIR) {
+    console.log(`Reviewed publish tarballs are staged in ${tarballDir}`);
+  }
 } finally {
   if (process.env.TOKENDANCE_KEEP_PACK_SMOKE !== "1") {
     await rm(tempRoot, { recursive: true, force: true });

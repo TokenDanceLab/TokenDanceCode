@@ -55,6 +55,7 @@ describe("package metadata", () => {
     expect(smokeScript).toContain("provider-ready");
     expect(smokeScript).toContain("assertNoForbiddenPackageContent");
     expect(smokeScript).toContain("assertPackedManifest");
+    expect(smokeScript).toContain("TOKENDANCE_PACK_TARBALL_DIR");
     expect(smokeScript).toContain("workspace:");
     expect(smokeScript).toContain("bin.tokendance");
     expect(smokeScript).toContain("assertNpmInstallSmoke");
@@ -64,6 +65,9 @@ describe("package metadata", () => {
     expect(smokeScript).toContain("sk-[A-Za-z0-9_-]{20,}");
     expect(smokeScript).toContain("github_pat_");
     expect(smokeScript).toContain("npm_[A-Za-z0-9]{20,}");
+    expect(smokeScript).toContain("POSIX home path");
+    expect(smokeScript).toContain("UNC path");
+    expect(smokeScript).toContain("bearer token assignment");
     expect(smokeScript).toContain("TOKENDANCE_GATEWAY_API_KEY");
     expect(smokeScript).toContain("isSymbolicLink");
     expect(smokeScript).toContain("no scannable package files found");
@@ -87,11 +91,17 @@ describe("package metadata", () => {
 
     const publishReadinessScript = await readText("scripts/check-release-publish-readiness.mjs");
     expect(publishReadinessScript).toContain("release/npm-first");
+    expect(publishReadinessScript).toContain(".tmp");
+    expect(publishReadinessScript).toContain("release-publish");
+    expect(publishReadinessScript).toContain("createHash");
     expect(publishReadinessScript).toContain("assertCleanWorktree");
     expect(publishReadinessScript).toContain("assertReleaseBranchPointer");
     expect(publishReadinessScript).toContain("registry:next:check");
-    expect(publishReadinessScript).toContain("release:next:check");
-    expect(publishReadinessScript).not.toContain("npm publish");
+    expect(publishReadinessScript).toContain("TOKENDANCE_PACK_TARBALL_DIR");
+    expect(publishReadinessScript).toContain("sha256");
+    expect(publishReadinessScript).toContain("const registry = \"https://registry.npmjs.org/\"");
+    expect(publishReadinessScript).toContain("npm publish");
+    expect(publishReadinessScript).not.toContain("run(\"npm\", [\"publish\"");
 
     const gatewaySmokeScript = await readText("scripts/smoke-real-gateway.mjs");
     expect(gatewaySmokeScript).toContain("TOKENDANCE_RUN_REAL_PROVIDER_SMOKE");
@@ -298,7 +308,7 @@ describe("package metadata", () => {
     expect(releaseReadiness).toContain("Publish Boundary");
     expect(releaseReadiness).toContain("Post-Publish Smoke");
     expect(releaseReadiness).toContain("pnpm registry:next:check");
-    expect(releaseReadiness).toContain("npm publish \"<tarballPath>\" --access public --tag next");
+    expect(releaseReadiness).toContain("npm publish \"<tarballPath>\" --access public --tag next --registry https://registry.npmjs.org/");
     expect(releaseReadiness).toContain("Do not run `npm publish` from package source directories");
     expect(releaseReadiness).not.toContain("Run it from each package directory");
     expect(releaseReadiness).not.toContain("--userconfig");

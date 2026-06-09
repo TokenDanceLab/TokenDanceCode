@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -114,6 +114,40 @@ describe("AgentRuntime", () => {
       { role: "user", content: "inspect workspace" },
       { role: "assistant", content: "context seen" }
     ]);
+  });
+
+  it("passes layered parent instructions to the provider when cwd is nested", async () => {
+    const root = await mkdtemp(join(tmpdir(), "tdcode-core-context-"));
+    const nested = join(root, "packages", "app");
+    await mkdir(join(root, ".git"), { recursive: true });
+    await mkdir(nested, { recursive: true });
+    await writeFile(join(root, "AGENTS.md"), "Use workspace parent rules.\n", "utf8");
+    await writeFile(join(nested, "AGENTS.md"), "Use nested package rules.\n", "utf8");
+    const seenMessages: TDMessage[][] = [];
+    const provider: ModelProvider = {
+      async createTurn(request) {
+        seenMessages.push(request.session.messages);
+        return {
+          assistantMessage: "context seen",
+          toolCalls: []
+        };
+      }
+    };
+    const runtime = new AgentRuntime({
+      cwd: nested,
+      provider,
+      store: new FileTranscriptStore({ rootDir: root })
+    });
+
+    await runtime.initialize();
+    for await (const _event of runtime.runTurn("inspect nested workspace")) {
+      // Drain the event stream.
+    }
+
+    const systemContent = seenMessages[0]?.[0]?.content ?? "";
+    expect(systemContent).toContain("Use workspace parent rules.");
+    expect(systemContent).toContain("Use nested package rules.");
+    expect(systemContent.indexOf("Use workspace parent rules.")).toBeLessThan(systemContent.indexOf("Use nested package rules."));
   });
 
   it("emits a failed result for unknown tool calls", async () => {
